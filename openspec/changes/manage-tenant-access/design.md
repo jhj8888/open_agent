@@ -27,3 +27,9 @@ SpaceAuthAspect 已进行成员/权限校验；SkillFileService 使用 uid/space
 ## Migration Plan
 
 先增加租户/环境字段和映射表，回填并验证数据计数；影子校验差异后强制授权。回滚只允许回到仍执行隔离校验的版本；禁止恢复越权路径。
+
+## Implementation Notes
+
+首个增量使用 V1.49 新增 `oa_tenant` 等表，采用 `space-<id>` 与 `user-<SHA256(uid)>` 稳定映射。存量成员仅回填测试环境；生产管理员由平台管理员显式登记，平台管理员不自动获得租户业务数据权限。治理 API 的授权、条件更新与审计在同一数据库事务内。原 SpaceAuthAspect/资源服务入口的收敛继续由任务 1.2/3.1 跟踪，不把新 API 的授权当作旧入口已经全部覆盖的证据。
+
+操作与回滚说明见 `docs/platform/tenant-migration.md`；测试边界和未验收项见 `docs/platform/implementation-progress.md`。

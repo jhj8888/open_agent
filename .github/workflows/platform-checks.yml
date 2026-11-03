@@ -1,0 +1,50 @@
+name: Platform checks
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: platform-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  java-access:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Compile all console modules and exercise tenant authorization
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest' \
+            -Dsurefire.failIfNoSpecifiedTests=false test
+  mysql-migration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MYSQL_TEST_IMAGE: mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: docker pull "$MYSQL_TEST_IMAGE"
+      - name: Verify empty and existing databases in an isolated container
+        run: python3 console/backend/tests/test_tenant_migration.py
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: console/frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: console/frontend/package-lock.json
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+      - run: npm run type-check
+      - run: npm run build

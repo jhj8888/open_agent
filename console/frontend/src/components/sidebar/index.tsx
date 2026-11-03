@@ -1,4 +1,5 @@
 import { ReactElement, useState, useEffect } from 'react';
+import { NavLink } from 'react-router-dom';
 import collapseGrayIcon from '@/assets/imgs/sidebar/collapseGray.svg';
 import SidebarLogo from './sidebar-logo';
 import CreateButton from './create-button';
@@ -120,6 +121,15 @@ const Sidebar = (): ReactElement => {
       <div className="flex flex-col h-full">
         <SidebarLogo isCollapsed={isCollapsed} />
         <CreateButton isCollapsed={isCollapsed} />
+        <NavLink
+          to="/platform/tenants"
+          title="租户管理"
+          className={({ isActive }) =>
+            `my-2 rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-[#edeafd] text-[#6356EA]' : 'text-[#555] hover:bg-[#f5f5f5]'}`
+          }
+        >
+          {isCollapsed ? '租户' : '租户与环境管理'}
+        </NavLink>
         <MenuList
           isCollapsed={isCollapsed}
           mixedChatList={mixedChatList}

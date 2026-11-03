@@ -6,6 +6,7 @@ import ConfigPage from '@/pages/config-page';
 
 const CallbackPage = lazy(() => import('@/pages/callback'));
 const HomePage = lazy(() => import('@/pages/home-page'));
+const PlatformTenants = lazy(() => import('@/pages/platform/tenants'));
 const StorePlugin = lazy(() => import('@/pages/plugin-store'));
 const ToolSquareDetail = lazy(() => import('@/pages/plugin-store/detail'));
 const OfficialModel = lazy(
@@ -46,6 +47,14 @@ const routes = [
       </Suspense>
     ),
     children: [
+      {
+        path: '/platform/tenants',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <PlatformTenants />
+          </Suspense>
+        ),
+      },
       {
         index: true,
         element: <Navigate to="/home" />,
