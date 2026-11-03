@@ -8,6 +8,7 @@
 
 - [范围与边界](docs/platform/scope.md)
 - [Astron 源码评估](docs/platform/baseline-assessment.md)
+- [DeepAgents 与 OpenCode 主引擎评估](docs/platform/agent-runtime-evaluation.md)
 - [架构与实施顺序](docs/platform/roadmap.md)
 - [OpenSpec 开发方法](docs/platform/development.md)
 - [上游来源与首次导入说明](docs/platform/upstream.md)
