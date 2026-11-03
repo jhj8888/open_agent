@@ -46,7 +46,8 @@ async def create_provider_model(
     http_client: httpx.AsyncClient,
     parameters: dict[str, Any] | None = None,
     timeout: float | None = None,
-    max_retries: int = 2,
+    max_retries: int = 0,
+    stream_usage: bool = True,
 ) -> ModelHandle:
     """Configure SDK adapters rather than normalizing provider HTTP/SSE by hand."""
     from langchain_anthropic import ChatAnthropic
@@ -56,6 +57,15 @@ async def create_provider_model(
     try:
         normalized = provider.strip().lower() or "openai"
         timeout = timeout or int(os.getenv("DEFAULT_LLM_TIMEOUT", "90"))
+        if not 0 < timeout <= 1800 or not 0 <= max_retries <= 2:
+            raise ValueError("Invalid model timeout or retry policy")
+        allowed_parameters = {
+            "temperature", "max_tokens", "top_p", "top_k", "stop",
+            "frequency_penalty", "presence_penalty", "seed", "response_format",
+            "reasoning_effort", "thinking", "thinking_budget", "include_thoughts",
+        }
+        if (parameters or {}).keys() - allowed_parameters:
+            raise ValueError("Unsupported generation parameter; connection and credentials are platform-owned")
         max_tokens = os.getenv("DEFAULT_LLM_MAX_TOKEN")
         options: dict[str, Any] = {
             "model": model_name,
@@ -116,7 +126,7 @@ async def create_provider_model(
                 base_url=endpoint or None,
                 http_async_client=http_client,
                 use_responses_api=False,
-                stream_usage=True,
+                stream_usage=stream_usage,
             )
         else:
             raise ValueError("Unsupported Agent model provider")

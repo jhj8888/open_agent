@@ -252,6 +252,7 @@ docker-compose.override.yml
 docs/superpowers/
 
 # Local tooling and credential files
+/pytest-cache-files-*/
 .env.*.local
 *.p12
 *.pfx

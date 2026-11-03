@@ -29,6 +29,13 @@ public class PlatformExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
+    // Default Spring validation logging includes rejected field values, which can contain keys.
+    @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
+    public ResponseEntity<ApiResult<Void>> invalidBody() {
+        return error(HttpStatus.BAD_REQUEST, "Invalid request fields");
+    }
+
     private ResponseEntity<ApiResult<Void>> error(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(new ApiResult<>(status.value(), message, null, System.currentTimeMillis()));
     }

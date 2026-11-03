@@ -8,7 +8,6 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing
 from typing import Any, cast
 
-import httpx
 from common.otlp.trace.langfuse import (
     LangfuseConfig,
     langfuse_observation_attributes,
@@ -22,7 +21,8 @@ from opentelemetry.trace import Status, StatusCode
 
 from agent.api.schemas.llm_completion_inputs import LLMCompletionInputs
 from agent.domain.models.providers import ModelHandle, create_provider_model
-from agent.service.anthropic_completion import anthropic_completion
+from agent.domain.models.endpoint_policy import EndpointPolicy, model_http_client
+from agent.domain.models.failures import model_failure
 
 _END = object()
 
@@ -104,13 +104,11 @@ class LLMCompletion:
         self, queue: asyncio.Queue[object], generation: trace.Span
     ) -> None:
         config = self.inputs.model_config_inputs
-        if config.provider == "anthropic":
-            await self._consume_chunks(
-                anthropic_completion(self.inputs), queue, generation
-            )
-            return
+        if config.provider != "openai":
+            raise ValueError("Private platform model connections require the OpenAI-compatible protocol")
+        EndpointPolicy.from_env().validate_url(config.api)
         handle: ModelHandle | None = None
-        client = httpx.AsyncClient(timeout=self.inputs.timeout)
+        client = model_http_client(timeout=self.inputs.timeout)
         try:
             handle = await create_provider_model(
                 model_name=config.domain,
@@ -252,7 +250,8 @@ class LLMCompletion:
                     + json.dumps(
                         {
                             "code": 1,
-                            "message": "Model completion failed",
+                            "message": model_failure(exc).message,
+                            "error_code": model_failure(exc).code,
                             "id": self.request_id,
                         }
                     )

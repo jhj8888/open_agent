@@ -1,6 +1,4 @@
 import json
-import os
-import ssl
 from typing import Union, cast
 
 import httpx
@@ -9,6 +7,7 @@ from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
 from agent.domain.models.providers import ModelHandle, create_provider_model
+from agent.domain.models.endpoint_policy import EndpointPolicy, model_http_client
 from agent.infra.app_auth import MaasAuth
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
@@ -23,23 +22,7 @@ class BaseApiBuilder(BaseModel):
     span: Span
 
     def _create_http_client(self, sp: Span) -> httpx.AsyncClient:
-        ssl_context = ssl.create_default_context()
-        skip_ssl = os.getenv("SKIP_SSL_VERIFY", "false").lower()
-        if skip_ssl == "true":
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            sp.add_info_event("鈿狅笍  SSL verification disabled for LLM requests")
-
-        return httpx.AsyncClient(
-            verify=ssl_context,
-            timeout=httpx.Timeout(
-                connect=60.0,
-                read=300.0,
-                write=30.0,
-                pool=10.0,
-            ),
-            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-        )
+        return model_http_client()
 
     async def build_plugins(
         self,
@@ -140,7 +123,12 @@ class BaseApiBuilder(BaseModel):
         api_key: str = "",
     ) -> ModelHandle:
         with self.span.start("BuildModel") as sp:
-            sk = api_key or await self.query_maas_sk(app_id, model_name)
+            if provider.strip().lower() not in {"", "openai"}:
+                raise ValueError("Private platform model connections require the OpenAI-compatible protocol")
+            EndpointPolicy.from_env().validate_url(base_url)
+            if not api_key:
+                raise ValueError("A scoped model credential is required; public MaaS fallback is disabled")
+            sk = api_key
             sp.add_info_events(
                 {
                     "model": model_name,

@@ -8,6 +8,7 @@ import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
 import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.springai.ChatModelFactory.AgentModel;
+import com.iflytek.astron.console.hub.platform.model.ModelFailure;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -33,6 +34,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.time.Duration;
+import reactor.core.Disposables;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Runs a standalone-agent chat turn on Spring AI. Tools (web_search / current_time / MCP) are
@@ -94,6 +100,7 @@ public class SpringAiAgentChatService {
             OpenAiChatOptions options = OpenAiChatOptions.builder()
                     .model(agentModel.modelId())
                     .toolCallbacks(tools)
+                    .streamUsage(true)
                     .build();
             Prompt prompt = new Prompt(toMessages(task.getMessages()), options);
 
@@ -102,9 +109,27 @@ public class SpringAiAgentChatService {
             // chunks below are flushed incrementally. Blocking (blockLast) buffers every SSE event
             // until the controller returns, which breaks streaming.
             AtomicInteger chunkCount = new AtomicInteger();
-            agentModel.chatModel()
+            AtomicBoolean terminal = new AtomicBoolean();
+            AtomicBoolean cancelled = new AtomicBoolean();
+            var subscription = Disposables.swap();
+            Runnable disconnect = () -> {
+                if (terminal.compareAndSet(false, true)) {
+                    cancelled.set(true);
+                    subscription.dispose();
+                    log.info("Agent stream cancelled, streamId={}", streamId);
+                }
+            };
+            emitter.onCompletion(disconnect);
+            emitter.onTimeout(disconnect);
+            emitter.onError(error -> disconnect.run());
+            var cancellation = Flux.interval(Duration.ofMillis(100))
+                    .filter(tick -> SseEmitterUtil.isStreamStopped(streamId)).next()
+                    .doOnNext(tick -> cancelled.set(true));
+            var deadline = Mono.delay(Duration.ofSeconds(180))
+                    .flatMap(tick -> Mono.error(new java.util.concurrent.TimeoutException("Model total timeout")));
+            subscription.update(agentModel.chatModel()
                     .stream(prompt)
-                    .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
+                    .takeUntilOther(Mono.firstWithSignal(cancellation, deadline))
                     .subscribe(
                             resp -> {
                                 int n = chunkCount.incrementAndGet();
@@ -116,8 +141,18 @@ public class SpringAiAgentChatService {
                                 }
                                 emitChunk(resp, bridge);
                             },
-                            error -> handleStreamError(error, emitter, streamId, task, bridge),
+                            error -> {
+                                terminal.set(true);
+                                handleStreamError(error, emitter, streamId, task, bridge);
+                            },
                             () -> {
+                                terminal.set(true);
+                                if (cancelled.get()) {
+                                    log.info("Agent stream cancelled, streamId={}", streamId);
+                                    persist(task, bridge);
+                                    emitter.complete();
+                                    return;
+                                }
                                 log.info("agent stream complete, streamId={}, totalChunks={}", streamId,
                                         chunkCount.get());
                                 bridge.emitToolTrace(context.drainTrace());
@@ -126,13 +161,13 @@ public class SpringAiAgentChatService {
                                         task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
                                 bridge.complete(task.getChatId(), requestId);
                                 scheduleMemoryWrite(task, bridge.getFinalResult().toString());
-                            });
+                            }));
         } catch (Exception e) {
             log.error(
                     "Spring AI agent chat setup failed, streamId={}, errorType={}",
                     streamId,
                     e.getClass().getSimpleName());
-            SseEmitterUtil.completeWithError(emitter, safeFailureMessage(streamId));
+            SseEmitterUtil.completeWithError(emitter, safeFailureMessage(streamId, e));
         }
     }
 
@@ -179,11 +214,13 @@ public class SpringAiAgentChatService {
                     streamId,
                     persistError.getClass().getSimpleName());
         }
-        SseEmitterUtil.completeWithError(emitter, safeFailureMessage(streamId));
+        SseEmitterUtil.completeWithError(emitter, safeFailureMessage(streamId, e));
     }
 
-    private String safeFailureMessage(String streamId) {
-        return SAFE_CHAT_FAILURE + " (streamId: " + StringUtils.defaultString(streamId, "unknown") + ")";
+    private String safeFailureMessage(String streamId, Throwable error) {
+        var failure = ModelFailure.from(error);
+        return SAFE_CHAT_FAILURE + " [" + failure.code() + "] " + failure.message()
+                + " (streamId: " + StringUtils.defaultString(streamId, "unknown") + ")";
     }
 
     private int utf8Length(String value) {

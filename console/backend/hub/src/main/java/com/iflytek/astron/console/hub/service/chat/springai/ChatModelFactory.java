@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.util.Map;
+import com.iflytek.astron.console.hub.platform.model.ModelEndpointPolicy;
+import com.iflytek.astron.console.hub.platform.model.ModelHttpClients;
+import org.springframework.retry.support.RetryTemplate;
 
 /**
  * Builds {@link OpenAiChatModel} instances per request from a bot's model configuration. Custom
@@ -34,6 +37,7 @@ public class ChatModelFactory {
             "spark-lite", "lite");
 
     private final PlatformAccountService platformAccountService;
+    private final ModelEndpointPolicy endpointPolicy;
 
     public record AgentModel(OpenAiChatModel chatModel, String modelId) {}
 
@@ -45,13 +49,16 @@ public class ChatModelFactory {
 
     /** Spark via the OpenAI-compatible endpoint (decision A1). */
     public AgentModel forSparkModel(String sparkModelName) {
+        endpointPolicy.validate(SPARK_OPENAI_COMPLETIONS_URL);
         PlatformAccountConfigDto.IflytekOpenPlatformConfig config = platformAccountService.requireIflytekOpenPlatform();
         String modelId = sparkModelToOpenAiModelId(sparkModelName);
         return new AgentModel(build(SPARK_OPENAI_COMPLETIONS_URL, config.getSparkApiPassword(), modelId), modelId);
     }
 
     private OpenAiChatModel build(String fullUrl, String apiKey, String model) {
-        URI uri = URI.create(fullUrl);
+        var approved = endpointPolicy.resolve(fullUrl);
+        URI uri = approved.uri();
+        var clients = ModelHttpClients.create(approved, 10, 90, System.getenv("MODEL_CA_FILE"));
         String baseUrl = uri.getScheme() + "://" + uri.getAuthority();
         String completionsPath = StringUtils.defaultIfBlank(uri.getRawPath(), "/v1/chat/completions");
         if (StringUtils.isNotBlank(uri.getRawQuery())) {
@@ -61,11 +68,14 @@ public class ChatModelFactory {
                 .baseUrl(baseUrl)
                 .completionsPath(completionsPath)
                 .apiKey(apiKey)
+                .restClientBuilder(clients.rest())
+                .webClientBuilder(clients.web())
                 .build();
-        OpenAiChatOptions options = OpenAiChatOptions.builder().model(model).build();
+        OpenAiChatOptions options = OpenAiChatOptions.builder().model(model).streamUsage(true).build();
         return OpenAiChatModel.builder()
                 .openAiApi(api)
                 .defaultOptions(options)
+                .retryTemplate(RetryTemplate.builder().maxAttempts(1).build())
                 .toolCallingManager(new BlankToolCallFilteringToolCallingManager(ToolCallingManager.builder().build()))
                 .build();
     }

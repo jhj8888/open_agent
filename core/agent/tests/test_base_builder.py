@@ -8,8 +8,6 @@ from urllib.parse import urlparse
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from agent.domain.models.providers import ModelHandle
 from agent.infra.app_auth import MaasAuth
@@ -40,11 +38,12 @@ class _DummySidGen:
 
 
 @pytest.fixture(autouse=True)
-def _setup_test_environment() -> None:
+def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically inject environment fixes for all tests.
 
     - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
     """
+    monkeypatch.setenv("MODEL_ALLOWED_ORIGINS", '["https://api.test.com"]')
     # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
@@ -219,49 +218,17 @@ class TestBaseApiBuilder:
         await model.aclose()
 
     @pytest.mark.asyncio
-    async def test_create_anthropic_model(self, builder: BaseApiBuilder) -> None:
-        model = await builder.create_model(
-            app_id="test_app",
-            model_name="claude-3-5-haiku-latest",
-            base_url="https://api.anthropic.com",
-            provider="anthropic",
-            api_key="provided_key",
-        )
-
-        assert isinstance(model.model, ChatAnthropic)
-        assert model.model.anthropic_api_url == "https://api.anthropic.com"
-        await model.aclose()
+    @pytest.mark.parametrize("provider", ["anthropic", "google"])
+    async def test_private_platform_rejects_protocol_without_safe_transport(self, builder: BaseApiBuilder, provider: str) -> None:
+        with pytest.raises(ValueError, match="OpenAI-compatible"):
+            await builder.create_model(app_id="test_app", model_name="model", base_url="https://api.test.com", provider=provider, api_key="provided_key")
 
     @pytest.mark.asyncio
-    async def test_create_google_model(self, builder: BaseApiBuilder) -> None:
-        model = await builder.create_model(
-            app_id="test_app",
-            model_name="gemini-2.5-flash",
-            base_url="https://generativelanguage.googleapis.com",
-            provider="google",
-            api_key="provided_key",
-        )
-
-        assert isinstance(model.model, ChatGoogleGenerativeAI)
-        assert model.model.base_url == "https://generativelanguage.googleapis.com"
-        await model.aclose()
-
-    @pytest.mark.asyncio
-    async def test_create_model_without_api_key(self, builder: BaseApiBuilder) -> None:
-        """Test creating model (no API key, needs to query)"""
-        mock_sk = "queried_key:queried_secret"
-
-        # Patching instance method triggers Pydantic __setattr__ restrictions, here patch class method
-        with patch.object(BaseApiBuilder, "query_maas_sk", return_value=mock_sk):
-            model = await builder.create_model(
-                app_id="test_app",
-                model_name="test_model",
-                base_url="https://api.test.com",
-                api_key="",
-            )
-
-            assert isinstance(model, ModelHandle)
-        await model.aclose()
+    async def test_missing_credential_never_calls_public_maas(self, builder: BaseApiBuilder) -> None:
+        with patch.object(BaseApiBuilder, "query_maas_sk", new_callable=AsyncMock) as fallback:
+            with pytest.raises(ValueError, match="fallback is disabled"):
+                await builder.create_model(app_id="test_app", model_name="model", base_url="https://api.test.com", api_key="")
+            fallback.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_model_normalize_base_url_chat_completions(
@@ -319,10 +286,10 @@ class TestBaseApiBuilder:
         # Verify HTTP client is configured with SSL verification
 
     @pytest.mark.asyncio
-    async def test_create_model_ssl_verify_disabled(
+    async def test_legacy_skip_ssl_flag_cannot_disable_private_model_verification(
         self, builder: BaseApiBuilder
     ) -> None:
-        """Test creating model (SSL verification disabled)"""
+        """The old global flag cannot override the private platform TLS transport."""
         with patch.dict(os.environ, {"SKIP_SSL_VERIFY": "true"}):
             model = await builder.create_model(
                 app_id="test_app",
@@ -333,4 +300,9 @@ class TestBaseApiBuilder:
 
             assert isinstance(model, ModelHandle)
         await model.aclose()
-        # Verify HTTP client has SSL verification disabled
+        import ssl
+        from agent.domain.models.endpoint_policy import PinnedModelTransport
+        transport = model.http_client._transport
+        assert isinstance(transport, PinnedModelTransport)
+        assert transport.verify.verify_mode == ssl.CERT_REQUIRED
+        assert transport.verify.check_hostname

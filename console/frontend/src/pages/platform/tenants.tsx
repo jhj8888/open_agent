@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ModelConnections from './models';
 import {
   Alert,
   Button,
@@ -366,6 +367,19 @@ function EnvironmentPanel({
     <Tabs
       items={[
         { key: 'quota', label: '环境配额', children: quotaPanel },
+        {
+          key: 'models',
+          label: '模型连接',
+          children: (
+            <ModelConnections
+              key={`${tenant.tenantId}:${environment}`}
+              tenantId={tenant.tenantId}
+              environment={environment}
+              role={role}
+              active={tenant.status === 'active'}
+            />
+          ),
+        },
         ...(administrator
           ? [
               { key: 'members', label: '成员与角色', children: membersPanel },

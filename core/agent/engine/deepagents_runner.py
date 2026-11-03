@@ -44,9 +44,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from agent.api.schemas.agent_response import AgentResponse, ToolExecution
 from agent.api.schemas.llm_message import LLMMessage
 from agent.domain.models.providers import ModelHandle
+from agent.domain.models.failures import ModelFailure, model_failure
 from agent.engine.plugin_tools import build_plugin_tools
 from agent.exceptions.agent_exc import AgentInternalExc
-from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc, llm_plugin_error
+from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc
 from agent.service.plugin.base import BasePlugin
 
 
@@ -58,9 +59,11 @@ class ModelUsage(UsageMetadataCallbackHandler):
     """Track all framework model calls, including context compression failures."""
 
     model_failed: bool = False
+    failure: ModelFailure | None = None
 
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         self.model_failed = True
+        self.failure = model_failure(error)
 
 
 class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
@@ -170,15 +173,8 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
                     handle.provider,
                     type(exc).__name__,
                 )
-                body = getattr(exc, "body", None)
-                if isinstance(body, dict):
-                    error_body = body.get("error", body)
-                    code = (
-                        error_body.get("code") if isinstance(error_body, dict) else None
-                    )
-                    if isinstance(code, (str, int)):
-                        llm_plugin_error(code, "Model request failed")
-                raise PluginExc(CallLlmPluginExc.c, CallLlmPluginExc.m) from None
+                failure = model_failure(exc)
+                raise PluginExc(CallLlmPluginExc.c, f"{failure.code}: {failure.message}") from None
             finally:
                 ended = int(time.time() * 1000)
                 messages = result.result if result is not None else []
@@ -279,8 +275,9 @@ class DeepAgentsRunner(BaseModel):
                         "Deep Agents graph failed; error_type={}", type(exc).__name__
                     )
                     if usage_callback.model_failed:
+                        failure = usage_callback.failure or model_failure(exc)
                         raise PluginExc(
-                            CallLlmPluginExc.c, CallLlmPluginExc.m
+                            CallLlmPluginExc.c, f"{failure.code}: {failure.message}"
                         ) from None
                     raise AgentInternalExc("Agent execution failed") from None
         finally:

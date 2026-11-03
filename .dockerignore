@@ -1,0 +1,16 @@
+.git
+.local
+.env
+.env.*
+**/.env
+**/.env.*
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+pytest-cache-files-*
+**/target
+**/*.credential.xml
+**/*.pem
+**/*.p12
+**/*.pfx

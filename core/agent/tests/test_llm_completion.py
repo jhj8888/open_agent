@@ -98,6 +98,7 @@ def parse_frames(frames: list[str]) -> list[dict[str, Any]]:
 def install_model(
     monkeypatch: pytest.MonkeyPatch, model: ScriptModel
 ) -> list[dict[str, Any]]:
+    monkeypatch.setenv("MODEL_ALLOWED_ORIGINS", '["https://models.example"]')
     calls: list[dict[str, Any]] = []
 
     async def create(**kwargs: Any) -> ModelHandle:

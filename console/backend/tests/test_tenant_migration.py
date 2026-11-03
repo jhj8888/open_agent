@@ -147,6 +147,33 @@ class TenantMigrationTest(unittest.TestCase):
         ):
             self.assertNotEqual(0, self.sql(statement, check=False).returncode, statement)
 
+    def test_scoped_model_migration_and_version_constraints(self):
+        self.seed()
+        self.sql(MIGRATION)
+        self.sql((MIGRATIONS / 'V1.50__add_scoped_model_connections.sql').read_text(encoding='utf-8'))
+        self.assertEqual('0', self.sql('SELECT COUNT(*) FROM oa_model_connection'))
+        self.sql("INSERT INTO oa_model_connection(tenant_id,environment,connection_id,display_name,current_version,created_by) VALUES ('space-10','test','model-a','Internal model',1,'alice')")
+        version = """INSERT INTO oa_model_connection_version(tenant_id,environment,connection_id,version,endpoint,model_name,
+            supports_stream,supports_tools,supports_usage,connect_timeout_seconds,read_timeout_seconds,total_timeout_seconds,
+            credential_ref,credential_key_id,credential_nonce,credential_cipher) VALUES
+            ('space-10','test','model-a',1,'https://llm.internal/v1','model',true,true,true,10,90,180,
+            'credential-a','v1',UNHEX('000000000000000000000000'),UNHEX('aabbccdd'))"""
+        self.sql(version)
+        self.assertNotEqual(0, self.sql(version, check=False).returncode)
+        self.assertEqual('0', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE tenant_id='space-20' AND environment='test' AND connection_id='model-a'"))
+        self.assertEqual('0', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE tenant_id='space-10' AND environment='prod' AND connection_id='model-a'"))
+        for mutation in (
+            "UPDATE oa_model_connection_version SET total_timeout_seconds=5",
+            "UPDATE oa_model_connection_version SET connect_timeout_seconds=0",
+            "UPDATE oa_model_connection_version SET protocol='unknown'",
+            "UPDATE oa_model_connection_version SET environment='prod'",
+            "UPDATE oa_model_connection_version SET tenant_id='space-20'",
+        ):
+            self.assertNotEqual(0, self.sql(mutation, check=False).returncode)
+        self.assertEqual('1', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE revoked=false"))
+        self.sql("UPDATE oa_model_connection_version SET revoked=true WHERE credential_ref='credential-a'")
+        self.assertEqual('0', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE revoked=false"))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

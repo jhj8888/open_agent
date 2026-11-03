@@ -15,12 +15,17 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install the shared offline model fixture
+        run: |
+          python3 -m venv .contract-venv
+          .contract-venv/bin/pip install fastapi==0.115.12 uvicorn==0.34.0 pydantic==2.14.1
+          echo "MODEL_CONTRACT_PYTHON=$PWD/.contract-venv/bin/python" >> "$GITHUB_ENV"
       - name: Compile all console modules and exercise tenant authorization
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04
@@ -48,3 +53,22 @@ jobs:
       - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
       - run: npm run type-check
       - run: npm run build
+  python-models:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: core
+      LANGSMITH_TRACING: 'false'
+      LANGCHAIN_TRACING_V2: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install the pinned agent environment
+        run: |
+          python3 -m venv .ci-venv
+          .ci-venv/bin/pip install uv==0.10.9
+          .ci-venv/bin/uv sync --directory core/agent --frozen --python 3.12
+      - name: Check both the adapter contract and existing DeepAgents behavior
+        run: >-
+          core/agent/.venv/bin/python -m pytest tests/model_contract
+          core/agent/tests/test_base_builder.py core/agent/tests/test_llm_completion.py
+          core/agent/tests/test_deepagents_harness.py -q -p no:cacheprovider
