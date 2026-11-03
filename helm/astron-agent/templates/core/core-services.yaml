@@ -1,0 +1,425 @@
+{{- $services := list "coreTenant" "coreDatabase" "coreRpa" "coreLink" "coreAitools" "coreAgent" "coreKnowledge" "coreWorkflow" }}
+{{- $langfuse := default (dict) $.Values.langfuse }}
+{{- $langfuseSecret := default (dict) (get $langfuse "existingSecret") }}
+{{- $langfuseEnabled := default false (get $langfuse "enabled") }}
+{{- $langfuseHost := default "https://cloud.langfuse.com" (get $langfuse "host") }}
+{{- $langfuseCapture := default false (get $langfuse "captureInputOutput") }}
+{{- $langfuseMaxLength := default 8192 (get $langfuse "maxAttributeLength") }}
+{{- $langfuseEnvironment := default "default" (get $langfuse "environment") }}
+{{- $langfuseRelease := default "" (get $langfuse "release") }}
+{{- $langfusePublicKeyKey := default "public-key" (get $langfuseSecret "publicKeyKey") }}
+{{- $langfuseSecretKeyKey := default "secret-key" (get $langfuseSecret "secretKeyKey") }}
+{{- $langfuseTraceContextSecretKey := default "trace-context-secret" (get $langfuseSecret "traceContextSecretKey") }}
+{{- $workflowAuthSecretName := include "astron-agent.workflowInternalAuthSecretName" $ }}
+{{- $workflowAuthSecretKey := include "astron-agent.workflowInternalAuthSecretKey" $ }}
+{{- $tenantBootstrapSecretName := include "astron-agent.tenantBootstrapSecretName" $ }}
+{{- $tenantBootstrapKeyKey := include "astron-agent.tenantBootstrapSecretKeyKey" $ }}
+{{- $tenantBootstrapSecretKey := include "astron-agent.tenantBootstrapSecretSecretKey" $ }}
+{{- range $serviceName := $services }}
+{{- $serviceConfig := index $.Values $serviceName }}
+{{- $usesObjectStorage := or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow") }}
+{{- $usesInternalCredentials := and $.Values.consoleHub.enabled (or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow")) }}
+{{- $usesWorkflowInternalAuth := or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+{{- $usesTenantBootstrap := or (eq $serviceName "coreTenant") (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+{{- if $serviceConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astron-agent.fullname" $ }}-{{ kebabcase $serviceName }}
+  labels:
+    {{- include "astron-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+spec:
+  replicas: {{ $serviceConfig.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ kebabcase $serviceName }}
+  template:
+    metadata:
+      {{- if or $usesObjectStorage $usesInternalCredentials $usesWorkflowInternalAuth $usesTenantBootstrap }}
+      annotations:
+        {{- if $usesInternalCredentials }}
+        checksum/artifact-upload-secret: {{ include "astron-agent.artifactUploadSecretChecksum" $ | quote }}
+        internal-secret-name/artifact-upload: {{ include "astron-agent.artifactUploadSecretName" $ | quote }}
+        checksum/sandbox-runtime-credential-secret: {{ include "astron-agent.sandboxRuntimeCredentialSecretChecksum" $ | quote }}
+        internal-secret-name/sandbox-runtime-credential: {{ include "astron-agent.sandboxRuntimeCredentialSecretName" $ | quote }}
+        {{- end }}
+        {{- if $usesObjectStorage }}
+        checksum/object-storage-secret: {{ include "astron-agent.minioSecretChecksum" $ | quote }}
+        {{- end }}
+        {{- if $usesWorkflowInternalAuth }}
+        checksum/workflow-internal-auth-secret: {{ include "astron-agent.workflowInternalAuthSecretChecksum" $ | quote }}
+        internal-secret-name/workflow-internal-auth: {{ $workflowAuthSecretName | quote }}
+        {{- end }}
+        {{- if $usesTenantBootstrap }}
+        checksum/tenant-bootstrap-secret: {{ include "astron-agent.tenantBootstrapSecretChecksum" $ | quote }}
+        internal-secret-name/tenant-bootstrap: {{ $tenantBootstrapSecretName | quote }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "astron-agent.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ kebabcase $serviceName }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-dependencies
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for infrastructure services..."
+          until nslookup {{ include "astron-agent.fullname" $ }}-postgres.{{ $.Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" $ }}-mysql.{{ $.Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" $ }}-redis.{{ $.Release.Namespace }}.svc.cluster.local; do
+            echo "Services not ready yet, waiting...";
+            sleep 5;
+          done
+          {{- if $.Values.minio.enabled }}
+          until nslookup {{ include "astron-agent.fullname" $ }}-minio.{{ $.Release.Namespace }}.svc.cluster.local; do
+            echo "MinIO is not ready yet, waiting...";
+            sleep 5;
+          done
+          {{- end }}
+          echo "All infrastructure services are ready!"
+      {{- if $usesObjectStorage }}
+      - name: validate-object-storage-credentials
+        image: busybox:1.35
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: OSS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretUserKey" $ }}
+        - name: OSS_ACCESS_KEY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          reject_credential() {
+            echo "Object-storage credentials are empty, weak, or use a known default." >&2
+            exit 1
+          }
+          access_key_lower="$(printf '%s' "${OSS_ACCESS_KEY_ID}" | tr '[:upper:]' '[:lower:]')"
+          access_secret_lower="$(printf '%s' "${OSS_ACCESS_KEY_SECRET}" | tr '[:upper:]' '[:lower:]')"
+          [ "${#OSS_ACCESS_KEY_ID}" -ge 8 ] || reject_credential
+          [ "${#OSS_ACCESS_KEY_SECRET}" -ge 16 ] || reject_credential
+          [ "${OSS_ACCESS_KEY_ID}" != "${OSS_ACCESS_KEY_SECRET}" ] || reject_credential
+          case "${access_key_lower}" in minioadmin|admin|administrator|root|changeme|change_me*) reject_credential ;; esac
+          case "${access_secret_lower}" in minioadmin|minioadmin123|admin|admin123|password|password123|changeme|change_me*) reject_credential ;; esac
+          echo "Object-storage credential policy check passed."
+      {{- end }}
+      containers:
+      - name: {{ kebabcase $serviceName }}
+        image: "{{ $.Values.global.imageRegistry }}/{{ $serviceConfig.image }}:{{ $.Values.global.astronAgentVersion }}"
+        imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        env:
+        {{- range $key, $value := $serviceConfig.env }}
+        {{- if and (eq $key "ossEndpoint") $usesObjectStorage }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ include "astron-agent.minioEndpoint" $ | quote }}
+        {{- else if and (eq $key "ossDownloadHost") $usesObjectStorage }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
+        {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "pgsqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-postgres-secret
+              key: postgres-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretUserKey" $ }}
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
+        {{- else if and $usesTenantBootstrap (has $key (list "tenantId" "tenantKey" "tenantSecret")) }}
+        {{/* Canonical values are injected from tenantBootstrap below. */}}
+        {{- else if and (eq $serviceName "coreAgent") (has $key (list "appAuthApiKey" "appAuthSecret")) }}
+        {{/* Canonical values are injected from tenantBootstrap below. */}}
+        {{- else if and (eq $serviceName "coreWorkflow") (has $key (list "appManagePlatKey" "appManagePlatSecret")) }}
+        {{/* Canonical values are injected from tenantBootstrap below. */}}
+        {{- else }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if eq $serviceName "coreAitools" }}
+        # Caller-controlled remote files may use Console-generated object URLs. Only this exact
+        # server-configured bucket is eligible for the private MinIO origin exception.
+        - name: OSS_BUCKET_CONSOLE
+          value: {{ required "consoleHub.env.ossBucketConsole is required for Core AiTools remote file validation" $.Values.consoleHub.env.ossBucketConsole | quote }}
+        {{- end }}
+        {{- if $usesTenantBootstrap }}
+        - name: TENANT_ID
+          value: {{ include "astron-agent.tenantBootstrapID" $ | quote }}
+        - name: TENANT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        - name: TENANT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        {{- end }}
+        {{- if eq $serviceName "coreAgent" }}
+        - name: APP_AUTH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        - name: APP_AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        {{- end }}
+        {{- if eq $serviceName "coreWorkflow" }}
+        - name: APP_MANAGE_PLAT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        - name: APP_MANAGE_PLAT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        {{- end }}
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+        - name: WORKFLOW_INTERNAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $workflowAuthSecretName | quote }}
+              key: {{ $workflowAuthSecretKey | quote }}
+        {{- end }}
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+        {{- if $.Values.consoleHub.enabled }}
+        {{- if eq $serviceName "coreWorkflow" }}
+        - name: MODEL_RUNTIME_CONFIG_URL
+          value: {{ printf "http://%s-console-hub:%d/model/internal-runtime-config" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
+        {{- end }}
+        - name: SKILL_SANDBOX_ARTIFACT_UPLOAD_URL
+          value: {{ printf "http://%s-console-hub:%d/workflow/artifacts/internal-upload" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
+        - name: SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.artifactUploadSecretName" $ }}
+              key: {{ include "astron-agent.artifactUploadSecretKey" $ }}
+        - name: SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.sandboxRuntimeCredentialSecretName" $ }}
+              key: {{ include "astron-agent.sandboxRuntimeCredentialSecretKey" $ }}
+        - name: SKILL_SANDBOX_RUNTIME_CONFIG_URL
+          value: {{ printf "http://%s-console-hub:%d/skill-sandbox/internal-runtime-config" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
+        {{- end }}
+        {{- if eq $serviceName "coreAgent" }}
+        # Remote Skill resources are accepted only from the same exact origin
+        # that signs browser-facing object-storage URLs.
+        - name: SKILL_RESOURCE_TRUSTED_ORIGIN
+          value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
+        - name: SKILL_RESOURCE_TRUSTED_BUCKET
+          value: {{ required "consoleHub.env.ossBucketConsole is required for Core Agent Skill resource validation" $.Values.consoleHub.env.ossBucketConsole | quote }}
+        {{- end }}
+        - name: LANGFUSE_ENABLED
+          value: {{ $langfuseEnabled | quote }}
+        - name: LANGFUSE_HOST
+          value: {{ $langfuseHost | quote }}
+        - name: LANGFUSE_CAPTURE_INPUT_OUTPUT
+          value: {{ $langfuseCapture | quote }}
+        - name: LANGFUSE_MAX_ATTRIBUTE_LENGTH
+          value: {{ $langfuseMaxLength | quote }}
+        - name: LANGFUSE_ENVIRONMENT
+          value: {{ $langfuseEnvironment | quote }}
+        - name: LANGFUSE_RELEASE
+          value: {{ $langfuseRelease | quote }}
+        {{- if $langfuseEnabled }}
+        - name: LANGFUSE_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfusePublicKeyKey | quote }}
+        - name: LANGFUSE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfuseSecretKeyKey | quote }}
+        - name: ASTRON_TRACE_CONTEXT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfuseTraceContextSecretKey | quote }}
+              optional: true
+        {{- end }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ $serviceConfig.service.port }}
+          protocol: TCP
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreKnowledge") (eq $serviceName "coreWorkflow") }}
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- else }}
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- end }}
+        resources:
+          {{- toYaml $serviceConfig.resources | nindent 10 }}
+        volumeMounts:
+        {{- if eq $serviceName "coreTenant" }}
+        - name: config
+          mountPath: /opt/tenant/config/config.toml
+          subPath: config.toml
+        - name: logs
+          mountPath: /opt/tenant/logs
+        - name: localtime
+          mountPath: /etc/localtime
+          readOnly: true
+        {{- else if eq $serviceName "coreDatabase" }}
+        - name: config
+          mountPath: /opt/core/memory/database/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/memory/database/logs
+        {{- else if eq $serviceName "coreRpa" }}
+        - name: config
+          mountPath: /opt/core/plugin/rpa/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreLink" }}
+        - name: config
+          mountPath: /opt/core/plugin/link/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/plugin/link/logs
+        {{- else if eq $serviceName "coreAitools" }}
+        - name: config
+          mountPath: /opt/core/plugin/aitools/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreAgent" }}
+        - name: config
+          mountPath: /opt/core/agent/config.env
+          subPath: config.env
+        {{- else if eq $serviceName "coreKnowledge" }}
+        - name: config
+          mountPath: /opt/core/knowledge/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreWorkflow" }}
+        - name: config
+          mountPath: /opt/core/workflow/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          {{- if eq $serviceName "coreTenant" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-tenant-config
+          {{- else if eq $serviceName "coreDatabase" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-database-config
+          {{- else if eq $serviceName "coreRpa" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-rpa-config
+          {{- else if eq $serviceName "coreLink" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-link-config
+          {{- else if eq $serviceName "coreAitools" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-aitools-config
+          {{- else if eq $serviceName "coreAgent" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-agent-config
+          {{- else if eq $serviceName "coreKnowledge" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-knowledge-config
+          {{- else if eq $serviceName "coreWorkflow" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-workflow-config
+          {{- end }}
+      {{- if ne $serviceName "coreAgent" }}
+      - name: logs
+        emptyDir: {}
+      {{- end }}
+      {{- if eq $serviceName "coreTenant" }}
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+          type: File
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" $ }}-{{ kebabcase $serviceName }}
+  labels:
+    {{- include "astron-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+spec:
+  type: {{ $serviceConfig.service.type }}
+  ports:
+  - name: http
+    port: {{ $serviceConfig.service.port }}
+    targetPort: http
+    protocol: TCP
+  selector:
+    {{- include "astron-agent.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,131 @@
+{{- if .Values.minio.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-minio
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: {{ include "astron-agent.fullname" . }}-minio
+  replicas: {{ .Values.minio.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      annotations:
+        checksum/object-storage-secret: {{ include "astron-agent.minioSecretChecksum" . | quote }}
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: validate-object-storage-credentials
+        image: busybox:1.35
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretUserKey" . }}
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" . }}
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          reject_credential() {
+            echo "MinIO credentials are empty, weak, or use a known default." >&2
+            exit 1
+          }
+          user_lower="$(printf '%s' "${MINIO_ROOT_USER}" | tr '[:upper:]' '[:lower:]')"
+          password_lower="$(printf '%s' "${MINIO_ROOT_PASSWORD}" | tr '[:upper:]' '[:lower:]')"
+          [ "${#MINIO_ROOT_USER}" -ge 8 ] || reject_credential
+          [ "${#MINIO_ROOT_PASSWORD}" -ge 16 ] || reject_credential
+          [ "${MINIO_ROOT_USER}" != "${MINIO_ROOT_PASSWORD}" ] || reject_credential
+          case "${user_lower}" in minioadmin|admin|administrator|root|changeme|change_me*) reject_credential ;; esac
+          case "${password_lower}" in minioadmin|minioadmin123|admin|admin123|password|password123|changeme|change_me*) reject_credential ;; esac
+          echo "MinIO credential policy check passed."
+      containers:
+      - name: minio
+        image: "{{ .Values.minio.image }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        # Preserve the original MinIO image's user and existing /data ownership.
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+        command:
+        - minio
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretUserKey" . }}
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" . }}
+        - name: MINIO_SERVER_URL
+          value: {{ include "astron-agent.minioPublicEndpoint" . | quote }}
+        ports:
+        - name: api
+          containerPort: 9000
+          protocol: TCP
+        - name: console
+          containerPort: 9001
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: api
+          initialDelaySeconds: 30
+          periodSeconds: {{ .Values.minio.healthCheck.interval }}
+          timeoutSeconds: {{ .Values.minio.healthCheck.timeout }}
+          failureThreshold: {{ .Values.minio.healthCheck.retries }}
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: api
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.minio.resources | nindent 10 }}
+        volumeMounts:
+        - name: minio-data
+          mountPath: /data
+  {{- if .Values.minio.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: minio-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.minio.persistence.size }}
+  {{- else }}
+      volumes:
+      - name: minio-data
+        emptyDir: {}
+  {{- end }}
+{{- end }}

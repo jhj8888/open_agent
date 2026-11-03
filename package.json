@@ -1,0 +1,18 @@
+{
+  "name": "open-agent-specs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenSpec development tooling for the open_agent platform",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "spec:list": "openspec list",
+    "spec:validate": "openspec validate --all --strict --no-interactive",
+    "spec:status": "openspec status"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "1.16.0"
+  }
+}

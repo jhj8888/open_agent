@@ -1,0 +1,157 @@
+import json
+import os
+import ssl
+from typing import Union, cast
+
+import httpx
+from common.otlp.trace.langfuse import serialize_langfuse_value
+from common.otlp.trace.span import Span
+from pydantic import BaseModel, Field
+
+from agent.domain.models.providers import ModelHandle, create_provider_model
+from agent.infra.app_auth import MaasAuth
+from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
+from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
+from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
+from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
+
+
+class BaseApiBuilder(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    app_id: str
+    uid: str = Field(default="")
+    span: Span
+
+    def _create_http_client(self, sp: Span) -> httpx.AsyncClient:
+        ssl_context = ssl.create_default_context()
+        skip_ssl = os.getenv("SKIP_SSL_VERIFY", "false").lower()
+        if skip_ssl == "true":
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            sp.add_info_event("鈿狅笍  SSL verification disabled for LLM requests")
+
+        return httpx.AsyncClient(
+            verify=ssl_context,
+            timeout=httpx.Timeout(
+                connect=60.0,
+                read=300.0,
+                write=30.0,
+                pool=10.0,
+            ),
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        )
+
+    async def build_plugins(
+        self,
+        tool_ids: list,
+        mcp_server_ids: list,
+        mcp_server_urls: list,
+        workflow_ids: list,
+        skills: list | None = None,
+    ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]]:
+
+        with self.span.start("BuildPlugins") as sp:
+            mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
+
+            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = (
+                []
+            )
+            if tool_ids:
+                link_tools = await LinkPluginFactory(
+                    app_id=self.app_id, uid=self.uid, tool_ids=tool_ids
+                ).gen(sp)
+                plugins.extend(
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        link_tools,
+                    )
+                )
+
+            if mcp_server_ids or mcp_server_urls:
+                mcp_tools = await McpPluginFactory(
+                    app_id=self.app_id,
+                    mcp_server_ids=mcp_server_ids,
+                    mcp_server_urls=mcp_server_urls,
+                ).gen(sp)
+                plugins.extend(
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        mcp_tools,
+                    )
+                )
+
+            if workflow_ids:
+                workflow_tools = await WorkflowPluginFactory(
+                    app_id=self.app_id, uid=self.uid, workflow_ids=workflow_ids
+                ).gen(sp)
+                plugins.extend(
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        workflow_tools,
+                    )
+                )
+
+            if skills:
+                skill_tools = SkillPluginFactory(skills=skills).gen()
+                plugins.extend(
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        skill_tools,
+                    )
+                )
+
+            sp.add_info_events(
+                {
+                    "link-tool-ids": str(tool_ids),
+                    "mcp-server-ids": mcp_server_ids,
+                    "mcp-server-urls": mcp_server_urls,
+                    "workflow-ids": workflow_ids,
+                    "skills": serialize_langfuse_value(skills or []) or "[]",
+                    "built-plugins": json.dumps(
+                        [
+                            f"{plugin.typ}\n{plugin.schema_template}"
+                            for plugin in plugins
+                        ],
+                        ensure_ascii=False,
+                    ),
+                }
+            )
+
+            return plugins
+
+    async def query_maas_sk(self, app_id: str, model_name: str) -> str:
+
+        with self.span.start("BuildSk") as sp:
+            app_id = app_id or self.app_id
+
+            sp.add_info_events({"app_id": app_id})
+
+            maas_auth = MaasAuth(app_id=app_id, model_name=model_name)
+            sk = await maas_auth.sk(span=sp)
+
+            return sk
+
+    async def create_model(
+        self,
+        app_id: str,
+        model_name: str,
+        base_url: str,
+        provider: str = "",
+        api_key: str = "",
+    ) -> ModelHandle:
+        with self.span.start("BuildModel") as sp:
+            sk = api_key or await self.query_maas_sk(app_id, model_name)
+            sp.add_info_events(
+                {
+                    "model": model_name,
+                    "provider": provider or "openai",
+                    "model_auth_configured": bool(sk),
+                }
+            )
+            return await create_provider_model(
+                model_name=model_name,
+                base_url=base_url,
+                provider=provider,
+                api_key=sk,
+                http_client=self._create_http_client(sp),
+            )

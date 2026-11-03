@@ -1,0 +1,17 @@
+{{- if and .Values.ingress.enabled .Values.consoleHub.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-console-api-deny
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-api-deny
+spec:
+  # Intentionally selectorless: sensitive public Ingress paths have no upstream
+  # endpoints and fail closed with HTTP 503 before reaching console-hub.
+  ports:
+    - name: deny
+      port: 80
+      targetPort: 80
+      protocol: TCP
+{{- end }}

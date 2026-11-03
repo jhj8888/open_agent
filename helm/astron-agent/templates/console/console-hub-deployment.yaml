@@ -1,0 +1,214 @@
+{{- if .Values.consoleHub.enabled }}
+{{- $workflowAuthSecretName := include "astron-agent.workflowInternalAuthSecretName" . }}
+{{- $workflowAuthSecretKey := include "astron-agent.workflowInternalAuthSecretKey" . }}
+{{- $tenantBootstrapSecretName := include "astron-agent.tenantBootstrapSecretName" . }}
+{{- $tenantBootstrapKeyKey := include "astron-agent.tenantBootstrapSecretKeyKey" . }}
+{{- $tenantBootstrapSecretKey := include "astron-agent.tenantBootstrapSecretSecretKey" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-console-hub
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-hub
+spec:
+  replicas: {{ .Values.consoleHub.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: console-hub
+  template:
+    metadata:
+      annotations:
+        checksum/artifact-upload-secret: {{ include "astron-agent.artifactUploadSecretChecksum" . | quote }}
+        internal-secret-name/artifact-upload: {{ include "astron-agent.artifactUploadSecretName" . | quote }}
+        checksum/sandbox-runtime-credential-secret: {{ include "astron-agent.sandboxRuntimeCredentialSecretChecksum" . | quote }}
+        internal-secret-name/sandbox-runtime-credential: {{ include "astron-agent.sandboxRuntimeCredentialSecretName" . | quote }}
+        checksum/object-storage-secret: {{ include "astron-agent.minioSecretChecksum" . | quote }}
+        checksum/workflow-internal-auth-secret: {{ include "astron-agent.workflowInternalAuthSecretChecksum" . | quote }}
+        internal-secret-name/workflow-internal-auth: {{ $workflowAuthSecretName | quote }}
+        checksum/tenant-bootstrap-secret: {{ include "astron-agent.tenantBootstrapSecretChecksum" . | quote }}
+        internal-secret-name/tenant-bootstrap: {{ $tenantBootstrapSecretName | quote }}
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: console-hub
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-dependencies
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for infrastructure services..."
+          until nslookup {{ include "astron-agent.fullname" . }}-mysql.{{ .Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local; do
+            echo "Services not ready yet, waiting...";
+            sleep 5;
+          done
+          {{- if .Values.minio.enabled }}
+          until nslookup {{ include "astron-agent.fullname" . }}-minio.{{ .Release.Namespace }}.svc.cluster.local; do
+            echo "MinIO is not ready yet, waiting...";
+            sleep 5;
+          done
+          {{- end }}
+          echo "All infrastructure services are ready!"
+      - name: validate-object-storage-credentials
+        image: busybox:1.35
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: OSS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretUserKey" . }}
+        - name: OSS_ACCESS_KEY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" . }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" . }}
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          reject_credential() {
+            echo "Object-storage credentials are empty, weak, or use a known default." >&2
+            exit 1
+          }
+          access_key_lower="$(printf '%s' "${OSS_ACCESS_KEY_ID}" | tr '[:upper:]' '[:lower:]')"
+          access_secret_lower="$(printf '%s' "${OSS_ACCESS_KEY_SECRET}" | tr '[:upper:]' '[:lower:]')"
+          [ "${#OSS_ACCESS_KEY_ID}" -ge 8 ] || reject_credential
+          [ "${#OSS_ACCESS_KEY_SECRET}" -ge 16 ] || reject_credential
+          [ "${OSS_ACCESS_KEY_ID}" != "${OSS_ACCESS_KEY_SECRET}" ] || reject_credential
+          case "${access_key_lower}" in minioadmin|admin|administrator|root|changeme|change_me*) reject_credential ;; esac
+          case "${access_secret_lower}" in minioadmin|minioadmin123|admin|admin123|password|password123|changeme|change_me*) reject_credential ;; esac
+          echo "Object-storage credential policy check passed."
+      containers:
+      - name: console-hub
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ .Values.global.astronAgentVersion }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        {{- range $key, $value := .Values.consoleHub.env }}
+        {{- if or (eq $key "consoleCasdoorUrl") (eq $key "oauth2IssuerUri") }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.casdoor.service.nodePort | int) | quote }}
+        {{- else if eq $key "consoleDomain" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $.Values.global.hostBaseAddress | quote }}
+        {{- else if eq $key "ossEndpoint" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ include "astron-agent.minioEndpoint" $ | quote }}
+        {{- else if eq $key "ossRemoteEndpoint" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
+        {{- else if eq $key "botApiMaasBaseUrl" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}
+        {{- else if eq $key "mysqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretUserKey" $ }}
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
+        {{- else if has $key (list "tenantId" "tenantKey" "tenantSecret" "appApikey" "appApiSecret") }}
+        {{/* The canonical TENANT_* variables are injected once below. */}}
+        {{- else if has $key (list "commonAppid" "maasAppId" "maasConsumerId") }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ include "astron-agent.tenantBootstrapID" $ | quote }}
+        {{- else if has $key (list "commonApikey" "maasApiKey" "maasConsumerKey") }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        {{- else if has $key (list "commonApiSecret" "maasApiSecret" "maasConsumerSecret") }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        {{- else }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        - name: TENANT_ID
+          value: {{ include "astron-agent.tenantBootstrapID" . | quote }}
+        - name: TENANT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        - name: TENANT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        - name: APP_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapKeyKey }}
+        - name: APP_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tenantBootstrapSecretName }}
+              key: {{ $tenantBootstrapSecretKey }}
+        - name: SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.artifactUploadSecretName" . }}
+              key: {{ include "astron-agent.artifactUploadSecretKey" . }}
+        - name: SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.sandboxRuntimeCredentialSecretName" . }}
+              key: {{ include "astron-agent.sandboxRuntimeCredentialSecretKey" . }}
+        - name: WORKFLOW_INTERNAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $workflowAuthSecretName | quote }}
+              key: {{ $workflowAuthSecretKey | quote }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.consoleHub.service.port }}
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.consoleHub.resources | nindent 10 }}
+{{- end }}

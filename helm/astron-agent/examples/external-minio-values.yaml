@@ -1,0 +1,19 @@
+# Example: use an existing S3-compatible service and do not deploy bundled MinIO.
+#
+# Create the referenced Secret separately. Never commit the literal values:
+#   kubectl create secret generic astron-agent-external-s3 \
+#     --from-literal=access-key='<service access key>' \
+#     --from-literal=secret-key='<random service secret>'
+minio:
+  enabled: false
+  auth:
+    existingSecret: astron-agent-external-s3
+    rootUserKey: access-key
+    rootPasswordKey: secret-key
+    existingSecretChecksum: ""
+  external:
+    # Endpoint used by workloads inside the cluster.
+    endpoint: https://s3.internal.example.com
+    # Optional endpoint embedded in presigned/download URLs. It does not create
+    # an Ingress, NodePort, or LoadBalancer.
+    publicEndpoint: https://objects.example.com

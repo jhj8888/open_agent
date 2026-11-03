@@ -1,0 +1,299 @@
+flowMeta:
+  name: 会议纪要整理助手
+  description: 会议纪要整理助手
+  avatarIcon: https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_10@2x.png
+  avatarColor: '#FFEAD5'
+  advancedConfig: '{"prologue":{"enabled":true,"inputExample":["","",""]},"textToSpeech":{"enabled":true,"vcn_cn":"aisjiuxu","vcn_en":""}}'
+  category: 13
+  dslVersion: v1
+flowData:
+  nodes:
+  - id: node-start::54a43f10-902e-4adb-9cbb-16711a26b3c9
+    dragging: false
+    selected: false
+    width: 361
+    height: 89
+    position:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    positionAbsolute:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    type: custom
+    data:
+      allowInputReference: false
+      allowOutputReference: true
+      label: 开始
+      status: ''
+      nodeMeta:
+        aliasName: 开始节点
+        nodeType: 基础节点
+      inputs: [
+        ]
+      outputs:
+      - id: c52b218c-031f-49da-8f81-7cff66acb5e2
+        name: AGENT_USER_INPUT
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: 用户本轮对话输入内容
+        required: true
+        deleteDisabled: true
+      nodeParam: {
+        }
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/start-node-icon.png
+      description: 工作流的开启节点，用于定义流程调用所需的业务变量信息。
+      updatable: false
+  - id: node-end::2172d068-407a-483e-9de8-c405fb96cca3
+    dragging: false
+    selected: false
+    width: 361
+    height: 129
+    position:
+      x: 1422.8833333333332
+      y: 343.91588235294114
+    positionAbsolute:
+      x: 1422.8833333333332
+      y: 343.91588235294114
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: false
+      label: 结束
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 结束节点
+        nodeType: 基础节点
+      inputs:
+      - id: 43c79eb8-1a05-402e-9074-cb3da439bddf
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: eae22a4c-b9d5-48f6-b15f-68dc4b6615d6
+              nodeId: spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841
+              name: output
+            contentErrMsg: ''
+        fileType: ''
+      outputs: [
+        ]
+      nodeParam:
+        template: |+
+          {{output}}
+
+
+        streamOutput: true
+        outputMode: 1
+        templateErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/end-node-icon.png
+      description: 工作流的结束节点，用于输出工作流运行后的最终结果。
+      updatable: false
+  - id: spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a
+    dragging: false
+    selected: false
+    width: 361
+    height: 147
+    position:
+      x: 418.5104064941406
+      y: 346
+    positionAbsolute:
+      x: 418.5104064941406
+      y: 346
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 大模型_1
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        nodeType: 基础节点
+        aliasName: 大模型
+      inputs:
+      - id: 6e113295-9e9a-4d17-8560-22040260f547
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: c52b218c-031f-49da-8f81-7cff66acb5e2
+              nodeId: node-start::54a43f10-902e-4adb-9cbb-16711a26b3c9
+              name: AGENT_USER_INPUT
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: 96a29f00-f221-480f-a215-a9e46d69fd17
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        maxTokens: 2048
+        topK: 4
+        auditing: default
+        template: |+
+          以下是会议的原始记录，请按系统要求提取要点：
+
+          {{input}}
+
+
+        respFormat: 0
+        appId: YOUR_APP_ID
+        uid: d5a93a64-2f25-4072-8b1b-47f3e3300571
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        templateErrMsg: ''
+        llmId: 454665064
+        domain: xminimaxm2
+        serviceId: xminimaxm2
+        url: https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions
+        modelId: 3
+        isThink: false
+        multiMode: false
+        modelName: m2
+        modelEnabled: true
+        llmIdErrMsg: ''
+        source: openai
+        extraParams:
+          temperature: 1
+        systemTemplate: |+
+          你是一名会议记录整理助手。用户会提供一段会议的原始记录（可能口语化、顺序混乱、夹杂闲聊）。
+          请完成以下任务：
+          1. 提取会议主题，以及提到的参会人、时间、地点（如有）。
+          2. 按主题归纳讨论要点，合并零散发言。
+          3. 列出明确的决议事项。
+          4. 列出待办事项，注明负责人与截止时间（原文提到多少就保留多少）。
+
+          只依据原文信息，不要编造或补充原文中不存在的内容。以清晰的条目输出。
+
+
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  - id: spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841
+    dragging: false
+    selected: false
+    width: 361
+    height: 147
+    position:
+      x: 920.5104064941406
+      y: 346
+    positionAbsolute:
+      x: 920.5104064941406
+      y: 346
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 大模型_2
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        nodeType: 基础节点
+        aliasName: 大模型
+      inputs:
+      - id: ce5459dc-b622-4fed-8a1c-d96dd6f9dec0
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: 96a29f00-f221-480f-a215-a9e46d69fd17
+              nodeId: spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a
+              name: output
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: eae22a4c-b9d5-48f6-b15f-68dc4b6615d6
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        maxTokens: 2048
+        topK: 4
+        auditing: default
+        template: |+
+          请根据以下提取出的要点，整理一份正式的会议纪要：
+
+          {{input}}
+
+
+        respFormat: 0
+        appId: YOUR_APP_ID
+        uid: d5a93a64-2f25-4072-8b1b-47f3e3300571
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        templateErrMsg: ''
+        llmId: 454665064
+        domain: xminimaxm2
+        serviceId: xminimaxm2
+        url: https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions
+        modelId: 3
+        isThink: false
+        multiMode: false
+        modelName: m2
+        modelEnabled: true
+        llmIdErrMsg: ''
+        source: openai
+        extraParams:
+          temperature: 1
+        systemTemplate: |+
+          你是一位专业的会议纪要撰写者。用户会提供一份已经整理好的会议要点。
+          请将其组织成一份正式、简洁的会议纪要，包含以下部分：
+          1. 会议概述（主题、时间、参会人，如要点中有）。
+          2. 讨论要点。
+          3. 决议事项。
+          4. 待办事项（标注负责人与截止时间，如要点中有）。
+
+          语言简洁专业，只使用要点中已有的信息，不要新增或推测内容。
+
+
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  edges:
+  - source: node-start::54a43f10-902e-4adb-9cbb-16711a26b3c9
+    target: spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a
+    type: customEdge
+    id: reactflow__edge-node-start::54a43f10-902e-4adb-9cbb-16711a26b3c9-spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
+  - source: spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a
+    target: spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841
+    type: customEdge
+    id: reactflow__edge-spark-llm::5aa92ae1-432a-4a46-8178-ab38f606951a-spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
+  - source: spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841
+    target: node-end::2172d068-407a-483e-9de8-c405fb96cca3
+    type: customEdge
+    id: reactflow__edge-spark-llm::e4f0606a-f69e-4fbe-ae14-0e5a51c03841-node-end::2172d068-407a-483e-9de8-c405fb96cca3
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
