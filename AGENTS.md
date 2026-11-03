@@ -100,3 +100,8 @@ Note: Even if you believe you already know the answer, if the request matches an
 
 If `.codegraph/` exists at the repository root, use CodeGraph exploration before grep/find or reading implementation files to understand or locate code. If it does not exist, skip CodeGraph; do not create an index unless the user asks.
 <!-- CODEGRAPH_END -->
+
+
+## Local demo connection record
+
+The user supplied a demo server for this project. Its local connection record is `.local/demo-server.json`; the credential file it references is encrypted with Windows current-user DPAPI. `.local/` is ignored by Git. Read the local inventory before proposing a demo deployment because existing services already use several ports. Never put credentials or private connection files in commits, logs, public documentation, or container build contexts. The saved credential can only be decrypted by the same Windows user on this computer.
