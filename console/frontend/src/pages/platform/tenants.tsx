@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import ModelConnections from './models';
+import SkillReleases from './skills';
 import {
   Alert,
   Button,
@@ -367,6 +368,19 @@ function EnvironmentPanel({
     <Tabs
       items={[
         { key: 'quota', label: '环境配额', children: quotaPanel },
+        {
+          key: 'skills',
+          label: 'Skill 发布版本',
+          children: (
+            <SkillReleases
+              key={`${tenant.tenantId}:${environment}`}
+              tenantId={tenant.tenantId}
+              environment={environment}
+              role={role}
+              active={tenant.status === 'active'}
+            />
+          ),
+        },
         {
           key: 'models',
           label: '模型连接',

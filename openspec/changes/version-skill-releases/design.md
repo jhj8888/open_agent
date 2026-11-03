@@ -19,6 +19,7 @@ SkillFileService.updateContent 修改现有记录，V1.27 的 skill_file 表保�
 3. 发布绑定 agent_deployment 到 release_id；测试/生产只改变部署绑定，不复制后重新编辑包。运行开始将 release 和配置摘要记录为快照，不能中途读到新草稿。
 4. 使用已有对象存储接口，不因为版本功能更换存储系统。暂存对象定期回收；已被部署或保留期内任务引用的 release 不允许物理删除。租户检查先于生成下载凭证。
 5. 旧 Skill 先转成一个明确的 legacy-import 版本，不自动推广生产。API 兼容草稿操作；运行侧默认要求 release，对旧调用在迁移窗口提供显式版本解析记录。
+6. 实现使用 `oa_skill_*` 前缀避免与上游迁移冲突。S3 复用已有私有 `workflow/artifacts/*` 桶策略，暂存对象按租户摘要和上传 UUID 隔离。官方 MinIO SDK 负责对象操作；官方 Commons Compress 负责 ZIP 解析，固定尾部预检仅补足解析前条目上限。详情和限制见 `docs/platform/skill-releases.md`。
 
 ## Risks / Trade-offs
 

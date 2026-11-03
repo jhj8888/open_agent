@@ -25,7 +25,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04

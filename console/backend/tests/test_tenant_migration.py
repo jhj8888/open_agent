@@ -1,4 +1,4 @@
-"""Exercise V1.49 and the real authorization SELECT against MySQL, not an SQL mock.
+"""Exercise platform migrations and production SQL against MySQL, not an SQL mock.
 
 Run from any directory with Python 3 and Docker. MYSQL_TEST_IMAGE must be preloaded
 for an offline run. The ephemeral MySQL has no network, no host ports or mounts;
@@ -173,6 +173,47 @@ class TenantMigrationTest(unittest.TestCase):
         self.assertEqual('1', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE revoked=false"))
         self.sql("UPDATE oa_model_connection_version SET revoked=true WHERE credential_ref='credential-a'")
         self.assertEqual('0', self.sql("SELECT COUNT(*) FROM oa_model_connection_version WHERE revoked=false"))
+
+    def test_skill_release_constraints_retention_and_production_evidence(self):
+        self.seed()
+        self.sql(MIGRATION)
+        self.sql((MIGRATIONS / 'V1.51__add_immutable_skill_releases.sql').read_text(encoding='utf-8'))
+        release = """INSERT INTO oa_skill_release(tenant_id,release_id,skill_name,description,version_label,source_kind,
+            manifest_sha256,manifest_json,runtime_image,object_prefix,total_bytes,file_count,created_by,retain_until)
+            VALUES ('space-10','release-a','sample','Example','v1','upload',REPEAT('a',64),'{}',
+            CONCAT('internal/skill@sha256:',REPEAT('b',64)),'private-prefix/',2,1,'alice',TIMESTAMPADD(DAY,1,NOW()))"""
+        self.sql(release)
+        self.sql("INSERT INTO oa_skill_release_environment(tenant_id,environment,release_id,granted_by) VALUES('space-10','test','release-a','alice')")
+        self.assertNotEqual(0,self.sql(release,check=False).returncode)
+        for mutation in (
+            "UPDATE oa_skill_release SET file_count=101",
+            "UPDATE oa_skill_release SET total_bytes=20971521",
+            "UPDATE oa_skill_release SET manifest_json='invalid'",
+            "UPDATE oa_skill_release_environment SET tenant_id='space-20'",
+            "UPDATE oa_skill_release_environment SET environment='invalid'",
+        ):
+            self.assertNotEqual(0,self.sql(mutation,check=False).returncode)
+        source=(BACKEND / 'hub/src/main/java/com/iflytek/astron/console/hub/platform/skill/SkillReleaseService.java').read_text(encoding='utf-8')
+        def production_query(prefix):
+            sql=next(value.strip() for value in re.findall(r'"""(.*?)"""',source,re.S) if value.strip().startswith(prefix))
+            return sql.replace('?',"'space-10'",1).replace('?',"'release-a'",1)
+        promote=production_query('SELECT r.manifest_sha256')
+        delete=production_query('UPDATE oa_skill_release r SET')
+        self.assertEqual('',self.sql(promote))
+        self.sql("INSERT INTO oa_skill_verification(tenant_id,release_id,run_id,manifest_sha256,passed) VALUES('space-10','release-a','run',REPEAT('b',64),true)")
+        self.assertEqual('',self.sql(promote),'Evidence for a different manifest must not authorize production')
+        self.sql("UPDATE oa_skill_verification SET manifest_sha256=REPEAT('a',64)")
+        self.assertEqual('a'*64,self.sql(promote))
+        self.assertEqual('0',self.sql(delete+';SELECT ROW_COUNT()'),'Retention must block deletion')
+        self.sql("UPDATE oa_skill_release SET retain_until=TIMESTAMPADD(DAY,-1,NOW())")
+        self.sql("INSERT INTO oa_skill_release_reference(tenant_id,release_id,reference_type,reference_id) VALUES('space-10','release-a','deployment','deployment-a')")
+        self.assertEqual('0',self.sql(delete+';SELECT ROW_COUNT()'),'Live deployment must block deletion')
+        self.sql("UPDATE oa_skill_release_reference SET retain_until=TIMESTAMPADD(DAY,-1,NOW())")
+        self.sql("INSERT INTO oa_skill_release_environment(tenant_id,environment,release_id,granted_by) VALUES('space-10','prod','release-a','alice')")
+        self.assertEqual('0',self.sql(delete+';SELECT ROW_COUNT()'),'Production grant must block deletion')
+        self.sql("DELETE FROM oa_skill_release_environment WHERE environment='prod'")
+        self.assertEqual('1',self.sql(delete+';SELECT ROW_COUNT()'))
+        self.assertEqual('deleted',self.sql("SELECT status FROM oa_skill_release WHERE release_id='release-a'"))
 
 
 if __name__ == '__main__':

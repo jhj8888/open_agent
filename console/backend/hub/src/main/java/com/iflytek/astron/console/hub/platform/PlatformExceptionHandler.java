@@ -14,6 +14,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(basePackages = "com.iflytek.astron.console.hub.platform")
 public class PlatformExceptionHandler {
+    @ExceptionHandler(com.iflytek.astron.console.hub.platform.skill.SkillReleaseService.ReleaseConflictException.class)
+    public ResponseEntity<ApiResult<Void>> skillConflict(RuntimeException exception) {
+        return error(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(com.iflytek.astron.console.hub.platform.skill.MinioSkillArtifactStore.ArtifactUnavailableException.class)
+    public ResponseEntity<ApiResult<Void>> artifactUnavailable() {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "Skill artifact storage is unavailable or content verification failed");
+    }
+
     @ExceptionHandler(TenantAccessDeniedException.class)
     public ResponseEntity<ApiResult<Void>> denied() {
         return error(HttpStatus.NOT_FOUND, "Resource unavailable");

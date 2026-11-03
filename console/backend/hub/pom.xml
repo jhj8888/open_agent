@@ -13,6 +13,12 @@
     <description>Astron Console Hub Api Server</description>
 
     <dependencies>
+        <!-- Central-directory attributes are required to reject links in Skill archives. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.26.2</version>
+        </dependency>
         <dependency>
             <groupId>com.iflytek.astron.console</groupId>
             <artifactId>commons</artifactId>
