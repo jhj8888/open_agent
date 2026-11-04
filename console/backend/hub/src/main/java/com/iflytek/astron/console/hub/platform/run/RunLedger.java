@@ -195,7 +195,7 @@ public class RunLedger {
         if (requested == null || !Set.of(RunState.SUCCEEDED, RunState.FAILED, RunState.TIMED_OUT).contains(requested)
                 || (errorCode != null && !WORKER_ERRORS.contains(errorCode))) throw new RunFailure("invalid_completion");
         return tx(() -> {
-            lockScope(lease.scope(), false);
+            var quota=lockScope(lease.scope(), false);
             var run = run(lease.scope(), lease.runId());
             var attempt = attempt(lease);
             if (state(run).terminal()) return get(lease.scope(), lease.runId());
@@ -207,6 +207,16 @@ public class RunLedger {
             if (state(run) == RunState.CANCEL_REQUESTED) { next = RunState.CANCELLED; code = null; }
             else if (!instant(run, "deadline_at").isAfter(now)) { next = RunState.TIMED_OUT; code = "deadline_exceeded"; }
             else if (!instant(attempt, "heartbeat_until").isAfter(now)) { next = RunState.FAILED; code = "outcome_unknown"; }
+            if(next == RunState.SUCCEEDED) {
+                // Revocation may race the final model response. Recheck before
+                // recording success so a revoked run cannot authorize promotion.
+                try {
+                    requireActive(quota);
+                    deployment(lease.scope(),(String)run.get("deployment_id"));
+                } catch(RunFailure revoked) {
+                    next=RunState.FAILED;code="permission_revoked";
+                }
+            }
             if (next == RunState.SUCCEEDED) code = null;
             transition(lease.scope(), run, next, code);
             jdbc.update("UPDATE oa_run_attempt SET lease_state='cleanup_pending' WHERE lease_id=? AND lease_state='held'", lease.leaseId());
@@ -249,15 +259,32 @@ public class RunLedger {
             var run = run(lease.scope(), lease.runId());
             var attempt = attempt(lease);
             if (!"active".equals(quota.get("status")) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
-            return event(lease.scope(), lease.runId(), "worker:" + eventKey, type, body, true);
+            long sequence=event(lease.scope(), lease.runId(), "worker:" + eventKey, type, body, true);
+            if(type.equals("usage")) {
+                for(String field:List.of("prompt_tokens","completion_tokens","total_tokens")) {
+                    JsonNode value=payload.get(field);
+                    if(value==null||!value.isIntegralNumber()||!value.canConvertToLong()||value.longValue()<0)
+                        throw new RunFailure("invalid_usage");
+                }
+                if(payload.size()!=3) throw new RunFailure("invalid_usage");
+                // Retrying an older event must not overwrite newer cumulative usage.
+                jdbc.update("UPDATE oa_agent_run SET usage_json=? WHERE tenant_id=? AND environment=? AND run_id=? AND last_event_seq=?",
+                        body,lease.scope().tenant(),lease.scope().environment(),lease.runId(),sequence);
+            }
+            return sequence;
         });
     }
 
     public EventPage events(Scope scope, String runId, long after, int limit) {
+        return events(scope,runId,after,limit,()->{});
+    }
+
+    public EventPage events(Scope scope, String runId, long after, int limit,Runnable authorize) {
         if (after < 0 || limit < 1 || limit > 200) throw new RunFailure("invalid_cursor");
         return tx(() -> {
             // Serialize with append/retention so the high-water mark and page form one view.
             lockScope(scope, false);
+            authorize.run();
             var run = run(scope, runId);
             long latest = number(run, "last_event_seq");
             long expired = count("SELECT COALESCE(MAX(sequence_no),0) FROM oa_run_event "

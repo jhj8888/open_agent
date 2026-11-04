@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -61,6 +61,7 @@ class RunLedgerMySqlTest {
     }
 
     @AfterEach void cleanup() {
+        org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         if (admin != null && database != null && database.matches("oa_run_verify_[a-f0-9]{32}")) admin.execute("DROP DATABASE " + database);
     }
 
@@ -90,6 +91,173 @@ class RunLedgerMySqlTest {
     }
     private String sandboxPhase(RunLedger.Lease lease) {
         return jdbc.queryForObject("SELECT phase FROM oa_run_sandbox WHERE lease_id=?", String.class, lease.leaseId());
+    }
+    private void actors() {
+        jdbc.update("INSERT INTO user_info(uid,username,account_status,deleted) VALUES('alice','Alice',1,0),('bob','Bob',1,0),('viewer','Viewer',1,0),('operator','Operator',1,0)");
+        jdbc.update("INSERT INTO agent_space(id,name,uid,deleted) VALUES(10,'A','alice',0),(20,'B','bob',0)");
+        jdbc.update("INSERT INTO agent_space_user(space_id,uid,role) VALUES(10,'alice',1),(10,'bob',3),(10,'viewer',3),(10,'operator',3),(20,'bob',1)");
+        jdbc.update("""
+                INSERT INTO oa_tenant_member(tenant_id,environment,uid,role) VALUES
+                ('space-10','test','alice','tenant_admin'),('space-10','prod','alice','tenant_admin'),
+                ('space-10','test','bob','developer'),('space-10','prod','bob','viewer'),
+                ('space-10','test','viewer','viewer'),('space-10','test','operator','operator'),('space-10','prod','operator','operator'),
+                ('space-20','test','bob','tenant_admin')
+                """);
+        user("alice");
+    }
+    private void user(String uid) {
+        var request=new org.springframework.mock.web.MockHttpServletRequest();
+        request.setAttribute(com.iflytek.astron.console.commons.config.JwtClaimsFilter.USER_ID_ATTRIBUTE,uid);
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(new org.springframework.web.context.request.ServletRequestAttributes(request));
+    }
+    private com.iflytek.astron.console.commons.tenant.TenantAccessRepository memberships() {
+        return new com.iflytek.astron.console.commons.tenant.TenantAccessRepository(jdbc);
+    }
+    private com.iflytek.astron.console.commons.tenant.TenantAccessService access() {
+        return new com.iflytek.astron.console.commons.tenant.TenantAccessService(memberships());
+    }
+    private AgentDeploymentService deployments() { return new AgentDeploymentService(jdbc,access(),json,new DataSourceTransactionManager(source)); }
+    private DeploymentKeys keys() { return new DeploymentKeys(jdbc,access(),deployments(),new DataSourceTransactionManager(source)); }
+    private DeploymentAuthorization authorization() { return new DeploymentAuthorization(jdbc,memberships()); }
+    private AgentRunService api(DeploymentAuthorization authorization) {
+        return new AgentRunService(ledger,authorization,deployments(),jdbc,json,new org.springframework.mock.env.MockEnvironment()
+                .withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true"),new DataSourceTransactionManager(source));
+    }
+    private AgentRunService api() { return api(authorization()); }
+    private AgentRunService.Submit input() { return new AgentRunService.Submit(new AgentRunService.Input("synthetic user input",List.of()),300); }
+    private DeploymentAuthorization.Caller caller(String uid) { return new DeploymentAuthorization.Caller(uid,null); }
+    private DeploymentAuthorization.Caller caller(DeploymentKeys.Issued issued) {
+        return new DeploymentAuthorization.Caller(null,keys().authenticate(issued.token()).orElseThrow());
+    }
+    private AgentDeploymentService.Create configuration() {
+        String model=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,deployment);
+        return new AgentDeploymentService.Create("Demo agent","v1",UUID.fromString(model),1,List.of(),new AgentDeploymentService.Execution("Synthetic instructions",null,null,null,null));
+    }
+
+    @Test void apiDeploymentCreationPinsModelVersionAndReleaseReferences() {
+        actors();bindSkill(scope,deployment);
+        String release=jdbc.queryForObject("SELECT release_id FROM oa_agent_deployment_skill WHERE deployment_id=?",String.class,deployment);
+        var base=configuration();
+        var config=new AgentDeploymentService.Create(base.displayName(),base.agentVersion(),base.modelConnectionId(),1,List.of(UUID.fromString(release)),base.execution());
+        var result=deployments().create(scope,config);String id=(String)result.get("deployment_id");
+        assertEquals("test",result.get("state"));assertFalse(result.containsKey("snapshot_json"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_skill_release_reference WHERE reference_type='deployment' AND reference_id=? AND retain_until IS NULL",Integer.class,id));
+        String snapshot=jdbc.queryForObject("SELECT snapshot_json FROM oa_agent_deployment WHERE deployment_id=?",String.class,id);
+        assertEquals(result.get("snapshot_sha256"),RunJson.hash(snapshot));
+        assertTrue(snapshot.contains("deepagents"));assertTrue(snapshot.contains(release));
+        jdbc.update("UPDATE oa_model_connection SET current_version=999 WHERE connection_id=?",base.modelConnectionId().toString());
+        assertEquals(1L,((Number)authorization().resolve(id).metadata().get("model_version")).longValue());
+        user("viewer");
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->deployments().create(scope,base));
+    }
+
+    @Test void apiKeysAreScopedToDeploymentAndOwnRunsAndRotationPreservesSubject() {
+        actors();var issued=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("integration",true,true,true,30));
+        assertFalse(issued.toString().contains(issued.token()));
+        String stored=jdbc.queryForObject("SELECT secret_sha256 FROM oa_deployment_credential WHERE key_id=?",String.class,issued.keyId());
+        assertEquals(RunJson.hash(issued.token()),stored);assertFalse(keys().list(scope,deployment).toString().contains(stored));
+        var firstCaller=caller(issued);var accepted=api().submit(firstCaller,deployment,"same",input());
+        assertEquals(accepted.run_id(),api().submit(firstCaller,deployment,"same",input()).run_id());
+        var other=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("other",true,true,true,30));
+        code("resource_unavailable",()->api().status(caller(other),accepted.run_id()));
+        String another=seedDeployment(scope);
+        code("resource_unavailable",()->api().submit(firstCaller,another,"wrong-deployment",input()));
+        var rotated=keys().rotate(scope,deployment,issued.keyId());
+        assertTrue(keys().authenticate(issued.token()).isEmpty());assertEquals(firstCaller.actor(),caller(rotated).actor());
+        code("resource_unavailable",()->api().status(firstCaller,accepted.run_id()));
+        assertEquals("queued",api().status(caller(rotated),accepted.run_id()).get("state"));
+        assertEquals(1,api().list(caller(rotated),deployment).size());
+        assertEquals("cancelled",api().cancel(caller(rotated),accepted.run_id()).get("state"));
+        var authenticatedBeforeRevocation=caller(rotated);keys().revoke(scope,deployment,rotated.keyId());
+        code("resource_unavailable",()->api().events(authenticatedBeforeRevocation,accepted.run_id(),0));
+        assertEquals(1,count("oa_agent_run"));
+    }
+
+    @Test void apiKeyActionsExpiryAndTenantSuspensionAreRechecked() {
+        actors();var key=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("create only",true,false,false,1));
+        var caller=caller(key);String run=api().submit(caller,deployment,"create",input()).run_id();
+        assertEquals(Map.of("create",true,"read",false,"cancel",false),api().deployment(caller,deployment).get("allowed_actions"));
+        code("action_forbidden",()->api().status(caller,run));code("action_forbidden",()->api().cancel(caller,run));
+        jdbc.update("UPDATE oa_deployment_credential SET expires_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE key_id=?",key.keyId());
+        assertTrue(keys().authenticate(key.token()).isEmpty());code("resource_unavailable",()->api().submit(caller,deployment,"expired",input()));
+        code("credential_expired",()->keys().rotate(scope,deployment,key.keyId()));
+        var active=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("active",true,true,true,1));var activeCaller=caller(active);
+        jdbc.update("UPDATE oa_tenant SET status='suspended' WHERE tenant_id=?",A);
+        code("resource_unavailable",()->api().submit(activeCaller,deployment,"suspended",input()));
+        assertEquals("cancelled",api().cancel(caller("alice"),run).get("state"));
+    }
+
+    @Test void apiUserRoleAndEnvironmentCannotBeForgedAndRevocationHidesOldRuns() {
+        actors();var alice=caller("alice");String run=api().submit(alice,deployment,"alice",input()).run_id();
+        code("action_forbidden",()->api().submit(caller("viewer"),deployment,"viewer",input()));
+        code("action_forbidden",()->api().status(caller("viewer"),run));
+        String other=seedDeployment(new RunLedger.Scope(B,"test"));
+        code("resource_unavailable",()->api().submit(alice,other,"foreign",input()));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        code("resource_unavailable",()->api().submit(alice,deployment,"alice",input()));
+        code("resource_unavailable",()->api().events(alice,run,0));
+    }
+
+    @Test void apiRevocationBetweenInitialAuthorizationAndAdmissionRollsBackSubmission() {
+        actors();var key=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("race",true,true,true,1));var caller=caller(key);
+        var checked=org.mockito.Mockito.spy(authorization());var calls=new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.doAnswer(invocation->{
+            invocation.callRealMethod();if(calls.incrementAndGet()==1) keys().revoke(scope,deployment,key.keyId());return null;
+        }).when(checked).require(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.eq(DeploymentAuthorization.Action.CREATE),org.mockito.ArgumentMatchers.isNull());
+        code("resource_unavailable",()->api(checked).submit(caller,deployment,"race",input()));
+        assertEquals(0,count("oa_agent_run"));assertEquals(0,count("oa_run_outbox"));
+    }
+
+    @Test void apiProductionPromotionNeedsSuccessfulExactTestAndExplicitExecutionGrant() {
+        actors();var created=deployments().create(scope,configuration());String testId=(String)created.get("deployment_id");
+        String prodTemplate=seedDeployment(new RunLedger.Scope(A,"prod"));
+        String prodModel=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,prodTemplate);
+        String run=api().submit(caller("alice"),testId,"verification",input()).run_id();
+        var promotion=new AgentDeploymentService.Promote(UUID.fromString(testId),UUID.fromString(prodModel),1,UUID.fromString(run));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->deployments().promote(A,promotion));
+        user("operator");code("successful_test_required",()->deployments().promote(A,promotion));
+        ledger.finish(claim(run),RunState.SUCCEEDED,null); // Synthetic trusted-worker evidence for the publication transaction test.
+        String prod=(String)deployments().promote(A,promotion).get("deployment_id");
+        assertEquals(1,count("oa_deployment_promotion"));
+        code("action_forbidden",()->api().submit(caller("operator"),prod,"role-is-not-execution",input()));
+        code("action_forbidden",()->api().submit(caller("bob"),prod,"before-grant",input()));
+        user("alice");
+        var controller=new PlatformDeploymentController(deployments(),keys(),access(),memberships(),jdbc,new DataSourceTransactionManager(source));
+        controller.grant(A,"prod",UUID.fromString(prod),"bob");
+        String prodRun=api().submit(caller("bob"),prod,"granted",input()).run_id();
+        assertEquals("queued",api().status(caller("bob"),prodRun).get("state"));
+        controller.revokeGrant(A,"prod",UUID.fromString(prod),"bob");
+        code("action_forbidden",()->api().status(caller("bob"),prodRun));
+        assertEquals("queued",api().status(caller("operator"),prodRun).get("state"));
+    }
+
+    @Test void apiDisabledDeploymentRejectsNewRunsButPreservesAuthorizedHistory() {
+        actors();String run=api().submit(caller("alice"),deployment,"first",input()).run_id();
+        deployments().disable(scope,deployment);
+        code("deployment_unavailable",()->api().submit(caller("alice"),deployment,"disabled",input()));
+        assertEquals("queued",api().status(caller("alice"),run).get("state"));
+        assertEquals("cancelled",api().cancel(caller("alice"),run).get("state"));
+    }
+
+    @Test void apiUsageIsDurableAndDuplicateOldEventsCannotRegressIt() throws Exception {
+        actors();String run=api().submit(caller("alice"),deployment,"usage",input()).run_id();var lease=claim(run);
+        var first=json.readTree("{\"prompt_tokens\":10,\"completion_tokens\":2,\"total_tokens\":12}");
+        var last=json.readTree("{\"prompt_tokens\":20,\"completion_tokens\":5,\"total_tokens\":25}");
+        ledger.append(lease,"usage-1","usage",first);ledger.append(lease,"usage-2","usage",last);ledger.append(lease,"usage-1","usage",first);
+        assertEquals(25,((com.fasterxml.jackson.databind.JsonNode)api().status(caller("alice"),run).get("usage")).get("total_tokens").intValue());
+        long before=((Number)ledger.get(scope,run).get("last_event_seq")).longValue();
+        code("invalid_usage",()->ledger.append(lease,"bad-usage","usage",json.readTree("{\"prompt_tokens\":-1,\"completion_tokens\":0,\"total_tokens\":0}")));
+        assertEquals(before,((Number)ledger.get(scope,run).get("last_event_seq")).longValue());
+        assertEquals(2,api().events(caller("alice"),run,2).events().size());
+        assertFalse(api().status(caller("alice"),run).containsKey("input_json"));
+    }
+
+    @Test void apiRevokedModelCannotCommitSuccessOrAuthorizePublication() {
+        actors();String run=api().submit(caller("alice"),deployment,"late-revocation",input()).run_id();
+        var lease=claim(run);
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=? AND environment='test'",A);
+        var completed=ledger.finish(lease,RunState.SUCCEEDED,null);
+        assertEquals("failed",completed.get("state"));assertEquals("permission_revoked",completed.get("error_code"));
     }
     private ByteArrayResource table(String file, String table) throws Exception {
         String sql = new ClassPathResource("db/migration/" + file).getContentAsString(StandardCharsets.UTF_8);

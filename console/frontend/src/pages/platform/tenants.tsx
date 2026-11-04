@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import ModelConnections from './models';
 import SkillReleases from './skills';
+import AgentDeployments from './agents';
 import {
   Alert,
   Button,
@@ -367,6 +368,19 @@ function EnvironmentPanel({
   return (
     <Tabs
       items={[
+        {
+          key: 'agents',
+          label: 'Agent 工作台',
+          children: (
+            <AgentDeployments
+              key={`${tenant.tenantId}:${environment}`}
+              tenantId={tenant.tenantId}
+              environment={environment}
+              role={role}
+              active={tenant.status === 'active'}
+            />
+          ),
+        },
         { key: 'quota', label: '环境配额', children: quotaPanel },
         {
           key: 'skills',

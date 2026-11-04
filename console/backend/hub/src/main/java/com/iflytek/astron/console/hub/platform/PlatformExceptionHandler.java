@@ -17,8 +17,12 @@ public class PlatformExceptionHandler {
     @ExceptionHandler(com.iflytek.astron.console.hub.platform.run.RunFailure.class)
     public ResponseEntity<ApiResult<Void>> runFailure(com.iflytek.astron.console.hub.platform.run.RunFailure exception) {
         HttpStatus status = switch (exception.code()) {
+            case "unauthenticated" -> HttpStatus.UNAUTHORIZED;
+            case "action_forbidden" -> HttpStatus.FORBIDDEN;
+            case "executor_unavailable", "stored_event_unavailable" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "resource_unavailable" -> HttpStatus.NOT_FOUND;
-            case "queue_full", "sandbox_quota_full" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "queue_full", "sandbox_quota_full", "stream_limit", "credential_limit" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "successful_test_required", "production_promotion_required", "credential_revoked", "credential_expired", "skill_unavailable", "model_unavailable" -> HttpStatus.CONFLICT;
             case "sandbox_state_conflict", "sandbox_cleanup_pending", "cleanup_before_terminal" -> HttpStatus.CONFLICT;
             case "idempotency_conflict", "event_conflict", "state_conflict", "lease_fenced", "deployment_unavailable", "tenant_inactive" -> HttpStatus.CONFLICT;
             case "event_history_expired" -> HttpStatus.GONE;
@@ -46,6 +50,12 @@ public class PlatformExceptionHandler {
         return error(HttpStatus.CONFLICT, "Configuration changed; refresh before retrying");
     }
 
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<ApiResult<Void>> storageUnavailable() {
+        // SQL statements and driver messages may contain private request data.
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "execution_dependency_unavailable");
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResult<Void>> invalid(IllegalArgumentException exception) {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage());
@@ -54,11 +64,18 @@ public class PlatformExceptionHandler {
     // Default Spring validation logging includes rejected field values, which can contain keys.
     @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class,
             org.springframework.http.converter.HttpMessageNotReadableException.class})
-    public ResponseEntity<ApiResult<Void>> invalidBody() {
-        return error(HttpStatus.BAD_REQUEST, "Invalid request fields");
+    public ResponseEntity<ApiResult<Void>> invalidBody(jakarta.servlet.http.HttpServletRequest request) {
+        String path=request.getRequestURI().substring(request.getContextPath().length());
+        return path.startsWith("/api/v1/")
+                ? error(HttpStatus.UNPROCESSABLE_ENTITY,"invalid_input")
+                : error(HttpStatus.BAD_REQUEST, "Invalid request fields");
     }
 
     private ResponseEntity<ApiResult<Void>> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(new ApiResult<>(status.value(), message, null, System.currentTimeMillis()));
+        // Preflight failures on an SSE route still have a JSON error body. An
+        // explicit media type prevents Accept: text/event-stream from turning
+        // the intended 4xx response into an unhandled negotiation exception.
+        return ResponseEntity.status(status).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(new ApiResult<>(status.value(), message, null, System.currentTimeMillis()));
     }
 }

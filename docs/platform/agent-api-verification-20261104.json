@@ -1,0 +1,60 @@
+{
+  "recorded_date": "2026-11-04",
+  "scope": "Deployment management, scoped credentials, public run HTTP/SSE and console integration; not a complete execution deployment",
+  "java": {
+    "runtime": "OpenJDK 21.0.13; Maven 3.9.9; MySQL 8.4.13",
+    "selection": "RunLedgerMySqlTest,AgentRunHttpTest,RunEventStreamsTest,RunContractTest,PlatformRunInternalSecurityTest",
+    "unique_tests": 66,
+    "first_complete_pass": {
+      "passed": 60,
+      "errors": 5,
+      "failures": 0,
+      "causes": [
+        "Two SSE test identities used the unauthenticated JwtAuthenticationToken constructor; fixture corrected",
+        "Three MySQL connections timed out through the SSH forwarding test harness"
+      ]
+    },
+    "targeted_rerun": {
+      "passed": 5,
+      "errors": 0,
+      "failures": 0,
+      "maven_result": "BUILD SUCCESS",
+      "cases": [
+        "RunEventStreamsTest.failedRunSendsCorrelatedErrorAfterPersistedEventsAndBeforeStreamEnd",
+        "RunEventStreamsTest.revocationAfterPreflightStopsSubscriptionWithoutLeakingFurtherEvents",
+        "RunLedgerMySqlTest.concurrentClaimsAcrossInstancesRespectExecutionQuotaAndDuplicates",
+        "RunLedgerMySqlTest.apiUserRoleAndEnvironmentCannotBeForgedAndRevocationHidesOldRuns",
+        "RunLedgerMySqlTest.eventsAreOrderedDeduplicatedBoundedAndReconnectable"
+      ],
+      "harness_note": "After Maven completed, the local Python wrapper failed while printing an existing replacement character to the GBK console. Surefire XML and Maven log independently confirm all five tests passed; owned verification resources were cleaned in finally. No product test was skipped."
+    },
+    "final_http_check": {
+      "passed": 15,
+      "errors": 0,
+      "failures": 0,
+      "selection": "AgentRunHttpTest (13), RunEventStreamsTest (2)",
+      "note": "Adds sanitized 503 handling for a real Spring DataAccessException category from the run service; prior fixture and SSH failures were already resolved."
+    },
+    "openapi_check": "YAML parsed, all 31 local references resolved, 6 unique operations; no full OpenAPI schema validator was installed",
+    "coverage": [
+      "HTTP 202/401/403/404/409/422/429/503 and malformed input",
+      "Tenant/environment/deployment scoping and production explicit execution grants",
+      "Credential action scoping, rotation, expiry, revocation and own-run visibility",
+      "Immutable deployment snapshots, successful test prerequisite and production publication",
+      "Model revocation racing successful completion cannot authorize publication",
+      "Durable quota, idempotency, event history and database SIGKILL/restart",
+      "SSE failure event ordering and permission revocation while subscribed"
+    ]
+  },
+  "frontend": {
+    "type_check": "passed",
+    "production_build": "passed; 5m 13s; existing Sass/Browserslist/large-bundle warnings",
+    "browser_end_to_end": "pending"
+  },
+  "not_verified": [
+    "Real control-plane -> Temporal activity -> DeepAgents -> resource reconciliation chain",
+    "Full authenticated browser debugging against deployed API",
+    "Legacy workflow executor migration and complete old API regression",
+    "Production Kata/K8S, full offline operation and capacity acceptance"
+  ]
+}

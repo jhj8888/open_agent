@@ -1,0 +1,108 @@
+.oa-agent-workspace {
+  background: #f5f7f6;
+  border: 1px solid #e5ebe7;
+  border-radius: 12px;
+  padding: 26px;
+  color: #263832;
+}
+.oa-agent-workspace > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.oa-workspace-kicker {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: #778b82;
+}
+.oa-agent-workspace h2 {
+  margin: 8px 0;
+  font-size: 26px;
+  font-weight: 650;
+  color: #233b33;
+}
+.oa-agent-workspace p {
+  color: #697c73;
+}
+.oa-agent-workspace .ant-btn-primary,
+.oa-run-console .ant-btn-primary {
+  background: #17785f;
+  border-color: #17785f;
+}
+.oa-agent-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+.oa-agent-cards .ant-card {
+  border-color: #e3e9e5;
+  box-shadow: 0 3px 10px #233b3304;
+}
+.oa-agent-cards .ant-card-head-title {
+  font-size: 16px;
+  color: #233b33;
+}
+.oa-deployment-id {
+  font:
+    11px/1.8 Consolas,
+    monospace;
+  margin: 20px 0 !important;
+  color: #7b8c83;
+}
+.oa-run-console {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #263832;
+}
+.oa-run-answer {
+  min-height: 180px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 22px;
+  border: 1px solid #e4ebe6;
+  border-radius: 10px;
+  background: #f9fbf9;
+  line-height: 1.9;
+}
+.oa-run-events {
+  max-height: 230px;
+  overflow: auto;
+  margin-top: 12px;
+  background: #f6f8f6;
+  padding: 12px;
+  border-radius: 6px;
+}
+.oa-run-events > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 6px;
+  font-size: 12px;
+}
+.oa-run-console summary {
+  cursor: pointer;
+  color: #496557;
+  font-size: 13px;
+}
+.oa-api-example {
+  white-space: pre-wrap;
+  background: #17382e;
+  color: #d7e8dd;
+  padding: 18px;
+  border-radius: 8px;
+}
+@media (max-width: 720px) {
+  .oa-agent-workspace {
+    padding: 16px;
+  }
+  .oa-agent-workspace > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .oa-agent-cards {
+    grid-template-columns: 1fr;
+  }
+}

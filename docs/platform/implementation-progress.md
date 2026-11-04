@@ -55,6 +55,8 @@ python3 console/backend/tests/test_tenant_migration.py
 
 ## 尚待完成
 
+2026-11-04 统一 API 增量：新增固定版本部署、生产推广校验、部署服务凭据与 runs/SSE；控制台接入真实服务调用。66 项 Java 用例经定向复测全部通过，前端类型检查与生产构建通过。具体失败修复和未验收范围见 [接口验证记录](agent-api-verification-20261104.json)，接口契约见 [HTTP API](agent-http-api.md)。执行准入仍默认关闭，完整实际执行与资源回收链路未交付，公网预览继续使用明确标识的示例数据。
+
 `manage-tenant-access` 任务 1.1 已具备上述证据并完成，其余任务保持未勾选；整体项目尚未完成。
 
 `persist-agent-runs` 任务 1.1 已完成并保留真实数据库证据；配额与 outbox 的存储层已实现，其余端到端任务保持未勾选。

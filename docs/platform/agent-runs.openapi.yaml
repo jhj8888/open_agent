@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Open Agent deployment runs API
+  version: 0.1.0
+  description: >-
+    Authenticated asynchronous DeepAgents tasks. Admission remains disabled until
+    the trusted execution worker and resource reconciler are configured. The
+    static interface preview does not implement these endpoints.
+servers:
+  - url: /
+security:
+  - bearer: []
+paths:
+  /api/v1/agent-deployments/{deploymentId}:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    get:
+      operationId: getDeployment
+      summary: Read scoped metadata and current action permissions
+      responses:
+        '200':
+          description: Metadata without secrets or raw system instructions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Deployment' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/v1/agent-deployments/{deploymentId}/runs:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    get:
+      operationId: listRuns
+      summary: Latest 50 visible runs, newest first
+      responses:
+        '200':
+          description: Service credentials and production delegates see only their own runs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Run' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: submitRun
+      summary: Durably admit a task without waiting for model execution
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[!-~]{1,128}$' }
+          description: Reuse on transport retries; changed input under the same key is a conflict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Submit' }
+      responses:
+        '202':
+          description: Accepted or matched an existing identical submission
+          headers:
+            Location:
+              schema: { type: string }
+              description: Status path
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [run_id, status_url, events_url, reused]
+                        properties:
+                          run_id: { type: string, format: uuid }
+                          status_url: { type: string }
+                          events_url: { type: string }
+                          reused: { type: boolean }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/runs/{runId}:
+    parameters:
+      - $ref: '#/components/parameters/runId'
+    get:
+      operationId: getRun
+      summary: Read a durable task state
+      responses:
+        '200': { $ref: '#/components/responses/Run' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/v1/runs/{runId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/runId'
+    post:
+      operationId: cancelRun
+      summary: Idempotently request cancellation; resource cleanup remains independently tracked
+      responses:
+        '200': { $ref: '#/components/responses/Run' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/v1/runs/{runId}/events:
+    parameters:
+      - $ref: '#/components/parameters/runId'
+    get:
+      operationId: getRunEvents
+      summary: Read event history or subscribe with Accept text/event-stream
+      parameters:
+        - name: after
+          in: query
+          schema: { type: integer, format: int64, minimum: 0, default: 0 }
+        - name: Last-Event-ID
+          in: header
+          schema: { type: string, pattern: '^[0-9]{1,18}$' }
+          description: SSE reconnect cursor; takes precedence over after
+      responses:
+        '200':
+          description: >-
+            JSON pages contain at most 100 events. SSE IDs are durable sequence
+            numbers. Reconnect after the approximately 60-second connection
+            window with Last-Event-ID. stream.end stops reconnecting. A terminal
+            error event contains run_id, code and terminal=true. Disconnection
+            does not cancel or resubmit execution.
+          content:
+            text/event-stream:
+              schema: { type: string }
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          events:
+                            type: array
+                            items: { $ref: '#/components/schemas/Event' }
+                          last_sequence: { type: integer, format: int64 }
+                          terminal: { type: boolean }
+        '410':
+          description: Event history has expired; query task state instead of silently skipping history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Envelope' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Verified user JWT or deployment-scoped opaque credential; internal worker keys are rejected
+  parameters:
+    deploymentId:
+      name: deploymentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    runId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: >-
+        Stable code in message, null data. 401 unauthenticated; 403 action
+        forbidden; 404 inaccessible resource; 409 state/idempotency conflict;
+        422 invalid input; 429 quota; 503 unavailable dependency or disabled
+        admission. Malformed path/query syntax may be rejected by HTTP binding
+        with 400. Raw model responses and credentials are never included.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    Run:
+      description: Current task state; never includes original input or model credentials
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Run' }
+  schemas:
+    Envelope:
+      type: object
+      required: [code, message, data, timestamp]
+      properties:
+        code: { type: integer }
+        message: { type: string }
+        data: { nullable: true }
+        timestamp: { type: integer, format: int64, description: Unix milliseconds }
+    Submit:
+      type: object
+      additionalProperties: false
+      required: [input]
+      properties:
+        timeoutSeconds: { type: integer, minimum: 1, maximum: 3600, default: 300 }
+        input:
+          type: object
+          additionalProperties: false
+          required: [message]
+          properties:
+            message: { type: string, minLength: 1, maxLength: 32768 }
+            history:
+              type: array
+              maxItems: 32
+              items:
+                type: object
+                additionalProperties: false
+                required: [role, content]
+                properties:
+                  role: { type: string, enum: [user, assistant] }
+                  content: { type: string, minLength: 1, maxLength: 8192 }
+    Deployment:
+      type: object
+      properties:
+        deployment_id: { type: string, format: uuid }
+        display_name: { type: string }
+        environment: { type: string, enum: [test, prod] }
+        agent_version: { type: string }
+        executor_kind: { type: string, enum: [deepagents] }
+        state: { type: string, enum: [test, published, disabled] }
+        admission_enabled: { type: boolean }
+        allowed_actions:
+          type: object
+          properties:
+            create: { type: boolean }
+            read: { type: boolean }
+            cancel: { type: boolean }
+    Run:
+      type: object
+      required: [run_id, state, trace_id]
+      properties:
+        run_id: { type: string, format: uuid }
+        deployment_id: { type: string, format: uuid }
+        trace_id: { type: string, format: uuid }
+        state:
+          type: string
+          enum: [queued, running, cancel_requested, cancelled, succeeded, failed, timed_out]
+        error_code: { type: string, nullable: true }
+        environment: { type: string, enum: [test, prod] }
+        agent_version: { type: string }
+        created_at: { type: string }
+        started_at: { type: string, nullable: true }
+        finished_at: { type: string, nullable: true }
+        deadline_at: { type: string }
+        usage:
+          type: object
+          nullable: true
+          properties:
+            prompt_tokens: { type: integer, format: int64, minimum: 0 }
+            completion_tokens: { type: integer, format: int64, minimum: 0 }
+            total_tokens: { type: integer, format: int64, minimum: 0 }
+    Event:
+      type: object
+      required: [run_id, sequence_no, event_type, payload]
+      properties:
+        run_id: { type: string, format: uuid }
+        sequence_no: { type: integer, format: int64, minimum: 1 }
+        event_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string }
