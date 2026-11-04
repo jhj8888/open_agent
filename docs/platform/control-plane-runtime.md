@@ -36,7 +36,7 @@ java -jar console/backend/hub/target/hub-server.jar
 
 `/health/live` 检查进程存活；`/health/ready` 查询新凭据表确认数据库与必需迁移可用，失败返回 503 和 `DOWN`，不返回驱动信息。就绪检查不代表模型、worker 或沙盒可执行。`PLATFORM_RUN_ADMISSION_ENABLED` 仍默认关闭，必须在受信执行服务与资源核验接通后启用。
 
-当前完整 Spring 启动测试使用明确的数据库/身份测试实现，验证 Bean 接线、管理身份适配及健康错误处理；不是实际 OIDC、S3、数据库迁移或公网展示的验收。真实依赖部署与任务执行联调继续进行。
+完整 Spring 启动测试使用明确的数据库/身份测试实现，验证 Bean 接线、管理身份适配及健康错误处理。2026-11-05 已另外完成真实 MySQL、S3、Casdoor 与本入口共同部署，通过真实 PKCE/JWT、租户创建和服务重启验证，见 [部署记录](control-plane-deployment.md)。公网浏览器与真实任务执行链仍在接入。
 
 2026-11-04 本轮构建完成：4 项检查全部通过，包含真实嵌入式 Tomcat HTTP 请求与正常停机；Maven package 成功。核对 JAR 的 Start-Class、平台配置、日志配置及 V1.54 迁移均存在。产物大小 190,919,064 字节，SHA-256 为 `05dda8bf769f25a02bd5edada88a7ead3ea79fde4338f3d1ef765dbd37d3d9fa`。本轮先修正了隐式 Redis/MyBatis 自动配置和一处测试响应路径断言，再完成全部检查；保留初始失败日志。
 

@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-05",
+  "environment": "authorized single-host demo",
+  "production_ready": false,
+  "data-verification": {
+    "s3_roundtrip_bytes": 1048576,
+    "sha256": "1350ba391a465d8fb05288e72b6cdfc3bf1bca363771e91c3ff0e3705c2336cf",
+    "cross_bucket_create_denied": true,
+    "cross_bucket_read_denied": true,
+    "bucket_list_filtered": true,
+    "public_acl_denied": true,
+    "s3_restart_persistence": true,
+    "probe_removed": true,
+    "database_accounts_cross_schema_denied": true,
+    "boto3_version": "1.40.53",
+    "production_ha_verified": false
+  },
+  "identity-api-verification": {
+    "oidc_authorization_code_pkce": true,
+    "browser_client_secret_required": false,
+    "real_api_jwt_verified": true,
+    "authorization_code_replay_denied": true,
+    "tenant_created_via_api": true,
+    "test_admin_membership_verified": true,
+    "api_restart_tenant_persisted": true,
+    "database_restart_tenant_persisted": true,
+    "identity_restart_key_persisted": true,
+    "admission_enabled": false,
+    "browser_ui_verified": false
+  },
+  "api-deployment": {
+    "artifact_sha256": "05dda8bf769f25a02bd5edada88a7ead3ea79fde4338f3d1ef765dbd37d3d9fa",
+    "jre_image": "m.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+    "database_ready": true,
+    "forged_identity_rejected": true,
+    "admission_enabled": false,
+    "public_port": false
+  },
+  "official_image_digests": [
+    {
+      "image": "library/eclipse-temurin:21.0.13_9-jre-jammy",
+      "mirror_digest": "sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+      "official_registry_digest": "sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+      "matches": true
+    },
+    {
+      "image": "casbin/casdoor:v4.25.0",
+      "mirror_digest": "sha256:a63e7a78257c43c90b22a49bf93becca7007dc47b4f97bec763aa50bcc9c9ee9",
+      "official_registry_digest": "sha256:a63e7a78257c43c90b22a49bf93becca7007dc47b4f97bec763aa50bcc9c9ee9",
+      "matches": true
+    },
+    {
+      "image": "chrislusf/seaweedfs:4.52",
+      "mirror_digest": "sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+      "official_registry_digest": "sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+      "matches": true
+    },
+    {
+      "image": "library/mysql:8.4.13",
+      "mirror_digest": "sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+      "official_registry_digest": "sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+      "matches": true
+    }
+  ],
+  "reprovision_preserves_container_ids_and_credentials": true
+}

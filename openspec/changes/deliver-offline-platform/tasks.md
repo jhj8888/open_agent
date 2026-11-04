@@ -24,3 +24,9 @@
 新增独立 Skill 平台启动入口，复用现有平台服务而不加载旧业务控制器；默认仅监听 loopback，配置显式引用数据库、内网 OIDC 与 S3，未匹配路径拒绝。官方 Spring Boot 可执行 JAR 构建成功，4 项完整启动/身份传递/健康检查通过，其中包含真实 Tomcat HTTP 请求。产物摘要及复现命令见 `docs/platform/control-plane-runtime.md`。CI 已纳入这组启动检查以及公开 API/SSE 检查，远端执行结果另行确认。
 
 此增量尚未完成真实身份服务、对象存储、持久 worker 的共同部署；离线制品清单、生产 Helm 和系统恢复仍待完成，原任务保持未勾选。
+
+## 2026-11-05 真实控制面依赖增量
+
+已部署独立 MySQL 8.4.13、SeaweedFS 4.52、Casdoor 4.25.0 与 Java 控制面，四个镜像 digest 与官方 Registry 核对一致。53 个迁移完整应用到 V1.54；实际 S3 授权/读写/重启、真实 OIDC PKCE/JWT、租户创建、身份/数据库/API 重启持久化通过。安装器带归属检查、并发锁、原子配置写入、随机持久凭据和资源上限。证据见 `docs/platform/control-plane-verification-20261105.json`，部署边界和初始失败修复见 `docs/platform/control-plane-deployment.md`。
+
+持久 worker、物理回收核验、正式浏览器入口、生产 Helm、完整离线交付和备份恢复仍未完成，原任务保持未勾选；执行准入保持关闭。

@@ -1,0 +1,30 @@
+{
+  "verified_at": "2026-11-05",
+  "verification": "Docker Hub official registry manifest digest equals mirror RepoDigest",
+  "images": [
+    {
+      "image": "library/eclipse-temurin:21.0.13_9-jre-jammy",
+      "mirror_digest": "sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+      "official_registry_digest": "sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+      "matches": true
+    },
+    {
+      "image": "casbin/casdoor:v4.25.0",
+      "mirror_digest": "sha256:a63e7a78257c43c90b22a49bf93becca7007dc47b4f97bec763aa50bcc9c9ee9",
+      "official_registry_digest": "sha256:a63e7a78257c43c90b22a49bf93becca7007dc47b4f97bec763aa50bcc9c9ee9",
+      "matches": true
+    },
+    {
+      "image": "chrislusf/seaweedfs:4.52",
+      "mirror_digest": "sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+      "official_registry_digest": "sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+      "matches": true
+    },
+    {
+      "image": "library/mysql:8.4.13",
+      "mirror_digest": "sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+      "official_registry_digest": "sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+      "matches": true
+    }
+  ]
+}

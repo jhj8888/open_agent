@@ -18,3 +18,11 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+The optional open_agent standalone demo deployment references SeaweedFS
+(https://github.com/seaweedfs/seaweedfs), licensed under Apache License 2.0,
+and Casdoor (https://github.com/casdoor/casdoor), licensed under Apache License 2.0.
+These components run as separate services. MySQL, the Java runtime and container
+OS packages retain their own licenses; see docs/platform/components.md and the
+versioned deployment manifest. This notice does not relicense those components
+or constitute a complete distribution SBOM.

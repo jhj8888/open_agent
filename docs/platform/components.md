@@ -9,6 +9,7 @@
 | Agent 主引擎推荐 | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) | 30.9k | MIT | 复用 Python 路径；原生 Skill 与现有桥接需收敛 |
 | 编程执行引擎候选 | [anomalyco/opencode](https://github.com/anomalyco/opencode) | 224.2k | MIT | 评估 V2；首期不新增第二运行时，见[主引擎评估](agent-runtime-evaluation.md) |
 | 身份认证 | [casdoor/casdoor](https://github.com/casdoor/casdoor) | 14.7k | Apache-2.0 | 复用上游集成；仅使用身份功能 |
+| Skill 对象存储 | [seaweedfs/seaweedfs](https://github.com/seaweedfs/seaweedfs) | 35.9k | Apache-2.0 | 2026-11-05 核验；展示环境固定 4.52，官方 S3 协议接入，未替换旧 MinIO 服务 |
 | 私有沙盒 API | [opensandbox-group/OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) | 16.4k | Apache-2.0 | 拟新增；需锁定版本并通过集群兼容验收 |
 | 独立内核隔离 | [kata-containers/kata-containers](https://github.com/kata-containers/kata-containers) | 9.1k | Apache-2.0 | 拟用于不可信生产代码；验证 CPU 节点虚拟化 |
 | 单机展示隔离 | [google/gvisor](https://github.com/google/gvisor) | 19.9k | Apache-2.0 | 2026-11-04 核验；固定 20261102.0，展示机使用 systrap；不替代生产 Kata 验收 |
@@ -28,6 +29,8 @@ Temporal SDK 本次新增的锁定依赖为 `nexus-rpc==1.4.0`（MIT）与 `type
 优先选择 Apache-2.0/MIT 等宽松许可组件，保留版权与许可证及需要的 NOTICE。不把 AGPL、GPL、带附加限制的源码可见许可证混写为“都可无条件商用”。主仓库的许可标签不自动覆盖企业版、插件、模型权重、容器中的操作系统包或字体。
 
 上游已有 MySQL、PostgreSQL、Redis、MinIO、Kafka 等基础依赖，本次未更换，具体镜像版本仍须逐一核验。尤其不能把上游 MinIO/Redis 的当前版本默认为宽松许可；离线交付任务要求记录实际版本、许可及企业处理决定。已有合规基础设施可优先接入以减少新增依赖。
+
+2026-11-05 控制面展示增量采用 [SeaweedFS 4.52 Apache-2.0](https://github.com/seaweedfs/seaweedfs/blob/4.52/LICENSE)，复用已有 S3 Java SDK，不新增 MinIO 服务。Casdoor 固定 4.25.0，原 Helm/完整 Hub 的默认版本不变。数据库沿用 MySQL 8.4.13 SQL 兼容路径，[该版本许可证](https://github.com/mysql/mysql-server/blob/mysql-8.4.13/LICENSE)包含 GPL-2.0 及其依赖许可，不能标为 Apache/MIT；交付数据库镜像时必须处理对应源码与许可义务。Java 运行时为 Eclipse Temurin 21.0.13，OpenJDK 主要适用 GPLv2 with Classpath Exception；容器 OS 包与第三方代码的完整许可仍需纳入 SBOM。版本/摘要和实际验证见 [控制面展示部署](control-plane-deployment.md)。
 
 Langfuse 属于上游可选集成，默认不启用外网；若启用，须另外核对所需功能是否在相应开源许可范围，并使用内网部署。本方案的必要日志/指标能力不依赖其商业功能。
 
