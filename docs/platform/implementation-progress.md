@@ -10,6 +10,8 @@
 - 原 React 控制台增加 `/platform/tenants` 页面与侧栏入口。切换租户/环境会清理旧视图，异步请求忽略已失效结果。
 - V1.50 新增环境模型连接、配置版本及加密凭据引用，React 租户页新增模型配置/轮换/连接检查。两端使用管理员地址白名单、固定 DNS 结果和无重定向传输。Python 私有入口取消公网 MaaS 回退和跳过 TLS；Java 流取消可释放等待中的订阅。详见 [模型接入说明](model-api-access.md)。
 - V1.51 新增 Skill 暂存、发布清单、文件摘要、环境授权、测试证据和引用保留表。支持 ZIP 发布、旧草稿显式导入、授权下载、同版本幂等重试及测试→生产推广。控制台提供版本列表、摘要、导入/上传和文件下载；任务与 Agent 绑定仍待接入。详见 [Skill 发布说明](skill-releases.md)。
+- Python 增加 OpenSandbox 1.1.0 官方 SDK 适配、固定制品校验和 DeepAgents `BaseSandbox` 后端。可信 worker 可用 `DeepAgentsRunner.bind_attempt()` 绑定已准入的沙盒，开启原生 Skill 工具并在结束/异常时销毁；租约能力不进入 HTTP 参数或序列化字段。持久任务 worker 尚待接入。旧公网 E2B 默认拒绝。
+- 展示机已安装固定 gVisor 20261102.0 和 OpenSandbox 服务；13 项真实沙盒检查通过，包括原生 DeepAgents Skill 发现/执行（模型为合成模型）、双租户文件隔离、网络/DNS/元数据拒绝、凭据与本地控制 API 隔离、输出限额及取消回收。完整应用仍未部署，生产 Kata/K8S 未验收。详见 [私有沙盒说明](private-sandboxes.md)。
 - 修复初始导入的 `loop/` 忽略规则：限定为仓库根目录的 `/loop/`，补回源快照中原有的前端 Loop 组件与 Python LoopNode。保留 Apache-2.0 归属。
 
 ## 验证证据
@@ -23,7 +25,8 @@
 | 前端 `npm run build` | 通过；仍有上游大包/Sass 废弃接口提示 |
 | 真实 MySQL 8.4.13 迁移测试 | 2026-11-04 复验 7 项全部通过：空库、存量映射、真实授权查询、个人归属、数据库约束、模型版本环境外键及 Skill 原始推广/删除 SQL；就绪检查使用 TCP |
 | Java Skill 发布与导入 | 35 项通过：恶意包、摘要、权限、上传失败清理、幂等、引用保留、推广证据及旧草稿导入 |
-| Python 模型与 DeepAgents 回归 | 118 项通过，包含真实 DeepAgents 工具执行且凭据不进入工具参数/会话结果 |
+| Python 模型、DeepAgents、Skill 与私有沙盒合并回归 | 205 项通过，4 条既有依赖废弃/字段提示；含 26 项沙盒契约和可信 attempt 绑定的成功/异常释放 |
+| 展示机真实 OpenSandbox + gVisor | 13 项通过，证据见 `sandbox-verification-20261104.json`；不代表生产集群、配额、断电恢复或真实模型端到端验收 |
 | 测试模型基础协议探测 | 已通过工具调用、工具结果回传、流式输出、usage；仅使用合成测试输入 |
 
 模型探测使用用户授权的公网演示接口。请求名称 `deepseek-v4-flash`，返回名称 `deepseek-flash`。这是 SDK 协议探测，不代表已完成 DeepAgents、Java 两端整合，也不代表生产内网模型验收。凭据只存于忽略目录内的本机加密文件，代码和报告不含密钥。

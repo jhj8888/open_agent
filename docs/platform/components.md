@@ -11,6 +11,7 @@
 | 身份认证 | [casdoor/casdoor](https://github.com/casdoor/casdoor) | 14.7k | Apache-2.0 | 复用上游集成；仅使用身份功能 |
 | 私有沙盒 API | [opensandbox-group/OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) | 16.4k | Apache-2.0 | 拟新增；需锁定版本并通过集群兼容验收 |
 | 独立内核隔离 | [kata-containers/kata-containers](https://github.com/kata-containers/kata-containers) | 9.1k | Apache-2.0 | 拟用于不可信生产代码；验证 CPU 节点虚拟化 |
+| 单机展示隔离 | [google/gvisor](https://github.com/google/gvisor) | 19.9k | Apache-2.0 | 2026-11-04 核验；固定 20261102.0，展示机使用 systrap；不替代生产 Kata 验收 |
 | 持久任务 | [temporalio/temporal](https://github.com/temporalio/temporal) | 24.1k | MIT | 拟新增私有服务；不能自动替代应用幂等和 checkpoint |
 | 遥测采集 | [open-telemetry/opentelemetry-collector](https://github.com/open-telemetry/opentelemetry-collector) | 7.7k | Apache-2.0 | 接内网后端，优先复用企业已有采集 |
 | 指标 | [prometheus/prometheus](https://github.com/prometheus/prometheus) | 66.9k | Apache-2.0 | 优先接企业已有实例，只采平台指标 |

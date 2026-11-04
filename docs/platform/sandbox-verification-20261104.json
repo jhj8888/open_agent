@@ -1,0 +1,28 @@
+{
+  "passed": [
+    "real gVisor runtime, resource limits and per-attempt metadata admitted",
+    "fixed release bytes execute as UID 1000",
+    "tenant files isolated, Skill read-only, no Docker socket or service-account token",
+    "sandbox credentials absent from child environment and root process inaccessible",
+    "untrusted code cannot call the local execd control API",
+    "public IP, metadata, host, peer sandbox and direct DNS denied",
+    "artifact round trip and symlink rejection through native DeepAgents backend",
+    "real DeepAgents graph discovers SKILL.md and executes via the sandbox backend (synthetic model)",
+    "streaming output capped at 64 KiB",
+    "unprivileged hard PID and file-size limits enforced",
+    "official SDK recovery finds exact trusted attempt metadata",
+    "cancellation destroys sandbox and repeated close is idempotent",
+    "destroyed leases persisted as released"
+  ],
+  "deployment": {
+    "profile": "gvisor-demo",
+    "runtime": "20261102.0",
+    "opensandbox": "1.1.0",
+    "endpoint": "http://127.0.0.1:18081",
+    "runtime_image": "m.daocloud.io/docker.io/library/python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+    "server_image": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1",
+    "execd_image": "m.daocloud.io/docker.io/opensandbox/execd@sha256:e11fdd6fa641329a1fe5298e71c8dd2afca742674fe48bc855b2ff6715512829",
+    "network": "open-agent-sandbox"
+  },
+  "utc": "2026-11-04T11:23:56.323769+00:00"
+}

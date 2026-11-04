@@ -171,6 +171,8 @@ async def test_direct_enabled_e2b_missing_deployment_config_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     missing_setting: str,
 ) -> None:
+    monkeypatch.setenv("OPEN_AGENT_DEPLOYMENT_MODE", "development")
+    monkeypatch.setenv("OPEN_AGENT_ALLOW_PUBLIC_E2B", "true")
     monkeypatch.setattr(
         skill_sandbox_api, "_verify_execution_signature", lambda *a: None
     )

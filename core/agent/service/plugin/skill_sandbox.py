@@ -249,9 +249,18 @@ def _runtime_config_query(config: "SkillSandboxConfig") -> dict[str, str]:
     return query
 
 
+def _require_legacy_e2b_development() -> None:
+    if (
+        os.getenv("OPEN_AGENT_DEPLOYMENT_MODE", "private") != "development"
+        or os.getenv("OPEN_AGENT_ALLOW_PUBLIC_E2B", "false").lower() != "true"
+    ):
+        raise RuntimeError("LEGACY_E2B_DISABLED")
+
+
 async def _fetch_e2b_runtime_config(
     config: "SkillSandboxConfig",
 ) -> tuple[str, int, bool]:
+    _require_legacy_e2b_development()
     try:
         runtime_config_url = _load_runtime_config_url()
         credential_token = _load_runtime_credential_token()
@@ -555,6 +564,7 @@ class E2BSandboxProvider:
         self.config = config or SkillSandboxConfig()
 
     async def execute(self, request: SandboxExecutionRequest) -> dict[str, Any]:
+        _require_legacy_e2b_development()
         from e2b import AsyncSandbox
 
         (

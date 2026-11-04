@@ -72,3 +72,8 @@ jobs:
           core/agent/.venv/bin/python -m pytest tests/model_contract
           core/agent/tests/test_base_builder.py core/agent/tests/test_llm_completion.py
           core/agent/tests/test_deepagents_harness.py -q -p no:cacheprovider
+      - name: Check private sandbox contracts and explicit legacy development gate
+        run: >-
+          core/agent/.venv/bin/python -m pytest core/agent/tests/test_platform_sandbox.py
+          core/agent/tests/test_skill_plugin.py core/agent/tests/test_skill_sandbox_api.py
+          -q -p no:cacheprovider

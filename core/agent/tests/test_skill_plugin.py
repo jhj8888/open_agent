@@ -109,6 +109,9 @@ def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
     monkeypatch.setenv(SKILL_RESOURCE_TRUSTED_ORIGIN_ENV, "https://example.com")
     monkeypatch.setenv(SKILL_RESOURCE_TRUSTED_BUCKET_ENV, "console-oss")
+    # Compatibility tests opt into the legacy cloud provider explicitly.
+    monkeypatch.setenv("OPEN_AGENT_DEPLOYMENT_MODE", "development")
+    monkeypatch.setenv("OPEN_AGENT_ALLOW_PUBLIC_E2B", "true")
 
 
 class TestSkillPluginFactory:

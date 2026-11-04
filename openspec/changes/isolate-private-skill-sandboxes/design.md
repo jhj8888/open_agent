@@ -21,6 +21,7 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 5. 网络默认拒绝，仅按审批的内部目标、端口和期限放行；网络策略由可信控制器安装，隔离 CNI/egress 与 DNS 解析要在真实节点验证，不能只依赖应用层 allow_internet_access 字段。阻断元数据、K8S API、控制面数据库、其他租户和公网。
 6. executor 记录 sandbox_id/run_id/attempt/lease 和 owner；TTL 到期控制器回收，启动失败也释放配额。取消先停止执行再销毁，产物先验证路径/类型/大小再存入租户前缀，不能信任代码自报成功。
 7. 保留现有 skill_resource_security 检查。旧 E2B provider 仅显式开发配置可选，离线生产不允许。workflow 的有限 Pyodide 路径保留已有限制，所有可执行不可信本机代码的路径必须进入隔离后端。
+8. 无 KVM/K8S 的单机展示使用显式 `gvisor-demo` profile，禁止该 profile 承接 prod。固定 OpenSandbox SDK/server 1.1.0 与 gVisor 20261102.0。Docker provider 不支持 secureAccess，使用 execd 官方每次尝试独立认证 token；该 token 不得进入不可信子进程。gVisor 不兼容官方 egress 侧车，必须验证独立网桥/宿主规则/DNS，不能将空 networkPolicy 当作默认拒绝的证据。具体差异、调用链和未完成接线见 docs/platform/private-sandboxes.md。
 
 ## Risks / Trade-offs
 

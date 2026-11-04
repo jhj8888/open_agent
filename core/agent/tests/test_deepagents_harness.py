@@ -120,6 +120,81 @@ def engine(responses: Any, plugins: Any = None, **kwargs: Any) -> Any:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("model_error", [False, True])
+async def test_trusted_attempt_enables_native_tools_and_always_releases_sandbox(
+    context: Any, monkeypatch: Any, model_error: bool
+) -> None:
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from deepagents.backends import StateBackend
+    from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
+    from agent.platform_runtime.sandbox import AttemptSandbox, RunScope
+
+    commands = []
+
+    class MemorySandbox(StateBackend, SandboxBackendProtocol):
+        @property
+        def id(self):
+            return "synthetic-sandbox"
+
+        def execute(self, command, *, timeout=None):
+            commands.append(command)
+            return ExecuteResponse(
+                output="bounded tool result", exit_code=0, truncated=False
+            )
+
+    backend = MemorySandbox()
+    monkeypatch.setattr(
+        "agent.engine.deepagents_runner.OpenSandboxBackend", lambda attempt: backend
+    )
+    remote = SimpleNamespace(id=backend.id, destroy=AsyncMock())
+    journal = SimpleNamespace(cleanup_pending=AsyncMock(), released=AsyncMock())
+    attempt = AttemptSandbox(
+        RunScope(
+            "tenant-a",
+            "test",
+            uuid4(),
+            1,
+            uuid4(),
+            datetime.now(timezone.utc) + timedelta(minutes=2),
+        ),
+        remote,
+        journal,
+    )
+    runner, model = engine(
+        [call("execute", args={"command": "synthetic command"}), answer()], max_loop=1
+    )
+    model.error = model_error
+    injected = DeepAgentsRunner(model_handle=runner.model_handle, _attempt=attempt)
+    assert (
+        not injected.has_execution_tools
+    )  # HTTP/model validation cannot bind the private capability.
+    runner.bind_attempt(attempt)
+    with pytest.raises(ValueError):
+        runner.bind_attempt(attempt)
+    assert "_attempt" not in runner.model_dump()
+    if model_error:
+        with pytest.raises(PluginExc):
+            _ = [response async for response in runner.run(context[0], context[1])]
+    else:
+        responses = [response async for response in runner.run(context[0], context[1])]
+        assert commands == ["synthetic command"]
+        assert any("execute" in binding for binding in model.bindings)
+        assert all("task" not in binding for binding in model.bindings)
+        assert (
+            "".join(
+                response.content for response in responses if response.typ == "content"
+            )
+            == "done"
+        )
+    remote.destroy.assert_awaited_once()
+    journal.released.assert_awaited_once()
+    assert runner.model_handle._closed
+
+
+@pytest.mark.asyncio
 async def test_plain_answer_uses_real_graph_and_records_usage_once(
     context: Any,
 ) -> None:

@@ -39,13 +39,15 @@ from langchain_core.messages import (
 )
 from langgraph.config import get_stream_writer
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from agent.api.schemas.agent_response import AgentResponse, ToolExecution
 from agent.api.schemas.llm_message import LLMMessage
 from agent.domain.models.providers import ModelHandle
 from agent.domain.models.failures import ModelFailure, model_failure
 from agent.engine.plugin_tools import build_plugin_tools
+from agent.platform_runtime.backend import OpenSandboxBackend
+from agent.platform_runtime.sandbox import AttemptSandbox
 from agent.exceptions.agent_exc import AgentInternalExc
 from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc
 from agent.service.plugin.base import BasePlugin
@@ -78,13 +80,13 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
         self.span = span
         self.trace = trace
         self.decisions = 0
-        self.answer_mode = not bool(runner.plugins)
+        self.answer_mode = not runner.has_execution_tools
 
     async def awrap_model_call(
         self, request: ModelRequest, handler: Any
     ) -> ModelResponse:
         final = bool(
-            not self.runner.plugins
+            not self.runner.has_execution_tools
             or request.state.get("astron_finalizing", False)
             or self.decisions >= self.runner.max_loop
         )
@@ -174,7 +176,9 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
                     type(exc).__name__,
                 )
                 failure = model_failure(exc)
-                raise PluginExc(CallLlmPluginExc.c, f"{failure.code}: {failure.message}") from None
+                raise PluginExc(
+                    CallLlmPluginExc.c, f"{failure.code}: {failure.message}"
+                ) from None
             finally:
                 ended = int(time.time() * 1000)
                 messages = result.result if result is not None else []
@@ -245,6 +249,23 @@ class DeepAgentsRunner(BaseModel):
     knowledge: str = ""
     question: str = ""
     max_loop: int = Field(default=30, ge=1)
+    _attempt: AttemptSandbox | None = PrivateAttr(default=None)
+
+    @property
+    def has_execution_tools(self) -> bool:
+        return bool(self.plugins) or self._attempt is not None
+
+    def bind_attempt(self, attempt: AttemptSandbox) -> None:
+        """Only the trusted worker binds an admitted attempt, never HTTP/model input.
+
+        The worker resolves tenant, deployment, release and model references before
+        constructing this object. PrivateAttr excludes it from Pydantic schemas and
+        serialization. One runner owns one attempt and closes it when streaming ends.
+        """
+        if self._attempt is not None or not isinstance(attempt, AttemptSandbox):
+            raise ValueError("A runner can bind only one admitted sandbox attempt")
+        attempt.scope.remaining()
+        self._attempt = attempt
 
     async def run(
         self, span: Span, node_trace_log: NodeTraceLog
@@ -317,7 +338,11 @@ class DeepAgentsRunner(BaseModel):
                         data=Data(usage=usage),
                     )
                 )
-            await asyncio.shield(handle.aclose())
+            try:
+                await asyncio.shield(handle.aclose())
+            finally:
+                if self._attempt is not None:
+                    await asyncio.shield(self._attempt.close())
 
     async def _stream_graph(
         self,
@@ -331,7 +356,12 @@ class DeepAgentsRunner(BaseModel):
         graph = create_deep_agent(
             model=handle.model,
             tools=tools,
-            backend=StateBackend(),
+            backend=(
+                OpenSandboxBackend(self._attempt)
+                if self._attempt is not None
+                else StateBackend()
+            ),
+            skills=["/skills/"] if self._attempt is not None else None,
             system_prompt=(
                 "You are the Astron Agent assistant. Use the available tools when needed.\n"
                 "Decision instructions:\n"
@@ -372,7 +402,7 @@ class DeepAgentsRunner(BaseModel):
                 stream_mode=["messages", "updates", "custom"],
             ),
         )
-        phase = "answer" if not self.plugins else "decision"
+        phase = "decision" if self.has_execution_tools else "answer"
         emitted: set[str] = set()
         tool_arguments: dict[str, dict[str, Any]] = {}
         async with aclosing(stream):

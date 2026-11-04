@@ -49,4 +49,5 @@ dependencies = [
     "anthropic==1.17.0",
     "langchain-google-genai==4.4.2",
     "jsonschema>=4.25,<5",
+    "opensandbox==1.1.0",
 ]

@@ -1,0 +1,13 @@
+# Build with a preloaded base image, then publish the resulting digest to the
+# enterprise registry and add that exact digest to SKILL_RUNTIME_IMAGES.
+# No packages are downloaded during this build.
+ARG BASE_IMAGE=docker.io/library/python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2
+FROM ${BASE_IMAGE}
+RUN groupadd --gid 1000 agent \
+    && useradd --uid 1000 --gid 1000 --no-create-home --home-dir /workspace --shell /usr/sbin/nologin agent \
+    && install -d -m 0700 -o agent -g agent /workspace /workspace/tmp \
+    && install -d -m 0755 -o root -g root /skills
+# Execd starts as root to stage inputs and then launches user tools as 1000:1000.
+USER 0:0
+WORKDIR /workspace
+CMD ["/bin/bash", "-c", "exec sleep infinity"]
