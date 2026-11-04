@@ -25,7 +25,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest,PlatformRunInternalSecurityTest,AgentRunHttpTest,RunEventStreamsTest,PlatformApplicationTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest,PlatformRunInternalSecurityTest,AgentRunHttpTest,RunEventStreamsTest,PlatformApplicationTest,HostMetricsControllerTest,OperationsMetricsTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04
@@ -66,6 +66,25 @@ jobs:
       - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
       - run: npm run type-check
       - run: npm run build
+      - run: npm run test:workbench-session
+      - run: npm run build:workbench
+  monitoring-rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check alerts with the checksum-pinned official promtool
+        run: |
+          mkdir -p .monitor-test
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/prometheus/prometheus/releases/download/v3.15.1/prometheus-3.15.1.linux-amd64.tar.gz \
+            -o .monitor-test/prometheus.tar.gz
+          printf '%s\n' '6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84  .monitor-test/prometheus.tar.gz' | sha256sum -c -
+          tar -xzf .monitor-test/prometheus.tar.gz -C .monitor-test --strip-components=1 \
+            prometheus-3.15.1.linux-amd64/promtool prometheus-3.15.1.linux-amd64/LICENSE prometheus-3.15.1.linux-amd64/NOTICE
+          cd deploy/platform/monitor
+          ../../../.monitor-test/promtool check rules alerts.yml
+          ../../../.monitor-test/promtool test rules alerts.test.yml
   python-models:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -17,6 +17,8 @@
 | 持久任务 Python SDK | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | 1.2k | MIT | 2026-11-04 核验；已固定 1.35.0，真实调度测试通过，生产执行 activity 尚待接通 |
 | 遥测采集 | [open-telemetry/opentelemetry-collector](https://github.com/open-telemetry/opentelemetry-collector) | 7.7k | Apache-2.0 | 接内网后端，优先复用企业已有采集 |
 | 指标 | [prometheus/prometheus](https://github.com/prometheus/prometheus) | 66.9k | Apache-2.0 | 优先接企业已有实例，只采平台指标 |
+| Java 指标 SDK | [micrometer-metrics/micrometer](https://github.com/micrometer-metrics/micrometer) | 4.9k | Apache-2.0 | 2026-11-05 核验；采用 Spring Boot 3.5.4 管理的 1.15.2 Prometheus 注册表，固定有限标签 |
+| 主机指标 | [prometheus/node_exporter](https://github.com/prometheus/node_exporter) | 13.9k | Apache-2.0 | 2026-11-05 核验；固定 1.12.1 官方摘要，只在展示机 loopback 采集 CPU/内存/磁盘及指定平台服务 |
 | 日志查询 | [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) | 14.0k | Apache-2.0 | 默认候选；已有企业日志平台时可复用 |
 | 日志仪表盘 | [opensearch-project/OpenSearch-Dashboards](https://github.com/opensearch-project/OpenSearch-Dashboards) | 2.1k | Apache-2.0 | 可选管理界面；不能绕过租户授权 |
 

@@ -194,6 +194,32 @@
   font-size: 12px;
   min-width: 20px;
 }
+.monitor-page > .panel-heading {
+  padding: 0 0 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.monitor-page .top-actions select {
+  padding: 10px 12px;
+  border: 1px solid #dfe7d5;
+  border-radius: 6px;
+  background: white;
+  color: #4e6c5a;
+  font-size: 12px;
+}
+.monitor-page > .two-columns {
+  margin-bottom: 22px;
+}
+.monitor-page .metric-spacer {
+  flex: 1;
+}
+.monitor-page .resource-panel > .stats-grid {
+  margin: 0 22px 12px;
+}
+.monitor-page .resource-panel > p {
+  margin: 0;
+  padding: 0 22px 18px;
+}
 .chat-backdrop {
   position: fixed;
   inset: 0;

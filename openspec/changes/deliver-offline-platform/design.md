@@ -30,4 +30,8 @@ helm 已存在，但默认引用 ghcr.io 和 latest，部分服务单副本；La
 
 ## Migration Plan
 
+监控增量调用路径：工作台 → Java 租户授权 → MySQL 窗口聚合；平台管理员 → Java 固定查询 → 内部 Prometheus → node_exporter / Java Micrometer 指标。窗口为 1h/24h/7d，起止时刻固定，不受部署列表分页影响，缺少 usage 的任务不按零计量。当前排队、执行租约占用及未释放沙盒与窗口历史统计区分。仅 LOG_READ 角色可读取租户聚合；主机指标要求平台管理员，生产执行委托不自动获得租户聚合。
+
+采用 Spring Boot 管理版本的 micrometer-registry-prometheus，使用隔离的官方注册表导出固定指标，不手写 Prometheus 文本格式。只读 observer 服务角色仅能 GET 私有指标端点，worker/dispatcher/reconciler 角色互不扩权。聚合指标采用固定有限 labels，任务标识只进入既有授权日志。Prometheus 与 node_exporter 固定官方版本/摘要、Apache-2.0；展示安装使用专属非 root systemd 服务、有限保留空间及仅内部可达地址，保留其他项目服务。生产配置可接已有内网 Prometheus。采集失效不得用 0 表示健康，告警规则需 promtool 验证。
+
 先交付 test values 与离线清单，再生成 prod 配置；共享依赖改动必须记录所有调用者影响。数据库使用可向前兼容迁移，发布失败回滚应用和绑定但不丢弃新任务数据；恢复时间和丢失窗口以实测报告为准。

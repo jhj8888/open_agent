@@ -28,11 +28,17 @@
 
 证据：`console-run-verification-20261105.json`、`public-console-verification-20261105.json`、`production-promotion-verification-20261105.json`、`console-recovery-verification-20261105.json` 与 `network-reply-guard-verification-20261105.json`。
 
-当前静态包 SHA256 `269f6788c962a4cc66ffb1bbca0de0dee9c043b6f21798cdafad1edb7ef82a78`；Java 制品 `2b5bfb1cdfcde8563da82f770686c29e88a6f3cde3fe401908c4ceacbd10462c`；worker 源包 `c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6`。
+当前静态包 SHA256 `1a6f847259d04a60b71977e8482512becbdd5f4c1a8d1072c501fe0320781d38`；Java 制品 `c34a6eae043172f0e68267f4f11be0e52e1b92ddb9436312921769d465ae592b`；worker 源包 `c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6`。
 
 后续验收完成浏览器上传 `meeting-notes` ZIP、预览 Skill/模板、绑定固定版本并真实执行：`5e3145f9` 成功，296 条事件、12,962 Token、28.3 秒，独立回收全部完成。登录刷新增加并发合并与过期返回登录入口，5 项测试通过。账号登记只采用验证身份，不自动授予权限；7 项 Java 测试、真实新账号登记与浏览器空权限页面通过。管理员分配独立测试租户后，13 项跨租户/跨环境请求被拒绝，浏览器只显示该账号自己的租户。详见 [演示操作与验收](console-acceptance.md) 及 `profile-verification-20261105.json`、`tenant-boundary-verification-20261105.json`。
 
-工作台包含模型、Skill、部署凭据、成员配额和审计表单；完整管理表单及跨租户浏览器流程继续验收。统计仅代表每个可见部署最近 50 个任务；CPU/内存监控尚未接入。生产 Skill 已完成发布门禁和制品推广，执行仍要求 Kata，不在 gVisor 展示机放宽。故障注入及修复前真实失败/取消记录保留，成功率不会为演示而清洗。
+工作台包含模型、Skill、部署凭据、成员配额和审计表单；完整管理表单及跨租户浏览器流程继续验收。监控概览已改为最近 1h/24h/7d 全部保留任务的数据库聚合，当前资源占用不受窗口限制；平台管理员可见真实 CPU、内存、根磁盘及组件状态，普通租户无权读取共享主机指标。Agent 首页的最近任务卡片仍为列表范围统计。生产 Skill 已完成发布门禁和制品推广，执行仍要求 Kata，不在 gVisor 展示机放宽。故障注入及修复前真实失败/取消记录保留，成功率不会为演示而清洗。
+
+## 全量统计与私有监控
+
+7 个真实租户/环境/时间窗口与 SQL 核对一致；4 项跨租户/跨环境/共享主机访问拒绝。只读 observer 导出 32 条有限标签指标，worker 和 observer 写操作被拒绝，公网内部采集路径返回 404。Prometheus 3.15.1 / node_exporter 1.12.1 采用官方固定摘要、私有监听、独立非 root 用户与资源限制。7 条告警通过 22 项延迟触发/恢复断言；另一个网桥连接被防火墙拒绝，停止采集器后 API 隐藏失效样本，重启后恢复。20 项相关 Java/MySQL 测试通过，工作台构建和 OpenSpec 9 项严格校验通过。
+
+证据：`monitoring-verification-20261105.json`。安装、私有端点、保留期与复现步骤见 [监控操作说明](../../deploy/platform/monitor/README.md)。告警已在私有 Prometheus 中评估，外部通知路由尚未配置；这不代表生产 OTel/日志后端、HA、离线或备份恢复已验收。
 
 展示账号按职责分离：`demo` 为测试/生产 tenant_admin，管理模型、凭据与成员；`publisher` 为 operator，负责推广，不能管理密钥。生产执行权限按部署显式登记。凭据只保存在本机私有记录和展示机 root 可读文件，不写入 Git。
 

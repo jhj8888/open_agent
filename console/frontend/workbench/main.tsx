@@ -13,6 +13,7 @@ import {
   useResource,
 } from './components';
 import { RunConsole } from './chat';
+import { MonitorPage } from './monitor';
 import {
   AgentEditor,
   Credentials,
@@ -514,7 +515,7 @@ function Workspace({
       {(['agents', 'tasks', 'deployments', 'monitor'] as Page[]).includes(
         page
       ) && <ErrorBox message={deployments.error} retry={deployments.refresh} />}
-      {['agents', 'monitor'].includes(page) && (
+      {page === 'agents' && (
         <div className="stats-grid">
           {[
             [
@@ -557,7 +558,7 @@ function Workspace({
           ))}
         </div>
       )}
-      {['agents', 'tasks', 'monitor'].includes(page) && (
+      {['agents', 'tasks'].includes(page) && (
         <>
           <ErrorBox message={runs.error} retry={runs.refresh} />
           {!!runs.data?.unavailable && (
@@ -866,67 +867,7 @@ function Workspace({
         />
       )}
       {page === 'monitor' && (
-        <>
-          <div className="info-strip">
-            统计范围：每个可见部署最近 50 个任务，共 {rows.length} 条。未报告的
-            Token 不计为零；这里不代表全量历史或主机资源监控。
-          </div>
-          <div className="two-columns">
-            <div className="panel resource-panel">
-              <div className="panel-heading">
-                <h2>任务状态分布</h2>
-                <button className="link" onClick={runs.refresh}>
-                  刷新
-                </button>
-              </div>
-              <div className="status-chart">
-                {[
-                  'queued',
-                  'running',
-                  'succeeded',
-                  'failed',
-                  'cancelled',
-                  'timed_out',
-                ].map(state => {
-                  const count = rows.filter(
-                    item => item.state === state
-                  ).length;
-                  return (
-                    <div key={state}>
-                      <Status state={state} />
-                      <div className="progress-track">
-                        <span
-                          style={{
-                            width: `${rows.length ? (count / rows.length) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
-                      <b>{count}</b>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="panel prose-card">
-              <span className="step-label">OBSERVABILITY</span>
-              <h2>每次执行都有记录</h2>
-              <p>
-                任务中心提供状态、事件序号、工具调用、模型输出与追踪
-                ID。异常执行保留错误状态，取消任务后由执行服务确认资源回收。
-              </p>
-              <p>CPU、内存与集群指标尚未接入此页面。</p>
-              <button className="button" onClick={() => setPage('tasks')}>
-                查看任务记录 <Icon name="arrow" size={15} />
-              </button>
-            </div>
-          </div>
-          <div className="panel recent">
-            <div className="panel-heading">
-              <h2>最近执行</h2>
-            </div>
-            {taskTable(rows.slice(0, 8))}
-          </div>
-        </>
+        <MonitorPage api={api} platformAdmin={platformAdmin} />
       )}
       <footer className="page-footer">
         <span>

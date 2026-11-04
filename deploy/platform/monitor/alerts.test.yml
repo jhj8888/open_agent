@@ -1,0 +1,85 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: delayed firing and recovery for all seven rules
+    interval: 1m
+    input_series:
+      - series: 'up{job="open-agent-node"}'
+        values: '0x6 1x4'
+      - series: 'up{job="open-agent-platform"}'
+        values: '1x11'
+      - series: 'open_agent_metrics_collection_success{job="open-agent-platform"}'
+        values: '0x6 1x4'
+      - series: 'open_agent_queue_oldest_seconds{environment="test"}'
+        values: '90x6 0x4'
+      - series: 'open_agent_execution_leases_expired{environment="test"}'
+        values: '1x6 0x4'
+      - series: 'open_agent_cleanup_oldest_seconds{environment="test"}'
+        values: '600x6 0x4'
+      - series: 'node_systemd_unit_state{job="open-agent-node",name="open-agent-supervisor.service",state="active"}'
+        values: '0x6 1x4'
+      - series: 'node_memory_MemAvailable_bytes{job="open-agent-node"}'
+        values: '5x6 50x4'
+      - series: 'node_memory_MemTotal_bytes{job="open-agent-node"}'
+        values: '100x11'
+    alert_rule_test:
+      - { eval_time: 0m, alertname: OpenAgentNodeUnavailable, exp_alerts: [] }
+      - { eval_time: 0m, alertname: OpenAgentMetricsUnavailable, exp_alerts: [] }
+      - { eval_time: 1m, alertname: OpenAgentQueueDelay, exp_alerts: [] }
+      - { eval_time: 0m, alertname: OpenAgentExecutionLeaseExpired, exp_alerts: [] }
+      - { eval_time: 0m, alertname: OpenAgentCleanupDelayed, exp_alerts: [] }
+      - { eval_time: 0m, alertname: OpenAgentSupervisorUnavailable, exp_alerts: [] }
+      - { eval_time: 4m, alertname: OpenAgentHostMemoryHigh, exp_alerts: [] }
+      - eval_time: 6m
+        alertname: OpenAgentNodeUnavailable
+        exp_alerts:
+          - exp_labels: { severity: warning, job: open-agent-node }
+            exp_annotations: { summary: "Host metrics source unavailable" }
+      - eval_time: 6m
+        alertname: OpenAgentMetricsUnavailable
+        exp_alerts:
+          - exp_labels: { severity: warning, job: open-agent-platform }
+            exp_annotations: { summary: "Platform metrics collection unavailable" }
+      - eval_time: 6m
+        alertname: OpenAgentQueueDelay
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: test }
+            exp_annotations: { summary: "Tasks have remained queued longer than the configured threshold" }
+      - eval_time: 6m
+        alertname: OpenAgentExecutionLeaseExpired
+        exp_alerts:
+          - exp_labels: { severity: critical, environment: test }
+            exp_annotations: { summary: "Execution heartbeat expired; independent cleanup is required" }
+      - eval_time: 6m
+        alertname: OpenAgentCleanupDelayed
+        exp_alerts:
+          - exp_labels: { severity: critical, environment: test }
+            exp_annotations: { summary: "Sandbox creation or cleanup remains unresolved" }
+      - eval_time: 6m
+        alertname: OpenAgentSupervisorUnavailable
+        exp_alerts:
+          - exp_labels: { severity: critical, job: open-agent-node, name: open-agent-supervisor.service, state: active }
+            exp_annotations: { summary: "Execution supervisor is inactive" }
+      - eval_time: 6m
+        alertname: OpenAgentHostMemoryHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, job: open-agent-node }
+            exp_annotations: { summary: "Shared host memory usage exceeds 90 percent" }
+      - { eval_time: 8m, alertname: OpenAgentNodeUnavailable, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentMetricsUnavailable, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentQueueDelay, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentExecutionLeaseExpired, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentCleanupDelayed, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentSupervisorUnavailable, exp_alerts: [] }
+      - { eval_time: 8m, alertname: OpenAgentHostMemoryHigh, exp_alerts: [] }
+  - name: failed HTTP scrape is not a healthy database snapshot
+    interval: 1m
+    input_series:
+      - series: 'up{job="open-agent-platform"}'
+        values: '0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OpenAgentMetricsUnavailable
+        exp_alerts:
+          - exp_labels: { severity: warning, job: open-agent-platform }
+            exp_annotations: { summary: "Platform metrics collection unavailable" }

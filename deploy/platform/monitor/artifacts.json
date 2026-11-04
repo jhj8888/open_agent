@@ -1,0 +1,4 @@
+{
+  "prometheus": {"version": "3.15.1", "archive": "prometheus-3.15.1.linux-amd64.tar.gz", "sha256": "6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84", "license": "Apache-2.0", "source": "https://github.com/prometheus/prometheus/releases/download/v3.15.1/prometheus-3.15.1.linux-amd64.tar.gz"},
+  "node_exporter": {"version": "1.12.1", "archive": "node_exporter-1.12.1.linux-amd64.tar.gz", "sha256": "b51d8a76aa2a9156a55d501aca6276fae09e262259a5e4e831d2c2222f084e63", "license": "Apache-2.0", "source": "https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-amd64.tar.gz"}
+}

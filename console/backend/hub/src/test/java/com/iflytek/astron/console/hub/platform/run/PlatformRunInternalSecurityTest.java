@@ -3,6 +3,7 @@ package com.iflytek.astron.console.hub.platform.run;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.iflytek.astron.console.hub.config.PlatformInternalSecurityConfig;
@@ -15,10 +16,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class}, properties={
-        "PLATFORM_SERVICE_KEYS={\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"},\"supervisor-one\":{\"role\":\"reconciler\",\"secret\":\"ssssssssssssssssssssssssssssssss\"}}"
+@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class,com.iflytek.astron.platform.OperationsMetricsController.class}, properties={
+        "PLATFORM_SERVICE_KEYS={\"observer-one\":{\"role\":\"observer\",\"secret\":\"oooooooooooooooooooooooooooooooo\"},\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"},\"supervisor-one\":{\"role\":\"reconciler\",\"secret\":\"ssssssssssssssssssssssssssssssss\"}}"
 })
-@Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class})
+@Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class,com.iflytek.astron.platform.OperationsMetricsController.class})
 class PlatformRunInternalSecurityTest {
     @Autowired MockMvc mvc;
     @MockBean RunLedger ledger;
@@ -26,6 +27,23 @@ class PlatformRunInternalSecurityTest {
     @MockBean RunRuntimeService runtime;
     @MockBean RunSandboxJournal journal;
     @MockBean RunSupervision supervision;
+    @MockBean com.iflytek.astron.platform.OperationsMetrics metrics;
+
+    @Test void metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes() throws Exception {
+        String path="/internal/platform/metrics";
+        mvc.perform(get(path).header("Authorization","Bearer user-jwt")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32)))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(CLAIM).header("X-Platform-Key-Id","observer-one").header("X-Platform-Service-Key","o".repeat(32))
+                .contentType("application/json").content(SCOPE)).andExpect(status().isForbidden());
+        mvc.perform(post(path).header("X-Platform-Key-Id","observer-one").header("X-Platform-Service-Key","o".repeat(32)))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(metrics,ledger);
+        when(metrics.scrape()).thenReturn("open_agent_metrics_collection_success 1.0\n");
+        mvc.perform(get(path).header("X-Platform-Key-Id","observer-one").header("X-Platform-Service-Key","o".repeat(32)))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(content().string("open_agent_metrics_collection_success 1.0\n"));
+    }
     @MockBean com.iflytek.astron.console.commons.data.UserInfoDataService users;
     private static final String RUN="34fd353e-6cb4-43fd-86a6-6e94c220421a";
     private static final String CLAIM="/internal/platform/worker/runs/"+RUN+"/claim";

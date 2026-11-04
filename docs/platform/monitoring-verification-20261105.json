@@ -1,0 +1,117 @@
+{
+  "checked_at": "2026-11-04T22:51:32.269370+00:00",
+  "public_https": true,
+  "windows": [
+    {
+      "tenant": "space-1",
+      "environment": "test",
+      "window": "1h",
+      "total": 0,
+      "reported_usage_runs": 0,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-1",
+      "environment": "test",
+      "window": "24h",
+      "total": 18,
+      "reported_usage_runs": 11,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-1",
+      "environment": "test",
+      "window": "7d",
+      "total": 18,
+      "reported_usage_runs": 11,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-1",
+      "environment": "prod",
+      "window": "1h",
+      "total": 0,
+      "reported_usage_runs": 0,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-1",
+      "environment": "prod",
+      "window": "24h",
+      "total": 2,
+      "reported_usage_runs": 2,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-1",
+      "environment": "prod",
+      "window": "7d",
+      "total": 2,
+      "reported_usage_runs": 2,
+      "sql_window_matches": true
+    },
+    {
+      "tenant": "space-2",
+      "environment": "test",
+      "window": "24h",
+      "total": 0,
+      "reported_usage_runs": 0,
+      "sql_window_matches": true
+    }
+  ],
+  "tenant_environment_and_host_denials": 4,
+  "metrics": {
+    "finite_samples": 32,
+    "bounded_labels": true,
+    "private_only": true,
+    "worker_and_mutating_observer_denied": true
+  },
+  "host": {
+    "available": true,
+    "sampledAt": "2026-11-04T22:51:28Z",
+    "values": {
+      "ingressUp": 1.0,
+      "apiUp": 1.0,
+      "memoryTotalBytes": 7822266368.0,
+      "temporalUp": 1.0,
+      "supervisorUp": 1.0,
+      "sourceTimestamp": 1793832688.294,
+      "memoryPercent": 68.46014599946695,
+      "load1": 0.91,
+      "metricsHealthy": 1.0,
+      "diskPercent": 70.46625307229435,
+      "nodeUp": 1.0,
+      "cpuPercent": 57.1373435185197
+    }
+  },
+  "alerts": {
+    "loaded": 7,
+    "healthy": true,
+    "behavior_verified": true
+  },
+  "other_bridge_access_denied": true,
+  "stopped_source_withheld": true,
+  "source_recovered": true,
+  "artifacts": {
+    "api_sha256": "c34a6eae043172f0e68267f4f11be0e52e1b92ddb9436312921769d465ae592b",
+    "console_sha256": "1a6f847259d04a60b71977e8482512becbdd5f4c1a8d1072c501fe0320781d38"
+  },
+  "java_checks": {
+    "PlatformRunInternalSecurityTest": 11,
+    "RunLedgerMySqlTest_selected": 2,
+    "HostMetricsControllerTest": 1,
+    "OperationsMetricsTest": 1,
+    "PlatformApplicationTest": 5,
+    "failures": 0,
+    "errors": 0
+  },
+  "browser": {
+    "checked_at": "2026-11-04T23:17:01.702307+00:00",
+    "trusted_oidc_login": true,
+    "test_24h_tasks": 18,
+    "prod_24h_tasks": 2,
+    "one_hour_empty_usage_is_unreported": true,
+    "real_host_metrics_visible": true,
+    "screenshot_sha256": "c6186c3ac69fb33dba1c761067d9ab180260c460a1619f4aaeaceaecbb64bc71"
+  }
+}

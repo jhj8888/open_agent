@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = '2b5bfb1cdfcde8563da82f770686c29e88a6f3cde3fe401908c4ceacbd10462c'
+ARTIFACT_SHA256 = 'c34a6eae043172f0e68267f4f11be0e52e1b92ddb9436312921769d465ae592b'
 API_NETWORK = 'open-agent-control-api'
 
 
@@ -64,6 +64,9 @@ def main():
     if 'reconciler_key' not in api_secrets:
         api_secrets['reconciler_key'] = secrets.token_urlsafe(40)
         private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
+    if 'observer_key' not in api_secrets:
+        api_secrets['observer_key'] = secrets.token_urlsafe(40)
+        private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
     admission = False
     admission_record = ROOT / 'execution-admission.json'
     if admission_record.exists():
@@ -89,10 +92,12 @@ def main():
         'PLATFORM_RUN_ADMISSION_ENABLED': str(admission).lower(), 'LANGSMITH_TRACING': 'false',
         'MODEL_ALLOWED_ORIGINS': json.dumps(['https://api.deepseek.com']),
         'MODEL_PUBLIC_DEMO_ORIGINS': json.dumps(['https://api.deepseek.com']),
+        'PLATFORM_PROMETHEUS_URL': 'http://' + json.loads(command('docker','network','inspect',API_NETWORK).stdout)[0]['IPAM']['Config'][0]['Gateway'] + ':19090',
         'PLATFORM_SERVICE_KEYS': json.dumps({
             'demo-worker': {'role': 'worker', 'secret': api_secrets['worker_key']},
             'demo-dispatcher': {'role': 'dispatcher', 'secret': api_secrets['dispatcher_key']},
             'demo-supervisor': {'role': 'reconciler', 'secret': api_secrets['reconciler_key']},
+            'demo-observer': {'role': 'observer', 'secret': api_secrets['observer_key']},
         }),
         'PLATFORM_RECONCILER_WORKERS': json.dumps({'demo-supervisor': 'demo-worker'}),
     }

@@ -18,6 +18,10 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <!-- Central-directory attributes are required to reject links in Skill archives. -->
         <dependency>
             <groupId>org.apache.commons</groupId>

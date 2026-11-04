@@ -30,3 +30,12 @@
 已部署独立 MySQL 8.4.13、SeaweedFS 4.52、Casdoor 4.25.0 与 Java 控制面，四个镜像 digest 与官方 Registry 核对一致。53 个迁移完整应用到 V1.54；实际 S3 授权/读写/重启、真实 OIDC PKCE/JWT、租户创建、身份/数据库/API 重启持久化通过。安装器带归属检查、并发锁、原子配置写入、随机持久凭据和资源上限。证据见 `docs/platform/control-plane-verification-20261105.json`，部署边界和初始失败修复见 `docs/platform/control-plane-deployment.md`。
 
 持久 worker、物理回收核验、正式浏览器入口、生产 Helm、完整离线交付和备份恢复仍未完成，原任务保持未勾选；执行准入保持关闭。
+
+## 2026-11-05 私有监控与全量统计增量
+
+- [x] 租户/环境 1h、24h、7d 数据库聚合，未知用量保留未知，当前资源占用独立统计。真实 MySQL 验证 66 条窗口记录、不受列表 50 条上限影响、未释放资源占用及权限撤销。
+- [x] 独立只读 observer 导出 32 条有限标签指标；主机监控仅平台管理员可查，固定内部 PromQL。20 项相关 Java/MySQL 检查通过。
+- [x] 安装固定官方摘要的 Prometheus/node_exporter，私有监听、独立用户、资源和保留上限；7 条规则通过 promtool 的 22 项告警行为断言。
+- [x] 实机核对 7 个统计窗口与 SQL 一致，4 类业务越权拒绝，其他网桥连接被拒绝，停止/恢复 node exporter 后 API 撤回/恢复样本。
+
+证据见 `docs/platform/monitoring-verification-20261105.json`，运维步骤见 `deploy/platform/monitor/README.md`。持续执行、独立回收、HTTPS 工作台已在此前增量接通，当前执行准入开启；上文各日期段落描述当时状态。生产 OTel/日志系统、告警通知路由、离线冷启动、Helm/HA 和备份恢复仍未全部交付，因此原 2.3 和系统验收大项继续保持未勾选。

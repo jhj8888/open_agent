@@ -1,0 +1,38 @@
+groups:
+  - name: open-agent-platform
+    rules:
+      - alert: OpenAgentNodeUnavailable
+        expr: up{job="open-agent-node"} == 0
+        for: 1m
+        labels: { severity: warning }
+        annotations: { summary: "Host metrics source unavailable" }
+      - alert: OpenAgentMetricsUnavailable
+        expr: up{job="open-agent-platform"} == 0 or open_agent_metrics_collection_success == 0
+        for: 1m
+        labels: { severity: warning }
+        annotations: { summary: "Platform metrics collection unavailable" }
+      - alert: OpenAgentQueueDelay
+        expr: open_agent_queue_oldest_seconds > 60
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "Tasks have remained queued longer than the configured threshold" }
+      - alert: OpenAgentExecutionLeaseExpired
+        expr: open_agent_execution_leases_expired > 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Execution heartbeat expired; independent cleanup is required" }
+      - alert: OpenAgentCleanupDelayed
+        expr: open_agent_cleanup_oldest_seconds > 300
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Sandbox creation or cleanup remains unresolved" }
+      - alert: OpenAgentSupervisorUnavailable
+        expr: node_systemd_unit_state{job="open-agent-node",name="open-agent-supervisor.service",state="active"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Execution supervisor is inactive" }
+      - alert: OpenAgentHostMemoryHigh
+        expr: 1 - node_memory_MemAvailable_bytes{job="open-agent-node"} / node_memory_MemTotal_bytes{job="open-agent-node"} > 0.9
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Shared host memory usage exceeds 90 percent" }

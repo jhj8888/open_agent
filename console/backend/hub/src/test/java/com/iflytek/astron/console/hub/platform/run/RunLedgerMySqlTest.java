@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -137,6 +137,55 @@ class RunLedgerMySqlTest {
     private AgentDeploymentService deployments() { return new AgentDeploymentService(jdbc,access(),json,new DataSourceTransactionManager(source)); }
     private DeploymentKeys keys() { return new DeploymentKeys(jdbc,access(),deployments(),new DataSourceTransactionManager(source)); }
     private DeploymentAuthorization authorization() { return new DeploymentAuthorization(jdbc,memberships()); }
+
+    @Test void monitoringCountsFullWindowAndRetainsUnknownUsageAndUnreleasedSlots() {
+        actors();
+        String original=submit("monitor-source").runId();
+        for (int i=0;i<64;i++) jdbc.update("""
+                INSERT INTO oa_agent_run(tenant_id,environment,run_id,deployment_id,actor_id,idempotency_key,
+                  request_sha256,input_json,snapshot_json,snapshot_sha256,trace_id,deadline_at,retain_until)
+                SELECT tenant_id,environment,?,deployment_id,actor_id,?,request_sha256,input_json,snapshot_json,
+                  snapshot_sha256,?,deadline_at,retain_until FROM oa_agent_run WHERE run_id=?
+                """,UUID.randomUUID().toString(),"monitor-"+i,UUID.randomUUID().toString(),original);
+        jdbc.update("UPDATE oa_agent_run SET state='succeeded',created_at=TIMESTAMPADD(MINUTE,-3,CURRENT_TIMESTAMP(3)),started_at=TIMESTAMPADD(SECOND,-150,CURRENT_TIMESTAMP(3)),finished_at=TIMESTAMPADD(SECOND,-90,CURRENT_TIMESTAMP(3))");
+        jdbc.update("UPDATE oa_agent_run SET usage_json='{\"prompt_tokens\":6,\"completion_tokens\":4,\"total_tokens\":10}' ORDER BY run_id LIMIT 20");
+        bindSkill(scope,deployment);
+        var held=reserved("monitor-running");
+        String old=submit("monitor-outside-window").runId();
+        jdbc.update("UPDATE oa_agent_run SET state='cancelled',created_at=TIMESTAMPADD(DAY,-8,CURRENT_TIMESTAMP(3)),finished_at=TIMESTAMPADD(DAY,-8,CURRENT_TIMESTAMP(3)) WHERE run_id=?",old);
+        var other=new RunLedger.Scope(B,"test"); var prod=new RunLedger.Scope(A,"prod");
+        ledger.submit(other,seedDeployment(other),"bob","other",json.createObjectNode().put("message","private"),3600,()->{});
+        ledger.submit(prod,seedDeployment(prod),"alice","prod",json.createObjectNode().put("message","private"),3600,()->{});
+        var statistics=new com.iflytek.astron.console.hub.platform.PlatformStatisticsService(jdbc,access());
+        var snapshot=statistics.snapshot(A,"test","24h");
+        var totals=(Map<?,?>)snapshot.get("totals");var current=(Map<?,?>)snapshot.get("current");
+        assertEquals(66,((Number)totals.get("total")).intValue());
+        assertEquals(20,((Number)totals.get("reportedUsageRuns")).intValue());
+        assertEquals(200,((Number)totals.get("totalTokens")).intValue());
+        assertEquals(60,((Number)totals.get("meanRunSeconds")).doubleValue(),0.01);
+        assertEquals(65,((Number)totals.get("timedRuns")).intValue());
+        assertEquals(1,((Number)current.get("occupiedExecutionSlots")).intValue());
+        assertEquals(1,((Number)current.get("unreleasedSandboxes")).intValue());
+        assertEquals(1,((Number)((Map<?,?>)statistics.snapshot(A,"prod","7d").get("totals")).get("total")).intValue());
+        user("bob");assertEquals(1,((Number)((Map<?,?>)statistics.snapshot(B,"test","1h").get("totals")).get("total")).intValue());
+        user("alice");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->statistics.snapshot(B,"test","24h"));
+        user("viewer");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->statistics.snapshot(A,"test","24h"));
+        user("bob");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->statistics.snapshot(A,"prod","24h"));
+        try(var metrics=new com.iflytek.astron.platform.OperationsMetrics(jdbc)) {
+            metrics.collect();String scrape=metrics.scrape();
+            assertTrue(scrape.contains("open_agent_metrics_collection_success 1.0"));
+            assertFalse(scrape.contains(held.leaseId())); assertFalse(scrape.contains("space-10")); assertFalse(scrape.contains("private"));
+        }
+    }
+
+    @Test void monitoringEmptyWindowIsNotZeroTokenUsageAndRevocationIsRechecked() {
+        actors(); var statistics=new com.iflytek.astron.console.hub.platform.PlatformStatisticsService(jdbc,access());
+        var totals=(Map<?,?>)statistics.snapshot(A,"test","1h").get("totals");
+        assertEquals(0,((Number)totals.get("total")).intValue());assertNull(totals.get("totalTokens"));assertNull(totals.get("meanRunSeconds"));
+        assertThrows(IllegalArgumentException.class,()->statistics.snapshot(A,"test","all"));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->statistics.snapshot(A,"test","1h"));
+    }
 
     @Test void profileRegistrationIsConcurrentIdempotentAndGrantsNothing() throws Exception {
         var profiles = new com.iflytek.astron.console.hub.platform.CurrentProfileService(jdbc);
