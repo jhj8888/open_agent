@@ -25,7 +25,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04
@@ -37,6 +37,19 @@ jobs:
       - run: docker pull "$MYSQL_TEST_IMAGE"
       - name: Verify empty and existing databases in an isolated container
         run: python3 console/backend/tests/test_tenant_migration.py
+  durable-run-database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      MYSQL_TEST_IMAGE: mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: docker pull "$MYSQL_TEST_IMAGE"
+      - name: Verify Java transactions, concurrent admission and database crash recovery
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          python3 console/backend/tests/run_durable_checks.py
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -1,0 +1,152 @@
+{
+  "recorded_at": "2026-11-04T12:03:53.846871+00:00",
+  "scope": "Java persistence and existing tenant/Skill regression; physical MySQL reached over pinned SSH from Java 21 test runner",
+  "mysql_version": "8.4.13",
+  "mysql_image_digest": "sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+  "database_restart": "SIGKILL and restart of the owned disposable MySQL container; no shared application restarted",
+  "total_tests": 57,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "com.iflytek.astron.console.commons.tenant.TenantAccessPolicyTest",
+      "tests": "10",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.17",
+      "report_written_at": "2026-11-04T11:57:46.030389+00:00",
+      "cases": [
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[1]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[2]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[3]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[4]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[5]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[6]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[7]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[8]",
+        "suspendedTenantCannotSubmitEditPublishOrChangeCredentials",
+        "rejectsUnknownStatesAndEnvironmentsWithoutFallback"
+      ]
+    },
+    {
+      "name": "com.iflytek.astron.console.commons.tenant.TenantAccessServiceTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "1.834",
+      "report_written_at": "2026-11-04T11:57:47.843651+00:00",
+      "cases": [
+        "missingEnvironmentCannotSilentlySelectAnotherScope",
+        "crossTenantCrossEnvironmentAndMissingResourceHaveIdenticalErrors",
+        "readsIdentityFromVerifiedJwtAttributeAndIgnoresForgedHeaders",
+        "rechecksDatabaseMembershipAfterRoleRevocation",
+        "rawIdentityHeaderCannotAuthenticate"
+      ]
+    },
+    {
+      "name": "com.iflytek.astron.console.hub.platform.run.RunContractTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.872",
+      "report_written_at": "2026-11-04T11:58:33.348578+00:00",
+      "cases": [
+        "malformedAndOversizedPayloadsAndScopeAreRejected",
+        "terminalStatesAreAbsorbingAndCancellationHasOnlyOneExit",
+        "nestedObjectOrderIsCanonicalButArrayOrderIsSignificant"
+      ]
+    },
+    {
+      "name": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+      "tests": "21",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "146.031",
+      "report_written_at": "2026-11-04T12:00:59.537293+00:00",
+      "cases": [
+        "outboxFailureRollsBackRunEventAuditAndIdempotencyKey",
+        "concurrentDuplicateSubmissionsCreateOneRunAndOutbox",
+        "successAndCancelRaceHasOneStableTerminalOutcome",
+        "outboxConcurrentPublishersDoNotClaimTheSameDelivery",
+        "databaseCrashAndRestartPreserveRunOutboxAndIdempotency",
+        "concurrentClaimsAcrossInstancesRespectExecutionQuotaAndDuplicates",
+        "concurrentQueueBackpressureDoesNotOvershoot",
+        "newControlPlaneInstanceReadsExistingRunAndCannotPrematurelyReleaseIt",
+        "revokedModelAndSuspendedTenantFailClosed",
+        "authorizationIsRecheckedInsideTransactionBeforeDuplicateReturn",
+        "cancellingQueuedRunNeverStartsAnAttempt",
+        "eventsAreOrderedDeduplicatedBoundedAndReconnectable",
+        "wrongScopeAndForgedLeaseAreRejected",
+        "heldAndCleanupPendingSlotsNeverExpireIntoFreeCapacity",
+        "deliveryRetryIsBoundedAndDoesNotChangeRunState",
+        "runningCancellationFencesEventsAndConvertsLateSuccessToCancelled",
+        "migrationRejectsCrossEnvironmentAndInvalidTerminalRows",
+        "publisherCrashIsRedeliveredWithNewClaimAndStaleAckCannotWin",
+        "eventRetentionIsExplicitEvenBeforeGarbageCollection",
+        "submissionIsCanonicalIdempotentAndActorBound",
+        "deadlinesBeforeAndDuringExecutionNeverBecomeSuccess"
+      ]
+    },
+    {
+      "name": "com.iflytek.astron.console.hub.platform.skill.SkillReleaseServiceTest",
+      "tests": "13",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "2.225",
+      "report_written_at": "2026-11-04T12:01:01.651614+00:00",
+      "cases": [
+        "manifestDigestBindsContentVersionAndRuntimeImage",
+        "approvedImagesRequireImmutableDigestsAndFailClosed",
+        "failureAfterOneObjectWasStoredStillCleansTheEntireUpload",
+        "identicalRetryReusesReleaseAndCleansItsNewStagingObjects",
+        "revokedMembershipDuringUploadPreventsPublication",
+        "missingMembershipStopsBeforeDatabaseOrStorageReads",
+        "failedUploadNeverPublishesAndCleansOnlyItsPrivatePrefix",
+        "productionPromotionRequiresOperatorAndSuccessfulEvidence",
+        "crossTenantAndCrossEnvironmentDownloadsNeverTouchObjectStorage",
+        "referencedOrRetainedReleaseCannotBeDeleted",
+        "sameVersionCannotBeOverwrittenWithDifferentContent",
+        "successfulPromotionGrantsTheOriginalReleaseAndAuditsItsDigest",
+        "commitsManifestOnlyAfterObjectUploadAndNeverReturnsStorageKeys"
+      ]
+    },
+    {
+      "name": "com.iflytek.astron.console.hub.platform.TenantGovernanceSecurityTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "3.599",
+      "report_written_at": "2026-11-04T12:01:05.239383+00:00",
+      "cases": [
+        "unauthorizedQuotaChangeDoesNotMutateOrAudit",
+        "controllerRejectsNegativeQuotasBeforeCallingService",
+        "deniedResourceReturns404WithoutDistinguishingExistence",
+        "ordinaryMemberCannotPromoteSelfOrBootstrapProduction",
+        "tenantCreationAndSuspensionRequirePlatformAdministration"
+      ]
+    }
+  ],
+  "source_sha256_normalized_lf": {
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunFailure.java": "64fc9d873bc930d0d364e0374d60294d9e70c5f84f8897eae23a46b481669fc2",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunJson.java": "5df69974150c371df03948f4cf3b59bcae7259e2fe531378dbb9fb4addce75f8",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunLedger.java": "2d2041b9e57f7a56cf16c8a66d2848359868da7e4f5ffd2203325cb8c7ede74b",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunOutbox.java": "8e62031d76462fc31e2b16191c150f06349b8e9a46725930279e40334cc6ea64",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunState.java": "8928c11e40d60d6e63b4d85d04d7f3134e2cb56d76a0a0ef4ae53d29a11a5e73",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunContractTest.java": "493f43bdef5214ec0586dac48f93ce1d1998bbdb49f94af00266bdce4f94a619",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunLedgerMySqlTest.java": "d45827a749244f9b46366697b948bc61355cc43b61804ec818a119a3211ec1c5",
+    "console/backend/hub/src/main/resources/db/migration/V1.52__add_durable_agent_runs.sql": "348a044f47389dd803ea53b0d2621bc785a3f3eb23802de793a881e149bb2070"
+  },
+  "not_verified": [
+    "Temporal delivery or workflow recovery",
+    "HTTP authentication and SSE/browser integration",
+    "physical sandbox cleanup fencing",
+    "production cluster and complete demo application"
+  ]
+}
