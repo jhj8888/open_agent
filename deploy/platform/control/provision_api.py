@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = 'cb25d4d6d604e4ae06bbd650e43b59da7c05973d8e0f13046f251b1f195ff6d9'
+ARTIFACT_SHA256 = '2b5bfb1cdfcde8563da82f770686c29e88a6f3cde3fe401908c4ceacbd10462c'
 API_NETWORK = 'open-agent-control-api'
 
 

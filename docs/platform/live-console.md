@@ -28,7 +28,9 @@
 
 证据：`console-run-verification-20261105.json`、`public-console-verification-20261105.json`、`production-promotion-verification-20261105.json`、`console-recovery-verification-20261105.json` 与 `network-reply-guard-verification-20261105.json`。
 
-当前静态包 SHA256 `4be168bb11daca0978e0593490ff9f9ee38f392d29d77e3140234e47a90e1e29`；Java 制品 `cb25d4d6d604e4ae06bbd650e43b59da7c05973d8e0f13046f251b1f195ff6d9`；worker 源包 `c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6`。
+当前静态包 SHA256 `269f6788c962a4cc66ffb1bbca0de0dee9c043b6f21798cdafad1edb7ef82a78`；Java 制品 `2b5bfb1cdfcde8563da82f770686c29e88a6f3cde3fe401908c4ceacbd10462c`；worker 源包 `c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6`。
+
+后续验收完成浏览器上传 `meeting-notes` ZIP、预览 Skill/模板、绑定固定版本并真实执行：`5e3145f9` 成功，296 条事件、12,962 Token、28.3 秒，独立回收全部完成。登录刷新增加并发合并与过期返回登录入口，5 项测试通过。账号登记只采用验证身份，不自动授予权限；7 项 Java 测试、真实新账号登记与浏览器空权限页面通过。管理员分配独立测试租户后，13 项跨租户/跨环境请求被拒绝，浏览器只显示该账号自己的租户。详见 [演示操作与验收](console-acceptance.md) 及 `profile-verification-20261105.json`、`tenant-boundary-verification-20261105.json`。
 
 工作台包含模型、Skill、部署凭据、成员配额和审计表单；完整管理表单及跨租户浏览器流程继续验收。统计仅代表每个可见部署最近 50 个任务；CPU/内存监控尚未接入。生产 Skill 已完成发布门禁和制品推广，执行仍要求 Kata，不在 gVisor 展示机放宽。故障注入及修复前真实失败/取消记录保留，成功率不会为演示而清洗。
 

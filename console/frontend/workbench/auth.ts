@@ -3,6 +3,7 @@ import {
   UserManager,
   WebStorageStateStore,
 } from 'oidc-client-ts';
+import { tokenProvider } from './session';
 
 // Tokens live only in this page's memory. Only short-lived PKCE state survives redirect.
 export const auth = new UserManager({
@@ -20,18 +21,7 @@ export const auth = new UserManager({
   loadUserInfo: false,
 });
 
-let refreshing: ReturnType<typeof auth.signinSilent> | undefined;
-export async function accessToken(): Promise<string> {
-  let user = await auth.getUser();
-  if (user && (user.expires_in ?? 0) < 30 && user.refresh_token) {
-    refreshing ??= auth.signinSilent().finally(() => {
-      refreshing = undefined;
-    });
-    user = await refreshing;
-  }
-  if (!user || user.expired) throw new Error('登录已过期，请重新登录。');
-  return user.access_token;
-}
+export const accessToken = tokenProvider(auth);
 
 export async function initializeAuth(): Promise<void> {
   await auth.clearStaleState();

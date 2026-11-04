@@ -137,6 +137,40 @@ class RunLedgerMySqlTest {
     private AgentDeploymentService deployments() { return new AgentDeploymentService(jdbc,access(),json,new DataSourceTransactionManager(source)); }
     private DeploymentKeys keys() { return new DeploymentKeys(jdbc,access(),deployments(),new DataSourceTransactionManager(source)); }
     private DeploymentAuthorization authorization() { return new DeploymentAuthorization(jdbc,memberships()); }
+
+    @Test void profileRegistrationIsConcurrentIdempotentAndGrantsNothing() throws Exception {
+        var profiles = new com.iflytek.astron.console.hub.platform.CurrentProfileService(jdbc);
+        try (var pool = Executors.newFixedThreadPool(4)) {
+            var gate = new CountDownLatch(1);
+            var futures = new ArrayList<java.util.concurrent.Future<Map<String,Object>>>();
+            for (int i=0;i<4;i++) futures.add(pool.submit(() -> {
+                gate.await(); return profiles.register("new-subject", "New User");
+            }));
+            gate.countDown();
+            for (var future:futures) assertEquals("new-subject",future.get(15,TimeUnit.SECONDS).get("uid"));
+        }
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_info WHERE uid='new-subject'",Integer.class));
+        assertEquals("New User",profiles.register("new-subject","Changed name").get("displayName"));
+        for (String table:List.of("oa_tenant_member","oa_platform_admin","agent_space_user")) assertEquals(0,count(table));
+        assertEquals(2,count("oa_tenant"));
+        assertEquals(0,jdbc.queryForObject("SELECT user_agreement FROM user_info WHERE uid='new-subject'",Integer.class));
+        user("new-subject");
+        var governance = new com.iflytek.astron.console.hub.platform.TenantGovernanceService(jdbc,access(),json);
+        assertFalse(governance.isPlatformAdmin()); assertTrue(governance.tenants().isEmpty());
+    }
+
+    @Test void profileRegistrationDoesNotReactivateOrMergeCollidingSubjects() {
+        var profiles = new com.iflytek.astron.console.hub.platform.CurrentProfileService(jdbc);
+        jdbc.update("INSERT INTO user_info(uid,username,account_status,deleted) VALUES('frozen','Keep',2,0),('deleted','Keep',1,1),('Alice','Keep',1,0)");
+        for (String subject:List.of("frozen","deleted","alice","Álice"))
+            assertThrows(com.iflytek.astron.console.hub.platform.CurrentProfileService.ProfileUnavailable.class,
+                    ()->profiles.register(subject,"Overwrite"));
+        assertEquals(3,count("user_info"));
+        assertEquals(2,jdbc.queryForObject("SELECT account_status FROM user_info WHERE uid='frozen'",Integer.class));
+        assertEquals(1,jdbc.queryForObject("SELECT deleted FROM user_info WHERE uid='deleted'",Integer.class));
+        assertEquals("Keep",profiles.register("Alice","Overwrite").get("displayName"));
+        assertEquals(0,count("oa_tenant_member"));
+    }
     private AgentRunService api(DeploymentAuthorization authorization) {
         return new AgentRunService(ledger,authorization,deployments(),jdbc,json,new org.springframework.mock.env.MockEnvironment()
                 .withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true"),new DataSourceTransactionManager(source));

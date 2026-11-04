@@ -16,6 +16,8 @@
 
 ## Risks / Trade-offs
 
+长会话验收补充：OIDC refresh_token 过期时使用官方 SDK 的 removeUser/UserUnloaded 事件清除内存身份并卸载当前租户范围，显示中文重新登录入口。只将 invalid_grant/login_required/interaction_required/consent_required 等明确身份失败视为会话结束；网络临时失败保留会话并返回可重试提示。不展示身份服务原始错误，不持久化表单或密钥，也不自动重放提交。
+
 公网展示入口必须实际验证 TLS、OIDC issuer/回调和跨站请求边界。已有 Casdoor 私有 issuer 配置需要受控迁移，保留密钥与用户数据。旧预览始终可访问以供视觉对照。
 
 ## Migration Plan

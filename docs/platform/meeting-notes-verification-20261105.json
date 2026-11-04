@@ -1,0 +1,90 @@
+{
+  "checked_at": "2026-11-04T21:19:21.512762+00:00",
+  "run_id": "5e3145f9-4559-4f9d-add5-1636eafbdd9b",
+  "mode": "collect",
+  "state": "succeeded",
+  "event_count": 296,
+  "event_sequences_unique": true,
+  "answer_characters": 522,
+  "answer_sha256": "3edb79d7f63b17aaa48e242939ee6e3e1cb947251e89c33189c000864fdce47a",
+  "cleanup": {
+    "evidence": {
+      "process": {
+        "after": null,
+        "before": {
+          "ActiveState": "active",
+          "ControlGroup": "/openagent.slice/oa-exec-cc6491cfdb9743fe87e9ae086d8f37e3.service",
+          "ControlPID": "0",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "Id": "oa-exec-cc6491cfdb9743fe87e9ae086d8f37e3.service",
+          "InvocationID": "7315eabab11c44868003b57bacefd751",
+          "KillMode": "control-group",
+          "LoadState": "loaded",
+          "MainPID": "1417671",
+          "RemainAfterExit": "yes",
+          "Restart": "no",
+          "SubState": "running",
+          "Transient": "yes",
+          "User": "open-agent-worker"
+        },
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroup": {
+          "exists": false,
+          "path": "/openagent.slice/oa-exec-cc6491cfdb9743fe87e9ae086d8f37e3.service",
+          "populated": 0
+        },
+        "cgroupEmpty": true,
+        "invocationId": "7315eabab11c44868003b57bacefd751",
+        "kind": "stopped_unit",
+        "observedAt": "2026-11-04T21:14:41.567172+00:00",
+        "unitName": "oa-exec-cc6491cfdb9743fe87e9ae086d8f37e3.service",
+        "workerStopped": true
+      },
+      "sandbox": {
+        "creationSettled": true,
+        "observedAt": "2026-11-04T21:14:41.674629+00:00",
+        "reason": "acknowledged_creation_entity_absent",
+        "removedContainerId": null,
+        "sandboxAbsent": true,
+        "sandboxId": "0e49ecd7-bf84-48ed-b60c-3d7104e5b770",
+        "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+      }
+    },
+    "proof": {
+      "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+      "cgroupEmpty": true,
+      "creationSettled": true,
+      "evidenceSha256": "d86e32c8641ab97dad287e31fa66a1d135c7528c3a2747ba36febc8b1aa85f19",
+      "invocationId": "7315eabab11c44868003b57bacefd751",
+      "kind": "stopped_unit",
+      "proofId": "dc39fb9d-9f93-436b-ba1a-83ade443aced",
+      "sandboxAbsent": true,
+      "sandboxId": "0e49ecd7-bf84-48ed-b60c-3d7104e5b770",
+      "unitName": "oa-exec-cc6491cfdb9743fe87e9ae086d8f37e3.service",
+      "workerStopped": true
+    }
+  },
+  "physical_container_absent": true,
+  "temporal": {
+    "status": "COMPLETED",
+    "result": {
+      "state": "succeeded"
+    }
+  },
+  "supervision_phase": "released",
+  "lease_state": "released",
+  "sandbox_phase": "released",
+  "browser": {
+    "skill_zip_uploaded": true,
+    "skill_and_template_previewed": true,
+    "deployment_created_with_fixed_skill_version": true,
+    "live_answer_observed": true,
+    "token_count": 12962,
+    "duration_seconds": 28.3,
+    "events_displayed": 296,
+    "unconfirmed_deadline_preserved": true,
+    "input_was_synthetic": true
+  },
+  "skill_manifest_sha256": "24341b9273248f5013320a068b06a08763036794753a52aa7448da5b26fdd5f0"
+}

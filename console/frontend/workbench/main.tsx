@@ -158,13 +158,12 @@ function Login({ error: initialError = '' }: { error?: string }): JSX.Element {
 function App({ user }: { user: User }): JSX.Element {
   const rootApi = useMemo(() => new ApiScope('', 'test'), []);
   useEffect(() => () => rootApi.dispose(), [rootApi]);
-  const tenants = useResource(
-    () =>
-      rootApi.request<{ platformAdmin: boolean; tenants: Tenant[] }>(
-        '/platform/tenants'
-      ),
-    [rootApi]
-  );
+  const tenants = useResource(async () => {
+    await rootApi.request('/platform/profile', 'POST');
+    return rootApi.request<{ platformAdmin: boolean; tenants: Tenant[] }>(
+      '/platform/tenants'
+    );
+  }, [rootApi]);
   const [tenantId, setTenantId] = useState('');
   const [environment, setEnvironment] = useState<Environment>('test');
   const [page, setPage] = useState<Page>('agents');
@@ -286,7 +285,7 @@ function App({ user }: { user: User }): JSX.Element {
           <main>
             <Empty
               text={tenants.loading ? '正在加载工作台…' : '暂未分配租户'}
-              detail="租户数据由当前登录账号的权限决定。"
+              detail={`请将账号标识 ${user.profile.sub} 提供给管理员，由管理员分配租户和环境权限。`}
             />
           </main>
         )}
@@ -1026,6 +1025,11 @@ function Workspace({
 
 async function start(): Promise<void> {
   const root = createRoot(document.getElementById('root')!);
+  auth.events.addUserUnloaded(() => {
+    root.render(
+      <Login error="登录已过期，请重新登录。未提交的操作不会自动重试。" />
+    );
+  });
   try {
     await initializeAuth();
     const user = await auth.getUser();

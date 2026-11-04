@@ -1,0 +1,69 @@
+{
+  "checked_at": "2026-11-04T21:34:07.072263+00:00",
+  "public_https": true,
+  "verification_tenant": "space-2",
+  "independent_identity": true,
+  "only_assigned_tenant_visible": true,
+  "only_test_role_granted": true,
+  "denials": [
+    {
+      "case": "foreign_models",
+      "status": 404
+    },
+    {
+      "case": "foreign_skill-releases",
+      "status": 404
+    },
+    {
+      "case": "foreign_agent-deployments",
+      "status": 404
+    },
+    {
+      "case": "foreign_members",
+      "status": 404
+    },
+    {
+      "case": "foreign_audit",
+      "status": 404
+    },
+    {
+      "case": "foreign_skill_manifest",
+      "status": 404
+    },
+    {
+      "case": "foreign_skill_file",
+      "status": 404
+    },
+    {
+      "case": "foreign_skill_id_in_own_scope",
+      "status": 404
+    },
+    {
+      "case": "foreign_run",
+      "status": 404
+    },
+    {
+      "case": "foreign_run_events",
+      "status": 404
+    },
+    {
+      "case": "forged_identity_header",
+      "status": 404
+    },
+    {
+      "case": "own_production_without_grant",
+      "status": 404
+    },
+    {
+      "case": "platform_admin_is_not_tenant_business_member",
+      "status": 404
+    }
+  ],
+  "browser": {
+    "unassigned_identity_screen": true,
+    "assigned_tenant_after_refresh": true,
+    "only_assigned_tenant_visible": true,
+    "ungranted_production_denied": true,
+    "publish_button_disabled": true
+  }
+}

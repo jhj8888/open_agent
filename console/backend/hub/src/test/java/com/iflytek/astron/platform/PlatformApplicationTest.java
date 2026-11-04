@@ -43,6 +43,27 @@ class PlatformApplicationTest {
     @MockBean JdbcTemplate jdbc;
     @MockBean JwtDecoder decoder;
     @MockBean TenantGovernanceService governance;
+    @MockBean com.iflytek.astron.console.hub.platform.CurrentProfileService profiles;
+
+    @Test void profileUsesVerifiedSubjectOnlyAndDoesNotAcceptForgedGrants() throws Exception {
+        mvc.perform(post("/platform/profile").header("X-User-Id","forged"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(profiles);
+        when(decoder.decode("profile-jwt")).thenReturn(Jwt.withTokenValue("profile-jwt").header("alg","RS256")
+                .subject("verified-new-user").claim("name","New User")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build());
+        when(profiles.register("verified-new-user","New User")).thenReturn(Map.of("uid","verified-new-user"));
+        mvc.perform(post("/platform/profile").header("Authorization","Bearer profile-jwt")
+                        .header("X-User-Id","forged").contentType("application/json")
+                        .content("{\"uid\":\"forged\",\"role\":\"tenant_admin\",\"tenantId\":\"other\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.uid").value("verified-new-user"));
+        verify(profiles).register("verified-new-user","New User");
+        verifyNoInteractions(governance);
+        when(profiles.register("verified-new-user","New User"))
+                .thenThrow(new com.iflytek.astron.console.hub.platform.CurrentProfileService.ProfileUnavailable());
+        mvc.perform(post("/platform/profile").header("Authorization","Bearer profile-jwt"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value("profile_unavailable"));
+    }
 
     @Test void dedicatedContextLoadsRealRunServiceWithoutLegacyApplication() throws Exception {
         assertNotNull(application.getBean(AgentRunService.class));

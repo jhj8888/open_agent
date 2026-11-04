@@ -7,6 +7,7 @@
     "dev": "vite --mode development --host",
     "test": "vite --mode test --host localhost",
     "test:unit": "node --test --loader ts-node/esm",
+    "test:workbench-session": "esbuild workbench/session.test.ts --bundle --platform=node --format=cjs --outfile=../../.local/session-test.cjs && node --test ../../.local/session-test.cjs",
     "build": "vite build --mode production",
     "build:dev": "vite build --mode development",
     "build-dev": "vite build --mode development",

@@ -18,8 +18,9 @@ ORIGIN = 'https://120.26.81.83'
 def main():
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def get(route, headers=None, expected=200):
-        request = urllib.request.Request(ORIGIN + route, headers=headers or {})
+    def get(route, headers=None, expected=200, method='GET', body=None):
+        request = urllib.request.Request(ORIGIN + route, headers={'Content-Type': 'application/json', **(headers or {})},
+                                         method=method, data=json.dumps(body).encode() if body is not None else None)
         try:
             response = opener.open(request, timeout=30)
         except urllib.error.HTTPError as failure:
@@ -39,6 +40,8 @@ def main():
     get('/platform/tenants', expected=401)
     get('/platform/tenants', {'X-User-Id': 'demo', 'X-Tenant-Id': 'space-1',
                               'X-Platform-Service-Key': 'forged'}, expected=401)
+    get('/platform/profile', expected=401, method='POST')
+    get('/platform/profile', {'X-User-Id': 'forged'}, expected=401, method='POST')
     discovery = json.loads(get('/identity/.well-known/openid-configuration')[0])
     assert discovery['issuer'] == ORIGIN + '/identity'
     assert 'S256' in discovery['code_challenge_methods_supported']
@@ -46,6 +49,12 @@ def main():
     tenants = json.loads(get('/platform/tenants', session.auth)[0])
     assert tenants['code'] == 0
     assert any(t['tenantId'] == session.tenant for t in tenants['data']['tenants'])
+    profile = json.loads(get('/platform/profile', session.auth, method='POST',
+                            body={'uid': 'forged', 'role': 'tenant_admin', 'tenantId': 'other'})[0])
+    assert profile['code'] == 0 and profile['data']['uid'] == session.uid
+    repeated = json.loads(get('/platform/profile', session.auth, method='POST')[0])
+    assert repeated['data'] == profile['data']
+    assert json.loads(get('/platform/tenants', session.auth)[0])['data'] == tenants['data']
     deployments = json.loads(get(session.management + '/agent-deployments', session.auth)[0])['data']
     usage_verified = 0
     for agent in deployments:
@@ -69,6 +78,8 @@ def main():
               'pkce_s256': True, 'unauthenticated_rejected': True, 'forged_headers_rejected': True,
               'internal_route_denied': True, 'authenticated_public_api': True,
               'list_detail_usage_matches': usage_verified, 'static_csp': True,
+              'profile_verified_subject_only': True, 'profile_idempotent': True,
+              'profile_does_not_change_tenants': True,
               'browser_verification': 'separate manual browser evidence required'}
     private_file(ROOT / 'public-console-verification.json', json.dumps(report, indent=2) + '\n', replace=True)
     print(json.dumps(report), flush=True)

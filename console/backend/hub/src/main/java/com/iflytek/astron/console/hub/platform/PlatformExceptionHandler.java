@@ -12,8 +12,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Scoped advice preserves existing upstream error contracts. Never echo inaccessible IDs. */
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(basePackages = "com.iflytek.astron.console.hub.platform")
+@RestControllerAdvice(basePackages = {"com.iflytek.astron.console.hub.platform", "com.iflytek.astron.platform"})
 public class PlatformExceptionHandler {
+    @ExceptionHandler(CurrentProfileService.ProfileUnavailable.class)
+    public ResponseEntity<ApiResult<Void>> profileUnavailable() {
+        return error(HttpStatus.FORBIDDEN, "profile_unavailable");
+    }
     @ExceptionHandler(com.iflytek.astron.console.hub.platform.run.RunFailure.class)
     public ResponseEntity<ApiResult<Void>> runFailure(com.iflytek.astron.console.hub.platform.run.RunFailure exception) {
         HttpStatus status = switch (exception.code()) {

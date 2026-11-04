@@ -30,6 +30,8 @@ SpaceAuthAspect 已进行成员/权限校验；SkillFileService 使用 uid/space
 
 ## Implementation Notes
 
+独立平台入口提供 POST /platform/profile，首次访问幂等登记已验证 JWT subject；请求不接受角色、租户或账号 ID。复用 user_info 的唯一索引处理并发，重复项不更新任何资料，随后逐字比较 subject，拒绝大小写/重音排序碰撞及禁用/删除账号。新资料不创建租户、成员、管理员或用户协议同意记录。工作台先登记再读取租户；无权限页面展示自身账号标识，管理员通过既有审计接口授予权限。该入口不加载到旧 Hub 应用。
+
 首个增量使用 V1.49 新增 `oa_tenant` 等表，采用 `space-<id>` 与 `user-<SHA256(uid)>` 稳定映射。存量成员仅回填测试环境；生产管理员由平台管理员显式登记，平台管理员不自动获得租户业务数据权限。治理 API 的授权、条件更新与审计在同一数据库事务内。原 SpaceAuthAspect/资源服务入口的收敛继续由任务 1.2/3.1 跟踪，不把新 API 的授权当作旧入口已经全部覆盖的证据。
 
 操作与回滚说明见 `docs/platform/tenant-migration.md`；测试边界和未验收项见 `docs/platform/implementation-progress.md`。
