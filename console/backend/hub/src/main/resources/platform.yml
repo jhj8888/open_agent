@@ -1,0 +1,49 @@
+# This configuration is used only by com.iflytek.astron.platform.PlatformApplication.
+# Required values are supplied by deployment-owned configuration/Secrets.
+server:
+  address: ${PLATFORM_BIND_ADDRESS:127.0.0.1}
+  port: ${PLATFORM_PORT:18082}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: open-agent-platform
+  datasource:
+    url: ${PLATFORM_JDBC_URL}
+    username: ${PLATFORM_DB_USER}
+    password: ${PLATFORM_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 1
+      connection-timeout: 10000
+  flyway:
+    enabled: ${PLATFORM_FLYWAY_ENABLED:true}
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${PLATFORM_OIDC_ISSUER}
+          jwk-set-uri: ${PLATFORM_OIDC_JWKS}
+          audiences: ${PLATFORM_OIDC_AUDIENCE}
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+s3:
+  endpoint: ${PLATFORM_S3_ENDPOINT}
+  accessKey: ${PLATFORM_S3_ACCESS_KEY}
+  secretKey: ${PLATFORM_S3_SECRET_KEY}
+  bucket: ${PLATFORM_S3_BUCKET}
+logging:
+  config: classpath:logback-platform.xml

@@ -12,6 +12,11 @@
     <name>astron-console-hub</name>
     <description>Astron Console Hub Api Server</description>
 
+    <properties>
+        <!-- Deployments may select the dedicated Skill platform; the legacy build stays the default. -->
+        <platform.main-class>com.iflytek.astron.console.hub.HubApplication</platform.main-class>
+    </properties>
+
     <dependencies>
         <!-- Central-directory attributes are required to reject links in Skill archives. -->
         <dependency>
@@ -187,7 +192,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.iflytek.astron.console.hub.HubApplication</mainClass>
+                    <mainClass>${platform.main-class}</mainClass>
                 </configuration>
             </plugin>
         </plugins>
