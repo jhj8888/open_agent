@@ -211,6 +211,12 @@ class ControlPlaneClient:
         )
         return row["permitted"] is True
 
+    async def permit(self, lease: AttemptLease) -> bool:
+        row = await self.request(
+            f"/internal/platform/worker/runs/{lease.run.run_id}/permit", lease.body()
+        )
+        return row["permitted"] is True
+
     async def append(
         self, lease: AttemptLease, key: str, kind: str, payload: dict[str, Any]
     ) -> None:

@@ -26,3 +26,5 @@ V1.52、RunLedger/RunOutbox 与状态转换层已通过 21 项真实 MySQL 8.4.1
 1.2 的数据库并发机制、1.3 的消息领取/确认已有证据，但 API 多实例联调、Temporal 发布/补偿及公平调度尚未完成，保持未勾选。数据库重启检查不等于完整 worker、沙盒或生产集群故障验收。
 
 后续增量已加入官方 Temporal SDK 1.35.0、稳定 workflow ID 的 outbox 发布器、独立内部服务身份及租约绑定模型/Skill 读取。22 项 Python 调度/传输测试通过（含真实 Temporal 服务、30 秒心跳丢失、SQLite 服务重启）；MySQL 增至 24 项；Java 模型和内部接口 37 项通过。展示机开发服务已返回 SERVING，监听均为 loopback。见 `docs/platform/temporal-runtime.md` 和对应验证记录。实际 execute/reconcile activity、清理补偿及公共 API/聊天未接通，1.3、2.1–2.3 仍不勾选。
+
+真实执行器增量：RuntimeExecutor 已在展示机用真实 DeepSeek 驱动 DeepAgents 和隔离 Skill，观察到 UID 1000 执行及物理沙盒删除；操作许可、心跳取消和重复清理已有测试。54 项执行/传输/沙盒、9 项 Java 接口与 209 项既有 Python 回归通过，见 `docs/platform/executor-verification-20261104.json`。这次实机准入/journal 是测试实现，完整数据库/Temporal/执行器接线与跨进程强制回收仍未完成，相关任务保持未勾选。

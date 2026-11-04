@@ -17,3 +17,7 @@
 ## 3. 验收
 
 - [ ] 3.1 在真实离线集群执行隔离与故障注入测试，记录版本、节点、策略、恢复时间与遗留风险；mock 通过不能代替此项。
+
+## 2026-11-04 实机增量
+
+展示机已验证真实 DeepSeek → DeepAgents → OpenSandbox/gVisor Skill 执行，脚本 UID 1000、模型报告实际结果及物理容器删除均有证据。新增执行许可钩子和重复清理逻辑。测试准入/journal 不代替生产租约/配额或 Kata/K8S 验收；任务继续保留未勾选，见 `docs/platform/runtime-executor.md`。

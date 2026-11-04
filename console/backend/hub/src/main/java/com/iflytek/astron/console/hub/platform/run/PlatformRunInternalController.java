@@ -69,6 +69,10 @@ public class PlatformRunInternalController {
     public Map<String, Boolean> heartbeat(@PathVariable UUID runId, @RequestBody @Valid LeaseInput input, Principal principal) {
         return Map.of("permitted", ledger.heartbeat(input.lease(runId, principal)));
     }
+    @PostMapping("/worker/runs/{runId}/permit")
+    public Map<String, Boolean> permit(@PathVariable UUID runId, @RequestBody @Valid LeaseInput input, Principal principal) {
+        return ledger.withPermit(input.lease(runId, principal), () -> Map.of("permitted", true));
+    }
     @PostMapping("/worker/runs/{runId}/events")
     public Map<String, Long> event(@PathVariable UUID runId, @RequestBody @Valid EventInput input, Principal principal) {
         return Map.of("sequence", ledger.append(input.lease().lease(runId, principal), input.eventKey(), input.eventType(), input.payload()));

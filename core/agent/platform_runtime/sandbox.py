@@ -104,16 +104,30 @@ class CommandResult:
 
 class AttemptSandbox:
     def __init__(
-        self, scope: RunScope, sandbox: Sandbox, journal: LeaseJournal
+        self,
+        scope: RunScope,
+        sandbox: Sandbox,
+        journal: LeaseJournal,
+        permission: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self.scope, self.sandbox, self.journal = scope, sandbox, journal
+        self.permission = permission
         self._closed = False
+        self._destroyed = False
+        self._cleanup_complete = False
         self._close_lock = asyncio.Lock()
         self._execute_lock = asyncio.Lock()
         self._output_bytes = 0
         self._staged = False
         self._command_started = False
         self._skill_files: dict[str, bytes] = {}
+
+    async def _check_permission(self) -> None:
+        self.scope.remaining()
+        if self.permission is not None:
+            await self.permission()
+        if self._closed:
+            raise SandboxFailure("SANDBOX_UNAVAILABLE")
 
     def skill_file(self, path: str) -> bytes | None:
         if self._closed or not self._staged:
@@ -136,6 +150,7 @@ class AttemptSandbox:
             raise SandboxFailure("SKILL_TOTAL_SIZE_EXCEEDED")
         roots: list[str] = []
         try:
+            await self._check_permission()
             async with asyncio.timeout(min(60, self.scope.remaining())):
                 await self.sandbox.files.create_directories(
                     [
@@ -160,6 +175,7 @@ class AttemptSandbox:
                     ]
                 )
                 for release in releases:
+                    await self._check_permission()
                     if len(release.contents) != len(release.manifest.files):
                         raise SandboxFailure("SKILL_ARTIFACT_INVALID")
                     root = "/skills/" + release.manifest.name
@@ -221,6 +237,7 @@ class AttemptSandbox:
         async with self._execute_lock:
             if self._closed:
                 raise SandboxFailure("SANDBOX_UNAVAILABLE")
+            await self._check_permission()
             self._command_started = True
             seconds = min(self.scope.remaining(), timeout or 120, 600)
             stdout = bytearray()
@@ -302,7 +319,7 @@ class AttemptSandbox:
 
     async def close(self) -> None:
         async with self._close_lock:
-            if self._closed:
+            if self._cleanup_complete:
                 return
             self._closed = True
             self._skill_files.clear()
@@ -311,13 +328,16 @@ class AttemptSandbox:
                 await self.journal.cleanup_pending(self.scope, self.sandbox.id)
             except Exception:
                 pass  # A database outage must not prevent a remote kill attempt.
-            try:
-                async with asyncio.timeout(20):
-                    await self.sandbox.destroy()
-            except Exception:
-                return
+            if not self._destroyed:
+                try:
+                    async with asyncio.timeout(20):
+                        await self.sandbox.destroy()
+                    self._destroyed = True
+                except Exception:
+                    return
             try:
                 await self.journal.released(self.scope, self.sandbox.id)
+                self._cleanup_complete = True
             except Exception:
                 pass  # Reconciliation will observe that the sandbox no longer exists.
 
@@ -333,6 +353,7 @@ class OpenSandboxProvider:
         cpu: str = "1",
         memory: str = "512Mi",
         factory: Callable[..., Awaitable[Sandbox]] = Sandbox.create,
+        permission: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         if (
             not connection.use_server_proxy
@@ -343,6 +364,7 @@ class OpenSandboxProvider:
         if profile not in {"kata", "gvisor-demo"}:
             raise SandboxFailure("SANDBOX_ISOLATION_UNAVAILABLE")
         self.connection, self.journal, self.admission = connection, journal, admission
+        self.permission = permission
         self.profile, self.cpu, self.memory, self.factory = (
             profile,
             cpu,
@@ -362,7 +384,12 @@ class OpenSandboxProvider:
             raise SandboxFailure("SANDBOX_ISOLATION_UNAVAILABLE")
         image = releases[0].manifest.runtimeImage
         seconds = scope.remaining()
+        if self.permission is not None:
+            await self.permission()
         await self.admission.before_create(scope, self.profile, image)
+        if self.permission is not None:
+            await self.permission()
+        seconds = scope.remaining()
         # OpenSandbox 1.1.0 rejects its iptables egress sidecar with gVisor. Demo admission
         # must validate its dedicated Docker network/firewall instead; production uses Kata/CNI.
         policy = (
@@ -407,7 +434,7 @@ class OpenSandboxProvider:
         except Exception:
             # Do not blindly retry creation after an ambiguous response. Reconcile by lease metadata.
             raise SandboxFailure("SANDBOX_CREATE_FAILED") from None
-        lease = AttemptSandbox(scope, sandbox, self.journal)
+        lease = AttemptSandbox(scope, sandbox, self.journal, self.permission)
         try:
             await self.journal.created(scope, sandbox.id)
             await self.admission.after_create(scope, self.profile, sandbox.id)

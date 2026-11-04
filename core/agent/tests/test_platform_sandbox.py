@@ -148,6 +148,72 @@ async def test_create_scopes_files_and_credentials_and_destroys_exactly_once():
 
 
 @pytest.mark.asyncio
+async def test_revoked_permission_denies_commands_waiting_for_the_same_sandbox():
+    adapter, sb, journal, admission, factory, release = await provider()
+    allowed = True
+
+    async def permit():
+        if not allowed:
+            raise SandboxFailure("LEASE_FENCED")
+
+    adapter.permission = permit
+    lease = await adapter.create(scope(), [release])
+    entered, unblock = asyncio.Event(), asyncio.Event()
+
+    async def command(*args, **kwargs):
+        entered.set()
+        await unblock.wait()
+        return SimpleNamespace(exit_code=0)
+
+    sb.commands.run.side_effect = command
+    first = asyncio.create_task(lease.execute("echo first"))
+    await entered.wait()
+    second = asyncio.create_task(lease.execute("echo second"))
+    await asyncio.sleep(0)
+    allowed = False
+    unblock.set()
+    await first
+    with pytest.raises(SandboxFailure, match="LEASE_FENCED"):
+        await second
+    assert sb.commands.run.await_count == 1
+    await lease.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_destroy_is_retried_without_reopening_execution():
+    adapter, sb, journal, admission, factory, release = await provider()
+    lease = await adapter.create(scope(), [release])
+    sb.destroy.side_effect = [RuntimeError("temporary service outage"), None]
+    await lease.close()
+    journal.released.assert_not_awaited()
+    with pytest.raises(SandboxFailure, match="SANDBOX_UNAVAILABLE"):
+        await lease.execute("echo cannot-resume")
+    await lease.close()
+    assert sb.destroy.await_count == 2
+    journal.released.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_journal_outage_after_destroy_retries_recording_without_a_second_delete():
+    adapter, sb, journal, admission, factory, release = await provider()
+    lease = await adapter.create(scope(), [release])
+    journal.released.side_effect = [RuntimeError("temporary database outage"), None]
+    await lease.close()
+    await lease.close()
+    sb.destroy.assert_awaited_once()
+    assert journal.released.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_revocation_during_isolation_admission_prevents_sandbox_creation():
+    adapter, sb, journal, admission, factory, release = await provider()
+    adapter.permission = AsyncMock(side_effect=[None, SandboxFailure("LEASE_FENCED")])
+    with pytest.raises(SandboxFailure, match="LEASE_FENCED"):
+        await adapter.create(scope(), [release])
+    factory.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_production_never_uses_demo_gvisor_or_missing_admission():
     adapter, sb, journal, admission, factory, release = await provider("gvisor-demo")
     with pytest.raises(SandboxFailure, match="ISOLATION_UNAVAILABLE"):

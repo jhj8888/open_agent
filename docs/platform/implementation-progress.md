@@ -16,6 +16,8 @@
 
 ## 验证证据
 
+2026-11-04 实机执行增量：`RuntimeExecutor` 已通过真实 DeepSeek + DeepAgents + OpenSandbox/gVisor 联调；模型读取 Skill、实际执行脚本得到 UID 1000、报告真实输出，随后确认物理沙盒已删除。新增每操作许可、心跳取消和可重试清理；54 项执行/传输/沙盒、9 项 Java 接口、209 项既有 Python 回归通过。服务器已安装冻结的 Python worker 环境，完整持久 worker 服务尚未启动。见 [执行器说明](runtime-executor.md) 和 [验证结果](executor-verification-20261104.json)。
+
 2026-11-04 后续增量：官方 Temporal SDK 1.35.0 调度骨架、outbox 发布器及独立 worker/dispatcher 身份已实现；执行配置只对有效租约返回固定模型/Skill 版本。22 项 Python 调度/传输测试、24 项真实 MySQL 任务测试及 37 项 Java 模型/内部接口测试通过，既有 Python 205 项回归通过。展示机 Temporal 开发服务已启动并限制 loopback；实际 Agent activity、资源清理补偿和完整应用仍待接通。详见 [接入说明](temporal-runtime.md) 与 [新增证据](temporal-runtime-verification-20261104.json)。
 
 此前 V1.52 和 Java 持久任务账本的独立验证为 21 项真实 MySQL 用例和 36 项契约/既有回归（共 57 项），包括独占测试数据库 SIGKILL/重启；见 [任务实现记录](durable-runs.md) 与 [历史验证结果](run-ledger-verification-20261104.json)。新增用例见上段，完整展示应用仍未部署。

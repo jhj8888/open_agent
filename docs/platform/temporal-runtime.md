@@ -2,6 +2,8 @@
 
 2026-11-04 增量：官方 Python SDK `temporalio==1.35.0`、确定性 workflow、outbox 发布器、独立内部服务鉴权和固定资源读取已实现。真实 Temporal 测试使用合成 activity；执行 DeepAgents、沙盒持久清理与统一 HTTP/聊天尚未接通，不能把这些测试解释为平台已经可展示。
 
+后续 RuntimeExecutor 已完成独立真实模型/Skill 联调，并新增 `/worker/runs/{runId}/permit` 操作许可接口，见 [执行器记录](runtime-executor.md)。生产 execute/reconcile activity 注册和持久清理仍未接通，Temporal 测试的合成 activity 边界保持不变。
+
 ## 调用链及影响
 
 `RunOutbox → dispatcher 私有 HTTP 客户端 → Temporal Client → AgentRunWorkflow → execute/reconcile activity`。实际 activity 的实现是下一阶段工作。workflow 参数只包含 tenant/environment/run_id，结果只含状态；模型密钥、输入、Skill 文件、运行租约均不进入此调度载荷。

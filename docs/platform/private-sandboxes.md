@@ -2,6 +2,8 @@
 
 当前增量是官方 OpenSandbox 适配器、DeepAgents 原生沙盒后端以及单机展示环境的部署和验证脚本。持久任务调度、控制面租约/配额和生产 K8S 适配尚在接入；不能把下面的单机验证当作企业离线集群验收。
 
+后续已增加带每操作许可的 RuntimeExecutor，并在展示机用真实 DeepSeek 驱动 Skill 执行和清理；测试准入器不提供生产持久配额，详情与边界见 [执行器验证](runtime-executor.md)。原始 13 项隔离检查的模型仍是合成模型，不能混淆两份证据的覆盖范围。
+
 ## 调用链与影响
 
 目标调用链是：Java 授权后的 deployment/run 快照 → Python worker 的固定 Skill manifest/file 客户端 → `platform_runtime.artifacts` 校验 → `OpenSandboxProvider` → 官方 OpenSandbox 1.1.0 SDK/server → 隔离运行时。DeepAgents 的 `BaseSandbox` 原生文件与执行工具通过 `OpenSandboxBackend` 进入该 attempt 的同一个沙盒。模型请求和凭据留在可信 worker。

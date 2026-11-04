@@ -70,4 +70,19 @@ class PlatformRunInternalSecurityTest {
                 .contentType("application/json").content(body)).andExpect(status().isConflict());
         verify(runtime).bundle(new RunLedger.Lease(new RunLedger.Scope("space-10","test"),RUN,1,"fc42b1dd-3f87-400c-a38b-2161cfdd988a",1,"worker-one"));
     }
+
+    @Test void perOperationPermitUsesAuthenticatedOwnerAndNeverFallsBackToUserJwt() throws Exception {
+        String body="{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\"fc42b1dd-3f87-400c-a38b-2161cfdd988a\",\"fencingToken\":1}";
+        String path="/internal/platform/worker/runs/"+RUN+"/permit";
+        mvc.perform(post(path).header("Authorization","Bearer user-jwt").contentType("application/json").content(body))
+                .andExpect(status().isUnauthorized());
+        when(ledger.withPermit(any(),any())).thenReturn(java.util.Map.of("permitted",true));
+        mvc.perform(post(path).header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content(body)).andExpect(status().isOk()).andExpect(jsonPath("$.permitted").value(true));
+        verify(ledger).withPermit(eq(new RunLedger.Lease(new RunLedger.Scope("space-10","test"),RUN,1,
+                "fc42b1dd-3f87-400c-a38b-2161cfdd988a",1,"worker-one")),any());
+        when(ledger.withPermit(any(),any())).thenThrow(new RunFailure("lease_fenced"));
+        mvc.perform(post(path).header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content(body)).andExpect(status().isConflict());
+    }
 }
