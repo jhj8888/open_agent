@@ -380,9 +380,12 @@ function Workspace({
     item => item.environment === environment
   )?.role;
   const admin = role === 'tenant_admin';
-  const canEdit = admin || (role === 'developer' && environment === 'test');
-  const canCredential =
-    admin || (role === 'developer' && environment === 'test');
+  const activeTenant = tenant.status === 'active';
+  const canEdit =
+    activeTenant && environment === 'test' && (admin || role === 'developer');
+  const canPublish =
+    activeTenant && environment === 'prod' && role === 'operator';
+  const canCredential = activeTenant && admin;
   const rows = runs.data?.rows ?? [];
   const available = deployments.data ?? [];
   const allSkills = skills.data ?? [];
@@ -492,7 +495,7 @@ function Workspace({
           {page === 'agents' && (
             <button
               className="button primary"
-              disabled={!canEdit}
+              disabled={environment === 'test' ? !canEdit : !canPublish}
               onClick={() =>
                 setDialog(environment === 'test' ? 'agent' : 'promote')
               }
@@ -772,7 +775,7 @@ function Workspace({
             {environment === 'prod' && (
               <button
                 className="button primary"
-                disabled={!admin}
+                disabled={!canPublish}
                 onClick={() => setDialog('promote')}
               >
                 从测试环境发布
@@ -817,7 +820,10 @@ function Workspace({
                       </button>
                       <button
                         className="link danger"
-                        disabled={!canEdit || item.state === 'disabled'}
+                        disabled={
+                          !(environment === 'test' ? canEdit : canPublish) ||
+                          item.state === 'disabled'
+                        }
                         onClick={() => setDisable(item)}
                       >
                         停用
@@ -837,7 +843,13 @@ function Workspace({
           <ModelsPage
             api={api}
             models={allModels}
-            canEdit={canEdit}
+            canEdit={canCredential}
+            canProbe={
+              activeTenant &&
+              environment === 'test' &&
+              !!role &&
+              role !== 'viewer'
+            }
             refresh={models.refresh}
           />
         </>
@@ -848,7 +860,10 @@ function Workspace({
           tenant={tenant}
           platformAdmin={platformAdmin}
           admin={admin}
-          changed={changed}
+          changed={() => {
+            changed();
+            refresh();
+          }}
         />
       )}
       {page === 'monitor' && (

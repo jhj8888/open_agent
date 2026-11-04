@@ -1,0 +1,40 @@
+{
+  "live": {
+    "checked_at": "2026-11-04T19:49:50.717930+00:00",
+    "model_connection_id": "86bd5d52-1364-45dc-ab57-ddb70e201320",
+    "model_version": 1,
+    "model_deployment_id": "88191031-307d-4d2b-865a-66c5c39fa2d8",
+    "model_verification_run_id": "e2b816c2-313e-49d9-9960-d92efa42f4b3",
+    "skill_deployment_id": "a82d9831-dff6-4a27-a88a-27b210cd02a5",
+    "skill_verification_run_id": "be3ab48d-5c8a-4032-a882-e8fb940f8c1d",
+    "production_model_run_id": "e21cd081-53da-4bba-9334-4fe0083f68ee",
+    "state": "succeeded",
+    "usage": {
+      "total_tokens": 219,
+      "prompt_tokens": 125,
+      "completion_tokens": 94
+    },
+    "supervision_phase": "released",
+    "lease_state": "released",
+    "admin_cannot_publish": true,
+    "publisher_cannot_manage_credentials": true,
+    "skill_exact_evidence_promoted": true,
+    "http_idempotency": true,
+    "rotated_key_retains_run_access": true,
+    "old_and_revoked_keys_rejected": true,
+    "production_skill_execution": "not tested: production requires Kata; demo is gVisor test only"
+  },
+  "mysql": {
+    "count": 4,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "cases": [
+      "apiProductionPromotionNeedsSuccessfulExactTestAndExplicitExecutionGrant",
+      "skillEvidenceRequiresSuccessfulExactSnapshotAndCreatedSandboxAfterIndependentRelease",
+      "supervisedProofAuditFailureRollsBackProofSandboxAndExecutionQuotaTogether",
+      "skillPromotionIsAtomicAndRequiresEvidenceFromTheSelectedRun"
+    ]
+  },
+  "java_artifact_sha256": "cb25d4d6d604e4ae06bbd650e43b59da7c05973d8e0f13046f251b1f195ff6d9"
+}

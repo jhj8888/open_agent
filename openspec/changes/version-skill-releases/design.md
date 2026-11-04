@@ -20,6 +20,8 @@ SkillFileService.updateContent 修改现有记录，V1.27 的 skill_file 表保�
 4. 使用已有对象存储接口，不因为版本功能更换存储系统。暂存对象定期回收；已被部署或保留期内任务引用的 release 不允许物理删除。租户检查先于生成下载凭证。
 5. 旧 Skill 先转成一个明确的 legacy-import 版本，不自动推广生产。API 兼容草稿操作；运行侧默认要求 release，对旧调用在迁移窗口提供显式版本解析记录。
 6. 实现使用 `oa_skill_*` 前缀避免与上游迁移冲突。S3 复用已有私有 `workflow/artifacts/*` 桶策略，暂存对象按租户摘要和上传 UUID 隔离。官方 MinIO SDK 负责对象操作；官方 Commons Compress 负责 ZIP 解析，固定尾部预检仅补足解析前条目上限。详情和限制见 `docs/platform/skill-releases.md`。
+7. 成功测试证据由独立监督回收事务生成：仅 test、succeeded、已确认创建并回收的沙盒、released 执行租约，且运行快照包含同一 release/manifest。失败、取消、仅 reserved 或摘要不一致不生成证据。证据证明固定包随该任务成功运行，不等于包内每个脚本均被覆盖或代码可信。
+8. Agent 推广在同一租户锁与事务中验证指定成功任务、独立回收记录及每个 Skill 的同任务证据，然后授予生产制品权限并创建不可变部署。模型错误等后续失败须回滚制品授权，不能留下半发布状态。保留独立 Skill 推广接口。
 
 ## Risks / Trade-offs
 

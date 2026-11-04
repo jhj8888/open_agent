@@ -23,7 +23,7 @@ if ORIGIN not in {PRIVATE_ORIGIN, 'https://120.26.81.83/identity'}:
 CLIENT_ID = 'open-agent-console'
 
 
-def main():
+def main(extra_users=None):
     values = initialize()
     path = ROOT / 'identity-secrets.json'
     if path.is_symlink():
@@ -45,7 +45,9 @@ def main():
         'defaultApplication = open-agent', 'defaultLanguage = zh', 'forceLanguage = zh',
         'showGithubCorner = false', 'enableErrorMask = true', 'enableGzip = true',
         'logConfig = {"adapter":"console","level":3}', 'logPostOnly = true',
-        'initDataFile = /init_data.json', 'initDataNewOnly = false', 'initDataMerge = true',
+        'initDataFile = /init_data.json',
+        'initDataNewOnly = ' + ('true' if extra_users else 'false'),
+        'initDataMerge = ' + ('false' if extra_users else 'true'),
         'initDataWatchInterval = 0', 'frontendBaseDir = /cc_0',
     ]) + '\n'
     private_file(ROOT / 'identity.conf', config, 1000, 1000, replace=True)
@@ -79,7 +81,8 @@ def main():
                    'expireInYears': 2}],
     }
     if ORIGIN != PRIVATE_ORIGIN:
-        data['applications'][1]['redirectUris'].append('https://120.26.81.83/open-agent/callback')
+        data['applications'][1]['redirectUris'].extend([
+            'https://120.26.81.83/open-agent/callback', 'https://120.26.81.83/open-agent/'])
         data['applications'][1]['homepageUrl'] = 'https://120.26.81.83/open-agent/'
         data['applications'][1]['logoutUrl'] = 'https://120.26.81.83/open-agent/'
     if (ROOT / 'identity-deployment.json').exists():
@@ -87,6 +90,10 @@ def main():
         # user's password, or re-enable an administrator-disabled account.
         data.pop('users')
         data.pop('certs')
+    if extra_users:
+        # Official new-only import preserves every existing user, including
+        # password changes, disabled state and signing keys on interrupted reruns.
+        data = {'users': extra_users}
     initial = json.dumps(data, ensure_ascii=False, indent=2) + '\n'
     private_file(ROOT / 'identity-init.json', initial, 1000, 1000, replace=True)
     ensure_container('open-agent-control-identity', IMAGE, [

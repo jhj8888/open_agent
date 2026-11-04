@@ -234,7 +234,12 @@ class RunLedgerMySqlTest {
         var promotion=new AgentDeploymentService.Promote(UUID.fromString(testId),UUID.fromString(prodModel),1,UUID.fromString(run));
         assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->deployments().promote(A,promotion));
         user("operator");code("successful_test_required",()->deployments().promote(A,promotion));
-        ledger.finish(claim(run),RunState.SUCCEEDED,null); // Synthetic trusted-worker evidence for the publication transaction test.
+        var execution=supervision().claim(scope,run,SUPERVISOR,BOOT).execution();
+        supervision().begin(execution.lease().leaseId(),SUPERVISOR);
+        execution=supervision().observed(execution.lease().leaseId(),SUPERVISOR,INVOCATION);
+        ledger.finish(execution.lease(),RunState.SUCCEEDED,null);
+        code("successful_test_required",()->deployments().promote(A,promotion));
+        supervision().release(execution.lease().leaseId(),SUPERVISOR,proof(execution,"stopped_unit",BOOT));
         String prod=(String)deployments().promote(A,promotion).get("deployment_id");
         assertEquals(1,count("oa_deployment_promotion"));
         code("action_forbidden",()->api().submit(caller("operator"),prod,"role-is-not-execution",input()));
@@ -255,6 +260,74 @@ class RunLedgerMySqlTest {
         code("deployment_unavailable",()->api().submit(caller("alice"),deployment,"disabled",input()));
         assertEquals("queued",api().status(caller("alice"),run).get("state"));
         assertEquals("cancelled",api().cancel(caller("alice"),run).get("state"));
+    }
+
+    private String skillDeployment() {
+        bindSkill(scope,deployment);
+        String release=jdbc.queryForObject("SELECT release_id FROM oa_agent_deployment_skill WHERE deployment_id=?",String.class,deployment);
+        var base=configuration();
+        return (String)deployments().create(scope,new AgentDeploymentService.Create(base.displayName(),base.agentVersion(),base.modelConnectionId(),1,
+                List.of(UUID.fromString(release)),base.execution())).get("deployment_id");
+    }
+    private RunSupervision.Snapshot finishedSkill(String testId,String key,RunState state,boolean created) {
+        String run=api().submit(caller("alice"),testId,key,input()).run_id();
+        var execution=supervision().claim(scope,run,SUPERVISOR,BOOT).execution();var lease=execution.lease();
+        supervision().begin(lease.leaseId(),SUPERVISOR);
+        supervision().observed(lease.leaseId(),SUPERVISOR,INVOCATION);
+        journal().reserve(lease,"gvisor-demo",IMAGE);
+        if(created) {journal().creating(lease);journal().created(lease,UUID.randomUUID().toString());}
+        if(state==RunState.CANCELLED) ledger.cancel(scope,run,"alice",()->{});
+        ledger.finish(lease,state==RunState.CANCELLED?RunState.SUCCEEDED:state,null);
+        return supervision().inspect(lease.leaseId(),SUPERVISOR);
+    }
+    private void releaseSkill(RunSupervision.Snapshot execution) {
+        var evidence=proof(execution,"stopped_unit",BOOT);
+        supervision().release(execution.lease().leaseId(),SUPERVISOR,evidence);
+        supervision().release(execution.lease().leaseId(),SUPERVISOR,evidence);
+    }
+
+    @Test void skillEvidenceRequiresSuccessfulExactSnapshotAndCreatedSandboxAfterIndependentRelease() {
+        actors();String testId=skillDeployment();
+        for(var state:List.of(RunState.FAILED,RunState.CANCELLED)) {
+            releaseSkill(finishedSkill(testId,state.name(),state,true));
+            assertEquals(0,count("oa_skill_verification"));
+        }
+        releaseSkill(finishedSkill(testId,"no-created-resource",RunState.SUCCEEDED,false));
+        assertEquals(0,count("oa_skill_verification"));
+        var mismatched=finishedSkill(testId,"wrong-snapshot",RunState.SUCCEEDED,true);
+        jdbc.update("UPDATE oa_agent_run SET snapshot_json=JSON_SET(snapshot_json,'$.skills[0].manifestSha256',?) WHERE run_id=?",
+                "f".repeat(64),mismatched.lease().runId());
+        releaseSkill(mismatched);assertEquals(0,count("oa_skill_verification"));
+        var success=finishedSkill(testId,"success",RunState.SUCCEEDED,true);
+        assertEquals(0,count("oa_skill_verification"));
+        releaseSkill(success);
+        assertEquals(1,count("oa_skill_verification"));
+        assertEquals(success.lease().runId(),jdbc.queryForObject("SELECT run_id FROM oa_skill_verification",String.class));
+        assertEquals(RunJson.hash("{}"),jdbc.queryForObject("SELECT manifest_sha256 FROM oa_skill_verification",String.class));
+    }
+
+    @Test void skillPromotionIsAtomicAndRequiresEvidenceFromTheSelectedRun() {
+        actors();String testId=skillDeployment();
+        var success=finishedSkill(testId,"success",RunState.SUCCEEDED,true);releaseSkill(success);
+        String prodTemplate=seedDeployment(new RunLedger.Scope(A,"prod"));
+        String prodModel=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,prodTemplate);
+        var promotion=new AgentDeploymentService.Promote(UUID.fromString(testId),UUID.fromString(prodModel),1,UUID.fromString(success.lease().runId()));
+        user("operator");
+        var badModel=new AgentDeploymentService.Promote(promotion.sourceDeploymentId(),UUID.randomUUID(),1,promotion.verificationRunId());
+        code("model_unavailable",()->deployments().promote(A,badModel));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_skill_release_environment WHERE environment='prod'",Integer.class));
+        assertEquals(0,count("oa_deployment_promotion"));
+        jdbc.update("UPDATE oa_skill_verification SET passed=false");
+        code("skill_verification_required",()->deployments().promote(A,promotion));
+        jdbc.update("UPDATE oa_skill_verification SET passed=true,manifest_sha256=?","f".repeat(64));
+        code("skill_verification_required",()->deployments().promote(A,promotion));
+        jdbc.update("UPDATE oa_skill_verification SET manifest_sha256=?,run_id=?",RunJson.hash("{}"),UUID.randomUUID().toString());
+        code("skill_verification_required",()->deployments().promote(A,promotion));
+        jdbc.update("UPDATE oa_skill_verification SET run_id=?",success.lease().runId());
+        String prod=(String)deployments().promote(A,promotion).get("deployment_id");
+        assertEquals(1,count("oa_deployment_promotion"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_skill_release_environment WHERE environment='prod'",Integer.class));
+        assertEquals(RunJson.hash("{}"),jdbc.queryForObject("SELECT manifest_sha256 FROM oa_agent_deployment_skill WHERE deployment_id=?",String.class,prod));
     }
 
     @Test void apiUsageIsDurableAndDuplicateOldEventsCannotRegressIt() throws Exception {
@@ -471,7 +544,7 @@ class RunLedgerMySqlTest {
     }
 
     @Test void supervisedProofAuditFailureRollsBackProofSandboxAndExecutionQuotaTogether() {
-        bindSkill(scope,deployment);
+        actors();deployment=skillDeployment();
         var execution=supervised("release-rollback");var lease=execution.lease();String id=lease.leaseId();
         supervision().begin(id,SUPERVISOR);supervision().observed(id,SUPERVISOR,INVOCATION);
         journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);
@@ -484,9 +557,11 @@ class RunLedgerMySqlTest {
         var rolledBack=supervision().inspect(id,SUPERVISOR);
         assertEquals("observed",rolledBack.phase());assertEquals("created",rolledBack.sandboxPhase());assertEquals("cleanup_pending",rolledBack.leaseState());
         assertNull(jdbc.queryForObject("SELECT proof_id FROM oa_run_supervision WHERE lease_id=?",String.class,id));
+        assertEquals(0,count("oa_skill_verification"));
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action IN ('execution.release.verified','sandbox.release.verified')",Integer.class));
         jdbc.execute("DROP TRIGGER fail_execution_audit");
         assertEquals("succeeded",supervision().release(id,SUPERVISOR,proof).state());
+        assertEquals(1,count("oa_skill_verification"));
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action IN ('execution.release.verified','sandbox.release.verified')",Integer.class));
     }
 

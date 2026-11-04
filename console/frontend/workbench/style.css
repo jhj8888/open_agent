@@ -90,6 +90,23 @@
   flex: 1;
   min-width: 0;
 }
+.inline-form select {
+  min-width: 0;
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: #4e6c5a;
+}
+.production-grants {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.production-grants h3 {
+  font-size: 14px;
+}
 .secret-reveal {
   margin: 20px 0;
   padding: 20px;

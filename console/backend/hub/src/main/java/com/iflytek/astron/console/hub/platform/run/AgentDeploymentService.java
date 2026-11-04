@@ -79,7 +79,14 @@ public class AgentDeploymentService {
             String snapshot=(String)previous.get("snapshot_json");
             if(!RunJson.hash(snapshot).equals(previous.get("snapshot_sha256"))) throw new RunFailure("deployment_unavailable");
             if(!"deepagents".equals(previous.get("executor_kind"))) throw new RunFailure("executor_unavailable");
-            if(jdbc.queryForList("SELECT run_id FROM oa_agent_run WHERE tenant_id=? AND environment='test' AND deployment_id=? AND run_id=? AND state='succeeded' AND snapshot_sha256=?",
+            if(jdbc.queryForList("""
+                    SELECT r.run_id FROM oa_agent_run r
+                    JOIN oa_run_attempt a ON a.tenant_id=r.tenant_id AND a.environment=r.environment AND a.run_id=r.run_id AND a.attempt_no=r.attempt_no
+                    JOIN oa_run_supervision s ON s.lease_id=a.lease_id
+                    WHERE r.tenant_id=? AND r.environment='test' AND r.deployment_id=? AND r.run_id=?
+                      AND r.state='succeeded' AND r.snapshot_sha256=? AND a.lease_state='released' AND s.phase='released'
+                      AND NOT EXISTS(SELECT 1 FROM oa_run_attempt pending WHERE pending.run_id=r.run_id AND pending.lease_state<>'released')
+                    """,
                     tenant,source,input.verificationRunId().toString(),previous.get("snapshot_sha256")).isEmpty())
                 throw new RunFailure("successful_test_required");
             JsonNode configuration,execution;
@@ -94,6 +101,17 @@ public class AgentDeploymentService {
                     if(expected.put(id,binding.path("manifestSha256").asText())!=null) throw new IllegalArgumentException();
                     releases.add(UUID.fromString(id));
                 } catch(IllegalArgumentException invalid) { throw new RunFailure("deployment_unavailable"); }
+            }
+            var testedBindings=bindings(new RunLedger.Scope(tenant,"test"),releases);
+            for(var binding:testedBindings) {
+                String release=(String)binding.get("release_id");
+                if(!Objects.equals(expected.get(release),binding.get("manifest_sha256"))) throw new RunFailure("deployment_unavailable");
+                if(jdbc.queryForList("SELECT release_id FROM oa_skill_verification WHERE tenant_id=? AND release_id=? AND run_id=? AND manifest_sha256=? AND passed=true",
+                        tenant,release,input.verificationRunId().toString(),expected.get(release)).isEmpty())
+                    throw new RunFailure("skill_verification_required");
+                int granted=jdbc.update("INSERT INTO oa_skill_release_environment(tenant_id,environment,release_id,granted_by) VALUES(?,'prod',?,?) ON DUPLICATE KEY UPDATE release_id=VALUES(release_id)",
+                        tenant,release,actor.uid());
+                if(granted>0) audit(scope,actor.uid(),"skill.release.promoted",release);
             }
             var targetBindings=bindings(scope,releases);
             for(var binding:targetBindings)

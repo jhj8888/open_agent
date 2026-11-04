@@ -20,6 +20,7 @@
 4. UI 聊天创建相同 run，订阅相同事件，取消走同一 API；对话 session 不是共享沙盒目录。开发者可在测试环境查看草稿快照（入队前生成明确临时 release），生产只使用已发布部署。展示工具轨迹、结果、耗时和可得用量，默认不展示原始敏感提示词。
 5. 保留旧 workflow API，文档给出迁移映射；增加独立 Agent 能力通过新的部署 API 完成，不突然更改老用户的请求/响应协议。按部署提供可复制 curl 示例和内部文档链接。
 6. 前置：manage-tenant-access、version-skill-releases、persist-agent-runs；代码工具还依赖 isolate-private-skill-sandboxes。模型配置须通过 connect-internal-model-api 契约。无需替换现有入口网关。
+7. 生产推广必须引用同部署/同快照的成功 test run，并已由独立 supervisor 确认回收。Skill 测试证据、生产环境授权及部署发布在同一事务核验，不能仅凭任务状态伪造测试完成。展示机 gVisor 继续仅允许 test，生产 Skill 执行仍要求 Kata；不为演示降低隔离门槛。
 
 ## Risks / Trade-offs
 

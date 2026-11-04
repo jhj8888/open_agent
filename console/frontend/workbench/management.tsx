@@ -384,11 +384,13 @@ export function ModelsPage({
   api,
   models,
   canEdit,
+  canProbe,
   refresh,
 }: {
   api: ApiScope;
   models: ModelConnection[];
   canEdit: boolean;
+  canProbe: boolean;
   refresh: () => void;
 }): JSX.Element {
   const [edit, setEdit] = useState<ModelConnection | 'new'>();
@@ -447,7 +449,7 @@ export function ModelsPage({
             <footer>
               <button
                 className="link"
-                disabled={!!probing || !canEdit}
+                disabled={!!probing || !canProbe}
                 onClick={() => {
                   void probe(item.connection_id);
                 }}
@@ -631,6 +633,22 @@ export function Credentials({
       canManage ? api.list<DeploymentKey[]>(resource) : Promise.resolve([]),
     [api, resource, canManage]
   );
+  const grantResource = `agent-deployments/${deployment.deployment_id}/grants`;
+  const grants = useResource(
+    () =>
+      canManage && api.environment === 'prod'
+        ? api.list<{ uid: string; created_at: string }[]>(grantResource)
+        : Promise.resolve([]),
+    [api, grantResource, canManage]
+  );
+  const members = useResource(
+    () =>
+      canManage && api.environment === 'prod'
+        ? api.list<Member[]>('members')
+        : Promise.resolve([]),
+    [api, canManage]
+  );
+  const [grantUid, setGrantUid] = useState('');
   const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -645,6 +663,7 @@ export function Credentials({
       const result = await operation();
       setSecret(result?.token ?? '');
       keys.refresh();
+      grants.refresh();
     } catch (failure) {
       if (!aborted(failure)) setError(errorMessage(failure));
     } finally {
@@ -669,7 +688,9 @@ export function Credentials({
           查询状态；/events 订阅事件；POST /cancel
           取消。任务仍由当前部署的租户与环境约束。
         </p>
-        <ErrorBox message={error || keys.error} />
+        <ErrorBox
+          message={error || keys.error || grants.error || members.error}
+        />
         {secret && (
           <div className="secret-reveal">
             <b>新凭据仅显示一次</b>
@@ -770,6 +791,86 @@ export function Credentials({
             </tbody>
           </table>
         </div>
+        {canManage && api.environment === 'prod' && (
+          <section className="production-grants">
+            <h3>生产聊天执行授权</h3>
+            <p className="form-note">
+              生产角色不自动包含执行权限。为当前部署显式授权后，成员才可从聊天窗口发起任务；撤销后立即停止该授权。
+            </p>
+            <form
+              className="inline-form"
+              onSubmit={event => {
+                event.preventDefault();
+                if (grantUid)
+                  void modify(() =>
+                    api.mutate(
+                      `${grantResource}/${encodeURIComponent(grantUid)}`,
+                      undefined,
+                      'PUT'
+                    )
+                  );
+              }}
+            >
+              <select
+                aria-label="生产执行成员"
+                required
+                value={grantUid}
+                onChange={event => setGrantUid(event.target.value)}
+              >
+                <option value="">选择当前环境成员</option>
+                {members.data
+                  ?.filter(
+                    member =>
+                      !grants.data?.some(grant => grant.uid === member.uid)
+                  )
+                  .map(member => (
+                    <option key={member.uid} value={member.uid}>
+                      {member.username} · {member.role}
+                    </option>
+                  ))}
+              </select>
+              <button className="button primary" disabled={busy || !grantUid}>
+                授予执行权限
+              </button>
+            </form>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>成员 UID</th>
+                    <th>授权时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grants.data?.map(grant => (
+                    <tr key={grant.uid}>
+                      <td>{grant.uid}</td>
+                      <td>{dateText(grant.created_at)}</td>
+                      <td>
+                        <button
+                          className="link danger"
+                          disabled={busy}
+                          onClick={() => {
+                            void modify(() =>
+                              api.mutate(
+                                `${grantResource}/${encodeURIComponent(grant.uid)}`,
+                                undefined,
+                                'DELETE'
+                              )
+                            );
+                          }}
+                        >
+                          撤销执行权限
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
         {!canManage && (
           <p className="form-note">
             当前角色可查看接口说明，签发与撤销凭据需要对应管理权限。
@@ -866,7 +967,8 @@ export function Promotion({ api, close, saved }: EditorProps): JSX.Element {
         </select>
       </label>
       <p className="form-note">
-        服务端校验成功测试、固定配置与 Skill 验证状态。发布不会覆盖历史部署。
+        发布人需要生产环境运维角色。服务端校验指定测试任务成功、资源回收和相同
+        Skill 摘要，一并推广已验证包并创建生产部署。发布不会覆盖历史部署。
       </p>
     </EditForm>
   );
@@ -891,7 +993,9 @@ export function TenantPage({
     [api, admin]
   );
   const audit = useResource(() => api.list<AuditEntry[]>('audit'), [api]);
-  const [edit, setEdit] = useState<'quota' | 'tenant' | 'member'>();
+  const [edit, setEdit] = useState<
+    'quota' | 'tenant' | 'member' | 'administrator'
+  >();
   const [member, setMember] = useState<Member>();
   const [error, setError] = useState('');
   const refresh = (): void => {
@@ -922,6 +1026,13 @@ export function TenantPage({
         <div className="row-actions">
           {platformAdmin && (
             <>
+              <button
+                className="button"
+                disabled={tenant.status !== 'active'}
+                onClick={() => setEdit('administrator')}
+              >
+                登记环境管理员
+              </button>
               <button
                 className="button"
                 onClick={() => {
@@ -1082,6 +1193,39 @@ export function TenantPage({
           </label>
           <p className="form-note">
             负责人需要先登录平台。创建后获得测试环境管理员权限，生产环境单独授权。
+          </p>
+        </EditForm>
+      )}
+      {edit === 'administrator' && (
+        <EditForm
+          title="登记当前环境管理员"
+          close={() => setEdit(undefined)}
+          saved={refresh}
+          action={data =>
+            api.mutate(
+              `administrators/${encodeURIComponent(text(data, 'uid'))}`,
+              {
+                role: 'tenant_admin',
+                revision: text(data, 'revision')
+                  ? number(data, 'revision')
+                  : null,
+              },
+              'PUT'
+            )
+          }
+        >
+          <label>
+            用户 UID
+            <input name="uid" required maxLength={128} />
+          </label>
+          <label>
+            已有成员版本（新成员留空）
+            <input name="revision" type="number" min={0} />
+          </label>
+          <p className="form-note">
+            仅平台管理员可执行。将指定用户登记为
+            {api.environment === 'test' ? '测试' : '生产'}
+            环境管理员，不自动授予生产发布或执行权限。
           </p>
         </EditForm>
       )}

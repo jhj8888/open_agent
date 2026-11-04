@@ -22,7 +22,7 @@ public class PlatformExceptionHandler {
             case "executor_unavailable", "stored_event_unavailable" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "resource_unavailable" -> HttpStatus.NOT_FOUND;
             case "queue_full", "sandbox_quota_full", "stream_limit", "credential_limit" -> HttpStatus.TOO_MANY_REQUESTS;
-            case "successful_test_required", "production_promotion_required", "credential_revoked", "credential_expired", "skill_unavailable", "model_unavailable" -> HttpStatus.CONFLICT;
+            case "successful_test_required", "skill_verification_required", "production_promotion_required", "credential_revoked", "credential_expired", "skill_unavailable", "model_unavailable" -> HttpStatus.CONFLICT;
             case "sandbox_state_conflict", "sandbox_cleanup_pending", "cleanup_before_terminal" -> HttpStatus.CONFLICT;
             case "supervision_conflict", "cleanup_proof_conflict", "cleanup_unverified" -> HttpStatus.CONFLICT;
             case "idempotency_conflict", "event_conflict", "state_conflict", "lease_fenced", "deployment_unavailable", "tenant_inactive" -> HttpStatus.CONFLICT;

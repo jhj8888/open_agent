@@ -17,5 +17,8 @@
 ## 3. 联调
 
 - [ ] 3.1 与沙盒和任务记录联调同一 release 的重复运行和失败重试，核验每次的 manifest_digest 完全一致。
+- [x] 3.2 接入可信回收事务的成功测试证据，并原子推广 Agent 及同任务验证的 Skill；验证失败/取消/未回收/摘要不匹配和发布回滚。
+
+3.2 证据：4 项真实 MySQL 用例及展示机指定测试任务推广通过，见 `docs/platform/production-promotion-verification-20261105.json`。生产 Skill 的物理执行仍未在 Kata 验收。
 
 2026-11-04 增量证据：`SkillArchiveValidatorTest` 16 项、`SkillReleaseServiceTest` 13 项、`LegacySkillReleaseImporterTest` 6 项通过；真实 MySQL 8.4.13 的平台迁移检查 7 项通过，其中提取服务原始推广/删除 SQL 验证错误摘要、保留期、永久引用和生产授权。存储影响与 API 见 `docs/platform/skill-releases.md`。任务 1.1 已有新增表和显式旧草稿导入，但全量 Flyway 重入/应用回滚尚未演练；2.2 已有发布界面，Agent 绑定和浏览器端到端仍未完成。3.1 保持待验收。
