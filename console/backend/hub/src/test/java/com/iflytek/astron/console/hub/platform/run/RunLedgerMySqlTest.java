@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -69,6 +69,28 @@ class RunLedgerMySqlTest {
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
     private RunOutbox outbox() { return new RunOutbox(new JdbcTemplate(source), new DataSourceTransactionManager(source)); }
+    private RunSandboxJournal journal() { return new RunSandboxJournal(instance(), new JdbcTemplate(source)); }
+    private static final String IMAGE = "registry.invalid/skill@sha256:" + "a".repeat(64);
+    private void bindSkill(RunLedger.Scope target, String deploymentId) {
+        String release = UUID.randomUUID().toString();
+        jdbc.update("""
+                INSERT INTO oa_skill_release(tenant_id,release_id,skill_name,description,version_label,source_kind,
+                    manifest_sha256,manifest_json,runtime_image,object_prefix,total_bytes,file_count,created_by,retain_until)
+                VALUES(?,?,'sandbox-test','synthetic',?,'upload',?,'{}',?,'synthetic',0,1,'alice',TIMESTAMPADD(DAY,1,CURRENT_TIMESTAMP(3)))
+                """, target.tenant(), release, release, RunJson.hash("{}"), IMAGE);
+        jdbc.update("INSERT INTO oa_skill_release_environment(tenant_id,environment,release_id,granted_by) VALUES(?,?,?,'alice')",
+                target.tenant(), target.environment(), release);
+        jdbc.update("INSERT INTO oa_agent_deployment_skill(tenant_id,environment,deployment_id,release_id,manifest_sha256) VALUES(?,?,?,?,?)",
+                target.tenant(), target.environment(), deploymentId, release, RunJson.hash("{}"));
+    }
+    private RunLedger.Lease reserved(String key) {
+        var lease = claim(submit(key).runId());
+        journal().reserve(lease, "gvisor-demo", IMAGE);
+        return lease;
+    }
+    private String sandboxPhase(RunLedger.Lease lease) {
+        return jdbc.queryForObject("SELECT phase FROM oa_run_sandbox WHERE lease_id=?", String.class, lease.leaseId());
+    }
     private ByteArrayResource table(String file, String table) throws Exception {
         String sql = new ClassPathResource("db/migration/" + file).getContentAsString(StandardCharsets.UTF_8);
         var match = Pattern.compile("CREATE TABLE `" + table + "`\\s*\\(.*?\\) ENGINE=.*?;", Pattern.DOTALL).matcher(sql);
@@ -113,6 +135,124 @@ class RunLedgerMySqlTest {
             for (var future : futures) results.add(future.get(30, TimeUnit.SECONDS));
             return results;
         }
+    }
+
+    @Test void sandboxQuotaIsAtomicAcrossInstancesAndIndependentOfRunQuota() throws Exception {
+        bindSkill(scope, deployment);
+        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=10,max_sandboxes=3 WHERE tenant_id=? AND environment='test'", A);
+        List<Callable<String>> operations = new ArrayList<>();
+        for (int i=0; i<10; i++) {
+            var lease = claim(submit("sandbox-"+i).runId());
+            operations.add(() -> { try { journal().reserve(lease,"gvisor-demo",IMAGE); return "reserved"; }
+                catch (RunFailure failure) { return failure.code(); } });
+        }
+        var results = concurrent(operations);
+        assertEquals(3, results.stream().filter("reserved"::equals).count());
+        assertEquals(7, results.stream().filter("sandbox_quota_full"::equals).count());
+        assertEquals(10, count("oa_run_attempt"));
+        assertEquals(3, count("oa_run_sandbox"));
+    }
+
+    @Test void sandboxCreationIsOneShotEvenAcrossLostResponseAndNewInstance() throws Exception {
+        bindSkill(scope, deployment);
+        var lease = reserved("one-shot");
+        journal().reserve(lease,"gvisor-demo",IMAGE); // Safe before creation intent.
+        var results = concurrent(List.of(
+                () -> { try { journal().creating(lease); return "creating"; } catch (RunFailure e) { return e.code(); } },
+                () -> { try { journal().creating(lease); return "creating"; } catch (RunFailure e) { return e.code(); } }));
+        assertEquals(1, results.stream().filter("creating"::equals).count());
+        assertEquals(1, results.stream().filter("sandbox_state_conflict"::equals).count());
+        code("sandbox_state_conflict", () -> journal().reserve(lease,"gvisor-demo",IMAGE));
+        assertEquals(1, count("oa_run_sandbox"));
+    }
+
+    @Test void sandboxAdmissionRejectsUnboundImageProductionDemoAndForeignOwner() {
+        var lease = claim(submit("image").runId());
+        code("invalid_sandbox_configuration", () -> journal().reserve(lease,"gvisor-demo",IMAGE));
+        bindSkill(scope, deployment);
+        code("invalid_sandbox_configuration", () -> journal().reserve(lease,"gvisor-demo",IMAGE.replace('a','b')));
+        code("invalid_sandbox_configuration", () -> journal().reserve(lease,"gvisor-demo","registry.invalid/image:latest"));
+        var foreign = new RunLedger.Lease(lease.scope(),lease.runId(),1,lease.leaseId(),lease.fencingToken(),"other-worker");
+        code("lease_fenced", () -> journal().reserve(foreign,"gvisor-demo",IMAGE));
+        var prodScope = new RunLedger.Scope(A,"prod");
+        var prodDeployment = seedDeployment(prodScope); bindSkill(prodScope,prodDeployment);
+        var prodRun = ledger.submit(prodScope,prodDeployment,"alice","prod",json.createObjectNode(),60,()->{});
+        var prod = ledger.claim(prodScope,prodRun.runId(),"worker-1").orElseThrow();
+        code("invalid_sandbox_configuration", () -> journal().reserve(prod,"gvisor-demo",IMAGE));
+        journal().reserve(prod,"kata",IMAGE);
+        assertEquals(1, count("oa_run_sandbox"));
+    }
+
+    @Test void sandboxDatabaseConstraintsRejectScopeLeaseMismatchAndUnverifiedRelease() {
+        bindSkill(scope,deployment);
+        var lease = reserved("constraint");
+        var second = claim(submit("another").runId());
+        assertThrows(org.springframework.dao.DataAccessException.class,
+                () -> jdbc.update("UPDATE oa_run_sandbox SET lease_id=? WHERE lease_id=?",second.leaseId(),lease.leaseId()));
+        assertThrows(org.springframework.dao.DataAccessException.class,
+                () -> jdbc.update("UPDATE oa_run_sandbox SET phase='released' WHERE lease_id=?",lease.leaseId()));
+        assertThrows(org.springframework.dao.DataAccessException.class,
+                () -> jdbc.update("UPDATE oa_run_sandbox SET environment='prod' WHERE lease_id=?",lease.leaseId()));
+    }
+
+    @Test void lostCreationAndWorkerDestructionReportsKeepBothQuotasUntilVerified() {
+        bindSkill(scope,deployment);
+        jdbc.update("UPDATE oa_tenant_environment SET max_sandboxes=1 WHERE tenant_id=? AND environment='test'",A);
+        var lease = reserved("ambiguous"); journal().creating(lease);
+        ledger.cancel(scope,lease.runId(),"alice",()->{});
+        ledger.finish(lease,RunState.FAILED,"execution_failed");
+        code("sandbox_cleanup_pending", () -> ledger.resourcesReleased(lease));
+        var waiting = claim(submit("waiting").runId());
+        code("sandbox_quota_full", () -> journal().reserve(waiting,"gvisor-demo",IMAGE));
+        String sandboxId = UUID.randomUUID().toString();
+        // ID can arrive after cancellation, even when the initial created callback was lost.
+        journal().destructionReported(lease,sandboxId);
+        journal().created(lease,sandboxId);
+        assertEquals("cleanup_pending",sandboxPhase(lease));
+        assertNotNull(jdbc.queryForObject("SELECT destruction_reported_at FROM oa_run_sandbox WHERE lease_id=?",Timestamp.class,lease.leaseId()));
+        code("sandbox_cleanup_pending", () -> ledger.resourcesReleased(lease));
+        code("sandbox_quota_full", () -> journal().reserve(waiting,"gvisor-demo",IMAGE));
+        String evidence = UUID.randomUUID().toString();
+        journal().releaseVerified(lease,"synthetic-verifier",evidence);
+        journal().releaseVerified(lease,"synthetic-verifier",evidence);
+        journal().created(lease,sandboxId);
+        assertEquals("released",sandboxPhase(lease));
+        assertEquals("released",jdbc.queryForObject("SELECT lease_state FROM oa_run_attempt WHERE lease_id=?",String.class,lease.leaseId()));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='sandbox.release.verified'",Integer.class));
+        journal().reserve(waiting,"gvisor-demo",IMAGE);
+    }
+
+    @Test void cleanupCallbacksRemainOwnerBoundAfterCancellationAndNeverRebindSandbox() {
+        bindSkill(scope,deployment);
+        var lease = reserved("callback"); journal().creating(lease);
+        var foreign = new RunLedger.Lease(lease.scope(),lease.runId(),1,lease.leaseId(),lease.fencingToken(),"other-worker");
+        String sandboxId = UUID.randomUUID().toString();
+        code("lease_fenced", () -> journal().created(foreign,sandboxId));
+        var wrongScope = new RunLedger.Lease(new RunLedger.Scope(B,"test"),lease.runId(),1,lease.leaseId(),lease.fencingToken(),lease.workerId());
+        code("resource_unavailable", () -> journal().destructionReported(wrongScope,sandboxId));
+        journal().created(lease,sandboxId);
+        code("sandbox_state_conflict", () -> journal().cleanupPending(lease,UUID.randomUUID().toString()));
+        jdbc.update("UPDATE oa_tenant SET status='suspended' WHERE tenant_id=?",A);
+        jdbc.update("UPDATE oa_run_attempt SET heartbeat_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE lease_id=?",lease.leaseId());
+        journal().cleanupPending(lease,sandboxId); journal().destructionReported(lease,sandboxId);
+        assertEquals("cleanup_pending",sandboxPhase(lease));
+        code("lease_fenced", () -> journal().creating(lease));
+    }
+
+    @Test void verifiedReleaseRequiresTerminalAndRollsBackBothQuotasOnAuditFailure() {
+        bindSkill(scope,deployment);
+        var lease = reserved("audit");
+        code("cleanup_before_terminal", () -> journal().releaseVerified(lease,"synthetic-verifier",UUID.randomUUID().toString()));
+        assertEquals("reserved",sandboxPhase(lease));
+        ledger.finish(lease,RunState.FAILED,"execution_failed");
+        jdbc.execute("CREATE TRIGGER fail_cleanup_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class, () -> journal().releaseVerified(lease,"synthetic-verifier",UUID.randomUUID().toString()));
+        assertEquals("reserved",sandboxPhase(lease));
+        assertEquals("cleanup_pending",jdbc.queryForObject("SELECT lease_state FROM oa_run_attempt WHERE lease_id=?",String.class,lease.leaseId()));
+        jdbc.execute("DROP TRIGGER fail_cleanup_audit");
+        journal().releaseVerified(lease,"synthetic-verifier",UUID.randomUUID().toString());
+        assertEquals("released",sandboxPhase(lease));
+        code("sandbox_state_conflict", () -> journal().created(lease,UUID.randomUUID().toString()));
     }
 
     @Test void migrationRejectsCrossEnvironmentAndInvalidTerminalRows() {
@@ -299,6 +439,9 @@ class RunLedgerMySqlTest {
     @Test @EnabledIfEnvironmentVariable(named = "OA_RUN_TEST_RESTART_SIGNAL", matches = ".+")
     void databaseCrashAndRestartPreserveRunOutboxAndIdempotency() throws Exception {
         String id = submit("restart").runId();
+        bindSkill(scope, deployment);
+        var sandboxLease = reserved("restart-sandbox");
+        journal().creating(sandboxLease);
         var signal = java.nio.file.Path.of(System.getenv("OA_RUN_TEST_RESTART_SIGNAL"));
         java.nio.file.Files.writeString(signal, "restart");
         long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
@@ -306,9 +449,12 @@ class RunLedgerMySqlTest {
         assertEquals("ready", java.nio.file.Files.readString(signal), "Isolated database restart did not complete");
         assertEquals("queued", instance().get(scope, id).get("state"));
         assertEquals(1, instance().events(scope, id, 0, 20).events().size());
-        assertEquals(1, count("oa_run_outbox"));
+        assertEquals(2, count("oa_run_outbox"));
         assertEquals(id, submit("restart").runId());
         assertTrue(ledger.claim(scope, id, "after-restart").isPresent());
+        assertEquals("creating", sandboxPhase(sandboxLease));
+        code("sandbox_state_conflict", () -> journal().creating(sandboxLease));
+        assertTrue(ledger.claim(scope, sandboxLease.runId(), "after-restart").isEmpty());
     }
 
     @Test void outboxConcurrentPublishersDoNotClaimTheSameDelivery() throws Exception {

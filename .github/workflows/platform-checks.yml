@@ -103,4 +103,4 @@ jobs:
           export TEMPORAL_TEST_BINARY="$PWD/.temporal-test/temporal"
           core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py \
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
-            core/agent/tests/test_durable_executor.py -q -p no:cacheprovider
+            core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py -q -p no:cacheprovider

@@ -15,7 +15,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class}, properties={
+@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class}, properties={
         "PLATFORM_SERVICE_KEYS={\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"}}"
 })
 @Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class})
@@ -24,10 +24,46 @@ class PlatformRunInternalSecurityTest {
     @MockBean RunLedger ledger;
     @MockBean RunOutbox outbox;
     @MockBean RunRuntimeService runtime;
+    @MockBean RunSandboxJournal journal;
     @MockBean com.iflytek.astron.console.commons.data.UserInfoDataService users;
     private static final String RUN="34fd353e-6cb4-43fd-86a6-6e94c220421a";
     private static final String CLAIM="/internal/platform/worker/runs/"+RUN+"/claim";
     private static final String SCOPE="{\"tenant\":\"space-10\",\"environment\":\"test\"}";
+
+    @Test void sandboxJournalRequiresServiceIdentityAndNeverAcceptsQuotaReleaseFromWorker() throws Exception {
+        String lease="{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\"fc42b1dd-3f87-400c-a38b-2161cfdd988a\",\"fencingToken\":1}";
+        String image="registry.internal/skill@sha256:"+"a".repeat(64);
+        String body="{\"lease\":"+lease+",\"profile\":\"gvisor-demo\",\"image\":\""+image+"\"}";
+        String path="/internal/platform/worker/runs/"+RUN+"/sandbox/";
+        mvc.perform(post(path+"reserve").header("Authorization","Bearer user").contentType("application/json").content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(path+"reserve").header("X-Platform-Key-Id","dispatcher-one").header("X-Platform-Service-Key","d".repeat(32))
+                .contentType("application/json").content(body)).andExpect(status().isForbidden());
+        verifyNoInteractions(journal);
+        mvc.perform(post(path+"reserve").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content(body)).andExpect(status().isOk()).andExpect(jsonPath("$.accepted").value(true));
+        var expected=new RunLedger.Lease(new RunLedger.Scope("space-10","test"),RUN,1,"fc42b1dd-3f87-400c-a38b-2161cfdd988a",1,"worker-one");
+        verify(journal).reserve(expected,"gvisor-demo",image);
+        String id="8fd253b5-d238-4cd6-88c6-d50e2df70ed5";
+        String observation="{\"lease\":"+lease+",\"sandboxId\":\""+id+"\"}";
+        mvc.perform(post(path+"destruction-reported").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content(observation)).andExpect(status().isOk());
+        verify(journal).destructionReported(expected,id);
+        mvc.perform(post(path+"release-verified").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content(observation)).andExpect(status().isNotFound());
+        verify(journal,never()).releaseVerified(any(),anyString(),anyString());
+        verify(ledger,never()).resourcesReleased(any());
+    }
+
+    @Test void sandboxQuotaAndCreationConflictHaveExplicitHttpStatuses() throws Exception {
+        String body="{\"lease\":{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\"fc42b1dd-3f87-400c-a38b-2161cfdd988a\",\"fencingToken\":1},\"profile\":\"gvisor-demo\",\"image\":\"registry.internal/x@sha256:"+"a".repeat(64)+"\"}";
+        for (var failure : java.util.Map.of("sandbox_quota_full",429,"sandbox_state_conflict",409).entrySet()) {
+            doThrow(new RunFailure(failure.getKey())).when(journal).reserve(any(),anyString(),anyString());
+            mvc.perform(post("/internal/platform/worker/runs/"+RUN+"/sandbox/reserve").header("X-Platform-Key-Id","worker-one")
+                    .header("X-Platform-Service-Key","w".repeat(32)).contentType("application/json").content(body))
+                    .andExpect(status().is(failure.getValue()));
+        }
+    }
 
     @Test void missingWrongAndUserBearerCredentialsCannotEnterWorkerApi() throws Exception {
         mvc.perform(post(CLAIM).contentType("application/json").content(SCOPE)).andExpect(status().isUnauthorized());

@@ -21,3 +21,5 @@
 ## 2026-11-04 实机增量
 
 展示机已验证真实 DeepSeek → DeepAgents → OpenSandbox/gVisor Skill 执行，脚本 UID 1000、模型报告实际结果及物理容器删除均有证据。新增执行许可钩子和重复清理逻辑。测试准入/journal 不代替生产租约/配额或 Kata/K8S 验收；任务继续保留未勾选，见 `docs/platform/runtime-executor.md`。
+
+持久 journal 增量已实现 V1.53、环境原子沙盒配额、一次性创建意图、迟到资源观察及可信释放事务；worker 没有配额释放接口。31 项真实 MySQL、44 项其他 Java 和 155 项 Python 检查通过（两项首次 SSH 连接超时已单独重跑并记录），见 `docs/platform/sandbox-journal-verification-20261104.json`。独立物理回收和实际 worker 接线尚未交付，1.3、2.3 继续保留未勾选。

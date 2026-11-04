@@ -76,7 +76,7 @@ class Journal:
         def update():
             with sqlite3.connect(self.path) as db:
                 db.execute(
-                    "INSERT INTO leases VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET state=excluded.state",
+                    "INSERT INTO leases VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET state=excluded.state,sandbox=excluded.sandbox",
                     (
                         str(scope.lease_id),
                         scope.tenant_id,
@@ -87,6 +87,12 @@ class Journal:
                 )
 
         await asyncio.to_thread(update)
+
+    async def reserve(self, scope, profile, image):
+        await self.write(scope, None, "reserved")
+
+    async def creating(self, scope):
+        await self.write(scope, None, "creating")
 
     async def created(self, scope, sandbox_id):
         await self.write(scope, sandbox_id, "created")

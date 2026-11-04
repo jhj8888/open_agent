@@ -18,7 +18,8 @@ public class PlatformExceptionHandler {
     public ResponseEntity<ApiResult<Void>> runFailure(com.iflytek.astron.console.hub.platform.run.RunFailure exception) {
         HttpStatus status = switch (exception.code()) {
             case "resource_unavailable" -> HttpStatus.NOT_FOUND;
-            case "queue_full" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "queue_full", "sandbox_quota_full" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "sandbox_state_conflict", "sandbox_cleanup_pending", "cleanup_before_terminal" -> HttpStatus.CONFLICT;
             case "idempotency_conflict", "event_conflict", "state_conflict", "lease_fenced", "deployment_unavailable", "tenant_inactive" -> HttpStatus.CONFLICT;
             case "event_history_expired" -> HttpStatus.GONE;
             default -> HttpStatus.UNPROCESSABLE_ENTITY;

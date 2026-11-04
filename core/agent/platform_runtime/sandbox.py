@@ -78,6 +78,10 @@ class RunScope:
 
 
 class LeaseJournal(Protocol):
+    """`released` reports SDK destruction only; it must not free durable quota."""
+
+    async def reserve(self, scope: RunScope, profile: str, image: str) -> None: ...
+    async def creating(self, scope: RunScope) -> None: ...
     async def created(self, scope: RunScope, sandbox_id: str) -> None: ...
     async def cleanup_pending(self, scope: RunScope, sandbox_id: str) -> None: ...
     async def released(self, scope: RunScope, sandbox_id: str) -> None: ...
@@ -387,6 +391,12 @@ class OpenSandboxProvider:
         if self.permission is not None:
             await self.permission()
         await self.admission.before_create(scope, self.profile, image)
+        if self.permission is not None:
+            await self.permission()
+        # Persist quota and the one-shot creation intent BEFORE any external allocation.
+        # If either acknowledgement is ambiguous, do not retry create or free the reservation.
+        await self.journal.reserve(scope, self.profile, image)
+        await self.journal.creating(scope)
         if self.permission is not None:
             await self.permission()
         seconds = scope.remaining()

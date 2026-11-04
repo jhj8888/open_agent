@@ -59,8 +59,10 @@ python3 console/backend/tests/test_tenant_migration.py
 
 `persist-agent-runs` 任务 1.1 已完成并保留真实数据库证据；配额与 outbox 的存储层已实现，其余端到端任务保持未勾选。
 
-旧资源入口的统一 tenant/environment 授权、新账号/空间生命周期接入、服务凭据轮换、Java→Python/Go 内部身份、管理 UI 与真实身份服务联调、审计保留期处理及完整双租户矩阵仍未验收。队列和执行槽位已有数据库原子准入；HTTP/worker 联调、token 计量及沙盒配额仍待完成。
+旧资源入口的统一 tenant/environment 授权、新账号/空间生命周期接入、服务凭据轮换、Java→Python/Go 内部身份、管理 UI 与真实身份服务联调、审计保留期处理及完整双租户矩阵仍未验收。队列、执行槽及沙盒 reservation 已有数据库原子准入；HTTP/worker 联调、token 计量及独立资源回收仍待完成。
 
 模型的配置、协议样本、目的地址保护和双端适配已有实现与测试；工具能力探测 UI、发布/任务引用和真实内网验收仍待完成。Skill 变更的 1.2、1.3、2.3 已有验证证据，旧数据全量迁移/回滚、Agent 绑定、浏览器验收及任务联调仍待完成。私有隔离沙盒、持久任务、统一 HTTP/聊天、离线部署监控与恢复继续保留完整任务。未完成项不归档、不以构建通过代替验收。
 
 CI 新增 `.github/workflows/platform-checks.yml`，自动检查 Java 授权、真实 MySQL 迁移和前端构建。远端执行结果需单独检查，配置存在不等于 CI 已通过。
+
+2026-11-04 后续增量：沙盒配额 journal 已接入创建前预留及一次性创建意图；worker 的销毁报告与独立配额释放分开。31 项真实 MySQL、44 项其他 Java 及 155 项 Python 检查通过，包含数据库强制重启、配额竞争及取消后回调。两项首次 SSH 转发连接超时已单独重跑通过并保留记录。见 [实现边界](sandbox-journal.md) 和 [验证材料](sandbox-journal-verification-20261104.json)。实际执行/回收 activity、完整 HTTP/聊天展示与最终平台部署仍未完成。

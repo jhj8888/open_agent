@@ -23,6 +23,10 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 7. 保留现有 skill_resource_security 检查。旧 E2B provider 仅显式开发配置可选，离线生产不允许。workflow 的有限 Pyodide 路径保留已有限制，所有可执行不可信本机代码的路径必须进入隔离后端。
 8. 无 KVM/K8S 的单机展示使用显式 `gvisor-demo` profile，禁止该 profile 承接 prod。固定 OpenSandbox SDK/server 1.1.0 与 gVisor 20261102.0。Docker provider 不支持 secureAccess，使用 execd 官方每次尝试独立认证 token；该 token 不得进入不可信子进程。gVisor 不兼容官方 egress 侧车，必须验证独立网桥/宿主规则/DNS，不能将空 networkPolicy 当作默认拒绝的证据。具体差异、调用链和未完成接线见 docs/platform/private-sandboxes.md。
 
+### 持久资源预留与独立回收
+
+沙盒创建之前在同一租户/环境锁下预留 `max_sandboxes`，记录一次性的创建意图；SDK 操作在事务之外执行。创建确认丢失不重试创建，所有未知/清理中记录继续占用配额。worker 的创建/删除观察绑定认证身份及完整租约，取消后允许补报资源但不恢复执行许可。只有独立核验执行进程终止、物理沙盒不存在且没有在途创建后，受信回收器才能在同一事务释放沙盒/执行槽并写审计；worker 没有配额释放接口。详见 `docs/platform/sandbox-journal.md`。
+
 ## Risks / Trade-offs
 
 [部署组合未验证] → 第一任务固定版本并验证兼容性；[容器逃逸与网络策略缺陷] → 独立内核+最小权限+攻击性验收；[沙盒泄漏] → 租约与周期回收；[启动延迟] → 后续基于实测决定预热，不预承诺并发量。

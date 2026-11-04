@@ -104,6 +104,7 @@ async def provider(profile="kata"):
         destroy=AsyncMock(),
     )
     journal = SimpleNamespace(
+        reserve=AsyncMock(), creating=AsyncMock(),
         created=AsyncMock(), cleanup_pending=AsyncMock(), released=AsyncMock()
     )
     admission = SimpleNamespace(before_create=AsyncMock(), after_create=AsyncMock())

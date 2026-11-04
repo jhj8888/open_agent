@@ -214,6 +214,16 @@ public class RunLedger {
         });
     }
 
+    /** Internal journal callbacks may arrive after cancellation. Ownership still has to match exactly. */
+    <T> T withAttempt(Lease lease, Supplier<T> operation) {
+        return tx(() -> {
+            lockScope(lease.scope(), false);
+            run(lease.scope(), lease.runId());
+            attempt(lease);
+            return operation.get();
+        });
+    }
+
     /** Trusted reconciler invokes only AFTER sandbox deletion and worker termination are verified. */
     public void resourcesReleased(Lease lease) {
         tx(() -> {
@@ -221,6 +231,8 @@ public class RunLedger {
             var run = run(lease.scope(), lease.runId());
             attempt(lease);
             if (!state(run).terminal()) throw new RunFailure("cleanup_before_terminal");
+            if (count("SELECT COUNT(*) FROM oa_run_sandbox WHERE lease_id=? AND phase<>'released'", lease.leaseId()) != 0)
+                throw new RunFailure("sandbox_cleanup_pending");
             jdbc.update("UPDATE oa_run_attempt SET lease_state='released',released_at=CURRENT_TIMESTAMP(3) "
                     + "WHERE lease_id=? AND lease_state='cleanup_pending'", lease.leaseId());
             return null;

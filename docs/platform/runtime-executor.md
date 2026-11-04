@@ -4,7 +4,7 @@
 
 ## 调用链与契约
 
-受信 activity 取得 `AttemptLease` 和 `RuntimeBundle` → `ExecutionPermit` → 固定 Skill manifest/file → 可信沙盒工厂 → `DeepAgentsRunner` → 官方模型 SDK / 沙盒原生工具 → 有序任务事件。此阶段实现执行器和操作许可；生产 activity 注册、跨进程终止证明、持久沙盒 journal 和回收器仍待接通。
+受信 activity 取得 `AttemptLease` 和 `RuntimeBundle` → `ExecutionPermit` → 固定 Skill manifest/file → 可信沙盒工厂 → `DeepAgentsRunner` → 官方模型 SDK / 沙盒原生工具 → 有序任务事件。执行器和操作许可已有实现；后续增量已加入 [持久沙盒 journal](sandbox-journal.md)，生产 activity 注册、跨进程终止证明和回收器仍待接通。
 
 运行输入为 `{"message":"...","history":[{"role":"user|assistant","content":"..."}]}`。message 最长 32768 字符，history 最多 32 条、每条最多 8192 字符，账本原有 64 KiB 总输入限制继续有效。禁止输入额外连接信息或插件字段。
 
