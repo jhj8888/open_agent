@@ -8,6 +8,10 @@
 
 数据服务所在网络 `open-agent-control-data` 为 Docker internal 网络，IPv6 关闭，没有发布宿主机端口。SeaweedFS 的 master、volume、filer 只绑定容器 loopback；仅 S3 服务绑定私有网络。关闭 SeaweedFS telemetry、IAM、Iceberg、Lance 和匿名访问。控制面只持有单个 Skill 桶的 Read/Write/List 权限，不持有创建其他桶或设置公开 ACL 的权限。
 
+真实 worker 接线增量为 API 单独增加 `open-agent-control-api` 网络，并仅映射宿主机 `127.0.0.1:18082`；数据库、S3 和身份服务继续只连接 internal 网络。调用链变为宿主机 supervisor/executor → loopback API → 原有数据网络。采用 [Docker 官方多网络配置](https://docs.docker.com/reference/cli/docker/container/run/#connect-a-container-to-a-network---network)，不改变已有应用的网络或端口。共享 firewalld 辅助函数只增加可选的本项目网络参数，默认行为保持数据桥接处理；每次仍核对归属，只添加对应桥接接口，不做全局 reload。展示 API 的模型检查仅允许管理员已授权的 DeepSeek HTTPS origin；企业离线部署应改为内网模型接口，不能沿用公网展示允许列表。
+
+展示服务器 Docker 为 24.0.9，不支持在一次 create 请求中带多个 network endpoint。安装器因此对该 API 使用官方 `docker create → docker network connect → docker start` 顺序，两个网络连接完成后才启动 Java；其他单网络数据服务保留原启动路径，不升级共享 Docker daemon。已存在本项目容器在启动前也会核对并补齐附加网络。
+
 ## 固定制品与启动
 
 镜像版本、摘要见 [镜像锁](../../deploy/platform/control/images.lock.json)。2026-11-05 通过 Docker Hub 官方 Registry API 核对四个镜像的 manifest 摘要，与下载镜像一致。安装器仅使用已导入的 digest，`--pull never`，不在线安装依赖。

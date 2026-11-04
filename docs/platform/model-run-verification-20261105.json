@@ -1,0 +1,124 @@
+{
+  "checked_at": "2026-11-04T17:42:54.157032+00:00",
+  "run_id": "e2b816c2-313e-49d9-9960-d92efa42f4b3",
+  "state": "succeeded",
+  "error_code": null,
+  "idempotency_verified": true,
+  "duration_seconds": 18.556,
+  "event_count": 51,
+  "event_types": [
+    "execution.notice",
+    "message.delta",
+    "run.state",
+    "usage"
+  ],
+  "answer_characters": 86,
+  "answer_sha256": "3edd7da53f7f3119c7091131a6834762a07c6af7ec828d94686bd588cecae513",
+  "supervision_phase": "released",
+  "attempt_lease_state": "released",
+  "real_model_configured": true,
+  "model_answer_received": true,
+  "sandbox_used": false,
+  "public_endpoint": false,
+  "cleanup": {
+    "evidence": {
+      "process": {
+        "after": null,
+        "before": {
+          "ActiveState": "active",
+          "ControlGroup": "/openagent.slice/oa-exec-86f73089a5d44a4dae5384d9d00f5474.service",
+          "ControlPID": "0",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "Id": "oa-exec-86f73089a5d44a4dae5384d9d00f5474.service",
+          "InvocationID": "45e3ffa2fc554719984c84102cecdea2",
+          "KillMode": "control-group",
+          "LoadState": "loaded",
+          "MainPID": "1016181",
+          "RemainAfterExit": "yes",
+          "Restart": "no",
+          "SubState": "running",
+          "Transient": "yes",
+          "User": "open-agent-worker"
+        },
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroup": {
+          "exists": false,
+          "path": "/openagent.slice/oa-exec-86f73089a5d44a4dae5384d9d00f5474.service",
+          "populated": 0
+        },
+        "cgroupEmpty": true,
+        "invocationId": "45e3ffa2fc554719984c84102cecdea2",
+        "kind": "stopped_unit",
+        "observedAt": "2026-11-04T17:42:52.772425+00:00",
+        "unitName": "oa-exec-86f73089a5d44a4dae5384d9d00f5474.service",
+        "workerStopped": true
+      },
+      "sandbox": {
+        "creationSettled": true,
+        "reason": "no_sandbox_creation_authorized",
+        "sandboxAbsent": true
+      }
+    },
+    "proof": {
+      "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+      "cgroupEmpty": true,
+      "creationSettled": true,
+      "evidenceSha256": "ad7ce3d0bb8bc3ecbe898476e6db1575d64a42317b72b059f62d9ab8552deb60",
+      "invocationId": "45e3ffa2fc554719984c84102cecdea2",
+      "kind": "stopped_unit",
+      "proofId": "84e45429-8415-476b-a95e-b0179d73b438",
+      "sandboxAbsent": true,
+      "sandboxId": null,
+      "unitName": "oa-exec-86f73089a5d44a4dae5384d9d00f5474.service",
+      "workerStopped": true
+    }
+  },
+  "temporal": {
+    "status": "COMPLETED",
+    "result": {
+      "state": "succeeded"
+    }
+  },
+  "api_artifact_sha256": "4fb24ce200aae3d8a9b79838c49d972faa1b6a3e9e63281c6b07b1264ccfa8de",
+  "worker_source_sha256": "0f15978ad35a88100a91162a163e33158636408ec6861f6e18306dbe7ebb902f",
+  "prior_failed_startups": {
+    "count": 2,
+    "model_called": false,
+    "reason": "argument directory inherited supervisor umask 0077",
+    "reservations_released": true
+  },
+  "validation": {
+    "python": {
+      "tests": "46",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    "java": [
+      {
+        "suite": "RunLedgerMySqlTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "suite": "PlatformRunInternalSecurityTest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "openspec": {
+      "changes_passed": 8,
+      "failed": 0
+    }
+  },
+  "limits": [
+    "model-only run; sandbox adapter not installed",
+    "loopback authenticated API; browser frontend remains preview",
+    "single-host demo Temporal; no production HA/Kubernetes claim"
+  ]
+}

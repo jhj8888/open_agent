@@ -362,6 +362,51 @@ class RunLedgerMySqlTest {
         assertNotNull(supervision().claim(scope,run,SUPERVISOR,BOOT).lease());
     }
 
+    @Test void supervisorLookupFindsReleasedBindingAndRejectsForeignOrUnsupervisedAttempts() {
+        String run=submit("lookup").runId();
+        assertNull(supervision().lookup(scope,run,SUPERVISOR).execution());
+        var execution=supervision().claim(scope,run,SUPERVISOR,BOOT).execution();
+        String lease=execution.lease().leaseId();
+        code("resource_unavailable",()->supervision().lookup(scope,run,OTHER_SUPERVISOR));
+        code("resource_unavailable",()->supervision().lookup(new RunLedger.Scope(B,"test"),run,SUPERVISOR));
+        supervision().fence(lease,SUPERVISOR);
+        supervision().release(lease,SUPERVISOR,proof(execution,"never_launched",BOOT));
+        assertTrue(supervision().pending(SUPERVISOR,null,100).isEmpty());
+        var restored=supervision().lookup(scope,run,SUPERVISOR);
+        assertEquals("failed",restored.state());assertEquals("released",restored.execution().phase());
+        String other=submit("unsupervised").runId();claim(other);
+        code("resource_unavailable",()->supervision().lookup(scope,other,SUPERVISOR));
+    }
+
+    @Test void supervisorAbandonOnlyFinishesUnstartedQueuedRunAndHonorsDeadlineAndCancellation() {
+        String run=submit("abandon").runId();
+        assertEquals("failed",supervision().abandon(scope,run,SUPERVISOR).state());
+        assertEquals("failed",supervision().abandon(scope,run,SUPERVISOR).state());
+        assertEquals("outcome_unknown",ledger.get(scope,run).get("error_code"));
+        assertEquals(0,count("oa_run_attempt"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='run.unstarted.failed'",Integer.class));
+        String expired=submit("expired").runId();
+        jdbc.update("UPDATE oa_agent_run SET deadline_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE run_id=?",expired);
+        assertEquals("timed_out",supervision().abandon(scope,expired,SUPERVISOR).state());
+        String cancelled=submit("cancelled").runId();ledger.cancel(scope,cancelled,"alice",()->{});
+        assertEquals("cancelled",supervision().abandon(scope,cancelled,SUPERVISOR).state());
+        var active=supervised("active");
+        assertEquals("running",supervision().abandon(scope,active.lease().runId(),SUPERVISOR).state());
+        assertTrue(ledger.heartbeat(active.lease()));
+    }
+
+    @Test void supervisorAbandonRacingClaimCannotOverwriteStartedAttempt() throws Exception {
+        String run=submit("abandon-race").runId();
+        concurrent(List.of(()->supervision().abandon(scope,run,SUPERVISOR),()->supervision().claim(scope,run,SUPERVISOR,BOOT)));
+        var result=supervision().lookup(scope,run,SUPERVISOR);
+        if (result.execution()==null) {
+            assertEquals("failed",result.state());assertEquals(0,count("oa_run_attempt"));
+        } else {
+            assertEquals("running",result.state());assertEquals("prepared",result.execution().phase());
+            assertEquals(1,count("oa_run_attempt"));assertTrue(ledger.heartbeat(result.execution().lease()));
+        }
+    }
+
     @Test void supervisedConcurrentClaimsAndLaunchPermissionProduceOnlyOneExecutor() throws Exception {
         String run=submit("bound-race").runId();
         List<RunSupervision.Claim> claims=concurrent(List.of(()->supervision().claim(scope,run,SUPERVISOR,BOOT),

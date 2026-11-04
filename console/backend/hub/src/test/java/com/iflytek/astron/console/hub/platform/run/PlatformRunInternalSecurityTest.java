@@ -33,7 +33,7 @@ class PlatformRunInternalSecurityTest {
 
     @Test void workerDispatcherAndUserCannotEnterAnyReconcilerOperation() throws Exception {
         String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
-        var paths=java.util.List.of("runs/"+RUN+"/claim","pending","attempts/"+id+"/inspect","attempts/"+id+"/begin",
+        var paths=java.util.List.of("runs/"+RUN+"/claim","runs/"+RUN+"/lookup","runs/"+RUN+"/abandon","pending","attempts/"+id+"/inspect","attempts/"+id+"/begin",
                 "attempts/"+id+"/observed","attempts/"+id+"/fence","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
         for(String path:paths) {
             String url="/internal/platform/reconcile/"+path;

@@ -26,6 +26,14 @@ public class PlatformRunReconcileController {
     public List<RunSupervision.Snapshot> pending(@RequestBody @Valid ScanInput input, Principal principal) {
         return supervision.pending(principal.getName(), input.after() == null ? null : input.after().toString(), input.limit());
     }
+    @PostMapping("/runs/{runId}/lookup")
+    public RunSupervision.Lookup lookup(@PathVariable UUID runId, @RequestBody @Valid PlatformRunInternalController.ScopeInput input, Principal principal) {
+        return supervision.lookup(input.scope(), runId.toString(), principal.getName());
+    }
+    @PostMapping("/runs/{runId}/abandon")
+    public RunSupervision.Lookup abandon(@PathVariable UUID runId, @RequestBody @Valid PlatformRunInternalController.ScopeInput input, Principal principal) {
+        return supervision.abandon(input.scope(), runId.toString(), principal.getName());
+    }
     @PostMapping("/attempts/{leaseId}/inspect")
     public RunSupervision.Snapshot inspect(@PathVariable UUID leaseId, Principal principal) {
         return supervision.inspect(leaseId.toString(), principal.getName());

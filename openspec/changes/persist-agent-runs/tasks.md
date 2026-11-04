@@ -36,3 +36,5 @@ V1.52、RunLedger/RunOutbox 与状态转换层已通过 21 项真实 MySQL 8.4.1
 ## 2026-11-05 执行监督增量
 
 V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑定同事务、一次性启动授权、按 supervisor 限定访问、未知创建保留配额、核验材料与两类配额/审计原子提交。80 项 Java 检查通过；随后扩展数据库 SIGKILL/重启用例验证 boot/unit/InvocationID 保留并禁止重复启动，该变更用例单独重跑通过。Python 监督/传输 24 项通过。实机 systemd 非 root 进程及子进程已核实停止，且无 Docker/system bus 权限；使用合成子程序，未重启共享服务器。证据见 `docs/platform/supervision-verification-20261105.json`、`run-supervision.md` 及链接的实机记录。真实 activity、物理沙盒回收、双租户与浏览器完整联调仍未完成，因此 1.3、2.1–2.3 保持未勾选。
+
+真实模型任务接线已完成首轮闭环，见 `docs/platform/model-run-verification-20261105.json`：实际用户 OIDC、HTTP 提交/幂等、MySQL、Temporal、非 root executor、DeepSeek、消息事件及独立 cgroup 回收均联通。新增 lookup/未准入失败事务通过 3 项真实 MySQL 和 10 项内部 HTTP 权限测试。首次两轮启动权限错误已保留失败记录并修复；本阶段不含 Skill 沙盒、双租户故障演练或真实浏览器验收，因此上述整项任务仍未勾选。

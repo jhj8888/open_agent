@@ -68,6 +68,11 @@ class SupervisedClaim(WireModel):
     execution: ExecutionSnapshot | None
 
 
+class RunLookup(WireModel):
+    state: RunState
+    execution: ExecutionSnapshot | None
+
+
 class CleanupProof(WireModel):
     proofId: Identifier
     kind: Literal["never_launched", "stopped_unit", "host_reboot"]
@@ -131,6 +136,27 @@ class SupervisorClient:
         lease_id = self._id(lease_id)
         data = await self.control.request(f"/internal/platform/reconcile/attempts/{lease_id}/{operation}", body or {})
         return self._snapshot(data, lease_id)
+
+    async def _lookup(self, run: RunRef, operation: str) -> RunLookup:
+        data = await self.control.request(f"/internal/platform/reconcile/runs/{run.run_id}/{operation}",
+                                          {"tenant": run.tenant, "environment": run.environment})
+        try:
+            result = RunLookup.model_validate(data)
+            if result.execution is not None:
+                execution = self._snapshot(result.execution)
+                if execution.lease.attempt_lease().run != run or execution.state != result.state:
+                    raise ValueError()
+            elif result.state in {"running", "cancel_requested"}:
+                raise ValueError()
+            return result
+        except ValueError:
+            raise ControlPlaneError("CONTROL_SUPERVISION_INVALID") from None
+
+    async def lookup(self, run: RunRef) -> RunLookup:
+        return await self._lookup(run, "lookup")
+
+    async def abandon(self, run: RunRef) -> RunLookup:
+        return await self._lookup(run, "abandon")
 
     async def inspect(self, lease_id: str) -> ExecutionSnapshot:
         return await self._post(lease_id, "inspect")

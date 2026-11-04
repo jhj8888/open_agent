@@ -24,6 +24,7 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 8. 调度载荷只传 tenant/environment/run_id 和安全状态。受信 worker 以独立服务身份及数据库租约按需取得固定模型/Skill 版本，密钥和用户输入不写入 Temporal 参数或结果。租约校验同时检查 worker 身份、取消、截止时间及版本撤销；对象读取后再复查一次。所有 worker 模型/沙盒操作仍须独立校验许可，取得一次配置不代表整个任务持续获准。
 9. execute 正常返回任何终态也必须进入 reconcile；终态提交不等于物理资源已释放。reconcile 读取数据库最终状态，独立确认 worker 与沙盒停止后才能释放配额，迟到取消不覆盖既有成功。旧 Temporal 历史通过 patch 标记保持可重放；独立补偿扫描负责旧历史及超过 activity 重试窗口的清理。
 10. 单机真实执行由受信 supervisor 调用官方 systemd CLI 为每次租约启动独立非 root unit。数据库在准入同一事务登记 supervisor/worker/host boot/unit，启动授权仅可领取一次。executor 只有 worker 身份，不持有回收身份或 Docker/systemd 管理权。新增独立 reconciler 服务角色仅访问自己绑定的尝试，先 fencing，再凭内核进程组、主机启动身份及 Docker 实体核验结果调用控制面事务释放；worker 报告仍不能释放配额。启动或沙盒创建处于未知状态且没有观察到实体时保留配额，不从 TTL/空列表推断无在途操作。已知唯一沙盒 ID 可按一次性创建记录独立核验并删除；核验材料与最终释放审计持久保存。生产 Kubernetes 使用 Pod/Job UID 和 RuntimeClass 的对应核验适配，不能沿用单机 systemd 证据。
+11. 实际 activity 只接收 RunRef，通过受信查询恢复自己绑定的尝试（包括已释放记录），不依赖仅包含未释放记录的扫描推断清理成功。执行 activity 失联且任务尚未准入时，以账本锁检查 queued 且 attempt_no=0 后结束；与领取竞争时不得覆盖已开始的执行。非 root executor 通过每次尝试专属凭据访问主机 Unix socket 隔离核验代理；代理不执行租户命令，只核验固定运行时与按完整 lease 标签绑定的容器。host supervisor 在活动取消和后台补偿中共用同一清理路径，先保存核验材料，再提交释放证明。
 
 ## Risks / Trade-offs
 

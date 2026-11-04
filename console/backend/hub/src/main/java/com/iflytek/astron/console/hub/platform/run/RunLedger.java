@@ -164,6 +164,23 @@ public class RunLedger {
         });
     }
 
+    /** Trusted reconciliation of an activity that failed before admission; never fences a started attempt. */
+    Map<String, Object> abandonQueued(Scope scope, String runId, String supervisor) {
+        uuid(runId);
+        if (supervisor == null || !supervisor.matches("[A-Za-z0-9_.:-]{1,128}")) throw new RunFailure("invalid_worker");
+        return tx(() -> {
+            lockScope(scope, false);
+            var run = run(scope, runId);
+            if (state(run) == RunState.QUEUED && number(run, "attempt_no") == 0) {
+                boolean expired = !instant(run, "deadline_at").isAfter(now());
+                transition(scope, run, expired ? RunState.TIMED_OUT : RunState.FAILED,
+                        expired ? "deadline_exceeded" : "outcome_unknown");
+                audit(scope, supervisor, "run.unstarted.failed", runId);
+            }
+            return get(scope, runId);
+        });
+    }
+
     /** A false heartbeat fences further operations. An expired lease can never be renewed. */
     public boolean heartbeat(Lease lease) {
         return tx(() -> {

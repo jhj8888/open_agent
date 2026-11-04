@@ -20,4 +20,18 @@ Context7 在本会话不可用。事务采用 [Spring 官方 TransactionTemplate
 
 测试服务器 systemd 255/cgroup v2 的实际验证见 [进程核验记录](process-verification-20261105.json)：UID 989、无 capabilities、无法访问 Docker/system bus、可读取授权凭据副本但不能读取源文件；错误 InvocationID 和重复启动被拒绝；父进程及其子进程全部被清除，重复停止可再次核实。使用合成子程序，没有据此宣称实际 RuntimeExecutor/Temporal 接线完成，也没有重启共享主机。
 
-新版控制面已安装 V1.55 和独立服务身份，见 [实机接口检查](supervision-deployment-verification-20261105.json)。检查真实接口拒绝 worker/dispatcher 进入回收路由、拒绝 reconciler 读取模型凭据，并拒绝未知尝试。执行准入仍关闭；待完整真实执行与物理沙盒回收联调通过后启用。
+新版控制面已安装 V1.55 和独立服务身份，见 [实机接口检查](supervision-deployment-verification-20261105.json)。检查真实接口拒绝 worker/dispatcher 进入回收路由、拒绝 reconciler 读取模型凭据，并拒绝未知尝试。该次检查时准入关闭；下述真实模型任务接线之后，仅在已认证的 loopback API 开启演示准入。
+
+## 真实执行接线的调用边界
+
+后续接线沿用 `OutboxDispatcher → Temporal → supervisor → systemd executor → RuntimeExecutor`。调度载荷只含 RunRef；executor 按租约读取模型及制品。独立 run lookup 包括已释放尝试，避免把扫描中未出现当成释放证明；其他 supervisor 的已准入任务返回不可访问。执行 activity 失败且仍处于未准入 queued 状态时，由新增账本方法在既有锁顺序下提交 failed/outcome_unknown（截止时间已到则 timed_out）。它只处理 attempt_no=0，不改变已开始或已有终态的任务；不涉及旧 Kafka/Redis 或外部 I/O。
+
+主机隔离核验代理使用 Unix socket 和每次尝试专属 capability。executor 只能请求前后核验，不能传入主机命令；root 代理按控制面 binding、当前许可及完整容器标签重新核对。真实调度接线、该代理以及物理沙盒清理需另存联调证据，不能以此前合成子程序验证代替。
+
+## 模型任务的真实闭环
+
+`service.py` 注册真正的 execute/reconcile activities、outbox 调度及独立定时清理；`child.py` 在非 root 进程读取当前租约授权的模型配置，通过现有 RuntimeExecutor 执行。Temporal 仍只保存 ID/状态。启动失联不会重试已授权的执行；supervisor 重启会先 fencing 遗留尝试。执行与回收身份密钥保持独立，任何未确认的物理清理保留配额。
+
+2026-11-05 展示机实际验证：真实 Casdoor PKCE 登录 → Agent HTTP 幂等提交 → MySQL outbox → Temporal → systemd 非 root executor → DeepSeek → 持久消息/usage → 终态 → 独立停止 cgroup → 证明与配额事务提交，耗时 18.556 秒，51 条事件、86 字回答；Temporal COMPLETED/succeeded，attempt 与 supervision 均 released。报告见 `model-run-verification-20261105.json`。首次两轮启动因 supervisor 的 UMask=0077 令参数目录不可遍历而失败，未调用模型；失败已完整回收。修复仅将无敏感内容的参数目录显式设为 0755，凭据及核验材料仍 0700/0600。
+
+展示机 `provision_supervisor.py` 只管理带自身 owner 标记的 systemd 服务及根目录。API 的显式 admission 记录需匹配仍在运行的 ready PID，安装器才开启准入；API 始终绑定 127.0.0.1:18082。本阶段 worker 没有 sandbox 适配配置，绑定 Skill 的执行在模型调用前失败关闭，不能作为 Skill 完整验收。前端仍为原展示页，生产 Kubernetes、多租户故障演练和浏览器完整联调尚待完成。

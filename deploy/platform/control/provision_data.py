@@ -80,9 +80,23 @@ def data_dir(name, uid, gid):
     return path
 
 
-def ensure_container(name, image, options, arguments, replace_owned=False):
+def connect_extra_networks(name, networks):
+    current = json.loads(command('docker', 'container', 'inspect', name).stdout)[0]
+    if current['Config'].get('Labels', {}).get(LABEL) != OWNER:
+        raise RuntimeError('Unexpected container ownership')
+    for network in networks:
+        state = json.loads(command('docker', 'network', 'inspect', network).stdout)[0]
+        if state.get('Labels', {}).get(LABEL) != OWNER:
+            raise RuntimeError('Unexpected additional network ownership')
+        if network not in current['NetworkSettings']['Networks']:
+            command('docker', 'network', 'connect', network, name)
+
+
+def ensure_container(name, image, options, arguments, replace_owned=False, extra_networks=()):
     command('docker', 'image', 'inspect', image)
     specification_parts = [image, options, arguments]
+    if extra_networks:
+        specification_parts.append(['additional_networks', list(extra_networks)])
     for index, option in enumerate(options):
         if option == '--env-file':
             specification_parts.append(hashlib.sha256(Path(options[index + 1]).read_bytes()).hexdigest())
@@ -101,14 +115,23 @@ def ensure_container(name, image, options, arguments, replace_owned=False):
             command('docker', 'rm', name)  # No volume/data removal.
             exists = False
         elif not current['State']['Running']:
+            connect_extra_networks(name, extra_networks)
             command('docker', 'start', name)
+        elif extra_networks:
+            connect_extra_networks(name, extra_networks)
     if not exists:
-        command('docker', 'run', '-d', '--name', name, '--label', LABEL + '=' + OWNER,
+        # Docker 24 cannot create a container with multiple network endpoints in
+        # one request. Attach the second network before starting the process.
+        action = ['create'] if extra_networks else ['run', '-d']
+        command('docker', *action, '--name', name, '--label', LABEL + '=' + OWNER,
                 '--label', 'io.open-agent.spec=' + specification, '--pull', 'never',
                 '--restart', 'unless-stopped', '--network', NETWORK,
                 '--log-driver', 'json-file', '--log-opt', 'max-size=10m', '--log-opt', 'max-file=3',
                 '--security-opt', 'no-new-privileges:true', '--cap-drop', 'ALL',
                 '--pids-limit', '256', *options, image, *arguments)
+        if extra_networks:
+            connect_extra_networks(name, extra_networks)
+            command('docker', 'start', name)
 
 
 def container_address(name):
@@ -125,11 +148,11 @@ def container_address(name):
     raise RuntimeError('Container has not acquired a data network address')
 
 
-def reconcile_firewalld():
+def reconcile_firewalld(network_name=NETWORK):
     """Restore Docker's documented zone association for this owned bridge only."""
     if command('systemctl', 'is-active', '--quiet', 'firewalld', check=False).returncode:
         return
-    state = json.loads(command('docker', 'network', 'inspect', NETWORK).stdout)[0]
+    state = json.loads(command('docker', 'network', 'inspect', network_name).stdout)[0]
     if state['Driver'] != 'bridge' or state.get('Labels', {}).get(LABEL) != OWNER:
         raise RuntimeError('Unexpected data network')
     bridge = state.get('Options', {}).get('com.docker.network.bridge.name') or 'br-' + state['Id'][:12]

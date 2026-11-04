@@ -33,6 +33,7 @@ def main(
     digest: str,
     uv_wheel: Path | None = None,
     download_proxy: str | None = None,
+    offline: bool = False,
 ):
     if os.geteuid() != 0 or not re.fullmatch("[a-f0-9]{64}", digest):
         raise RuntimeError(
@@ -51,15 +52,9 @@ def main(
         and hashlib.sha256(uv_wheel.read_bytes()).hexdigest() != UV_WHEEL_SHA256
     ):
         raise RuntimeError("Pinned uv wheel checksum mismatch")
-    if (
-        subprocess.run(
-            ["systemctl", "is-active", "--quiet", "open-agent-worker"], check=False
-        ).returncode
-        == 0
-    ):
-        raise RuntimeError(
-            "Drain and stop the project's active worker before changing its environment"
-        )
+    for service in ('open-agent-worker', 'open-agent-supervisor'):
+        if subprocess.run(['systemctl', 'is-active', '--quiet', service], check=False).returncode == 0:
+            raise RuntimeError("Drain and stop the project's active worker before changing its environment")
     ROOT.mkdir(parents=True, exist_ok=True)
     source = ROOT / "releases" / digest[:16]
     marker = source / ".source-sha256"
@@ -134,6 +129,8 @@ def main(
     }
     if download_proxy:
         environment.update(HTTPS_PROXY=download_proxy, HTTP_PROXY=download_proxy)
+    if offline:
+        environment['UV_OFFLINE'] = 'true'
     print("Installing the frozen Agent dependency graph", flush=True)
     run(
         [
@@ -194,5 +191,6 @@ if __name__ == "__main__":
     parser.add_argument("--sha256", required=True)
     parser.add_argument("--uv-wheel", type=Path)
     parser.add_argument("--download-proxy")
+    parser.add_argument("--offline", action="store_true")
     args = parser.parse_args()
-    main(args.archive, args.sha256, args.uv_wheel, args.download_proxy)
+    main(args.archive, args.sha256, args.uv_wheel, args.download_proxy, args.offline)

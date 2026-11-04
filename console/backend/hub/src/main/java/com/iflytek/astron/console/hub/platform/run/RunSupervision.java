@@ -63,6 +63,7 @@ public class RunSupervision {
             String invocationId, String phase, String state, String leaseState, Instant heartbeatUntil, Instant deadlineAt,
             String sandboxPhase, String sandboxId, String isolationProfile, String runtimeImage) {}
     public record Claim(RunLedger.Lease lease, String state, Snapshot execution) {}
+    public record Lookup(String state, Snapshot execution) {}
     public record Proof(String proofId, String kind, String bootId, String unitName, String invocationId,
             String sandboxId, String evidenceSha256, boolean workerStopped, boolean cgroupEmpty,
             boolean sandboxAbsent, boolean creationSettled) {}
@@ -80,6 +81,27 @@ public class RunSupervision {
             LOG.info("Execution bound run_id={} lease_id={} supervisor={}", runId, value.leaseId(), supervisor);
             return new Claim(value, "running", snapshot(row(value.leaseId(), supervisor)));
         });
+    }
+
+    /** Includes released attempts; absence from the pending scan is not a cleanup acknowledgement. */
+    public Lookup lookup(RunLedger.Scope scope, String runId, String supervisor) {
+        worker(supervisor);
+        var run = ledger.get(scope, runId);
+        var rows = jdbc.queryForList(SNAPSHOT + " WHERE a.tenant_id=? AND a.environment=? AND a.run_id=? ORDER BY a.attempt_no DESC LIMIT 1",
+                scope.tenant(), scope.environment(), runId);
+        if (!rows.isEmpty()) {
+            var result = snapshot(rows.getFirst());
+            if (!supervisor.equals(result.supervisorId())) throw new RunFailure("resource_unavailable");
+            return new Lookup(result.state(), result);
+        }
+        if (((Number)run.get("attempt_no")).intValue() != 0) throw new RunFailure("resource_unavailable");
+        return new Lookup((String)run.get("state"), null);
+    }
+
+    public Lookup abandon(RunLedger.Scope scope, String runId, String supervisor) {
+        worker(supervisor);
+        ledger.abandonQueued(scope, runId, supervisor);
+        return lookup(scope, runId, supervisor);
     }
 
     /** A lost begin response MUST NOT be retried as permission to launch. */

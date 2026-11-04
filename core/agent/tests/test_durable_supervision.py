@@ -120,3 +120,20 @@ async def test_incomplete_step_acknowledgements_cannot_authorize_next_physical_a
                 await action()
     finally:
         await control.aclose()
+
+
+@pytest.mark.asyncio
+async def test_lookup_retains_released_execution_and_rejects_missing_running_or_mixed_run():
+    row = snapshot()
+    row.update(state='failed', phase='released', leaseState='released')
+    replies = [{'state': 'failed', 'execution': row}, {'state': 'running', 'execution': None},
+               {'state': 'failed', 'execution': {**row, 'lease': {**row['lease'], 'runId': str(uuid4())}}}]
+    control, api = client(lambda _: httpx.Response(200, json=replies.pop(0)))
+    try:
+        run = RunRef('tenant', 'test', row['lease']['runId'])
+        assert (await api.lookup(run)).execution.phase == 'released'
+        for _ in range(2):
+            with pytest.raises(ControlPlaneError, match='CONTROL_SUPERVISION_INVALID'):
+                await api.lookup(run)
+    finally:
+        await control.aclose()
