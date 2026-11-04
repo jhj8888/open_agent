@@ -15,8 +15,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class}, properties={
-        "PLATFORM_SERVICE_KEYS={\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"}}"
+@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class}, properties={
+        "PLATFORM_SERVICE_KEYS={\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"},\"supervisor-one\":{\"role\":\"reconciler\",\"secret\":\"ssssssssssssssssssssssssssssssss\"}}"
 })
 @Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class})
 class PlatformRunInternalSecurityTest {
@@ -25,10 +25,43 @@ class PlatformRunInternalSecurityTest {
     @MockBean RunOutbox outbox;
     @MockBean RunRuntimeService runtime;
     @MockBean RunSandboxJournal journal;
+    @MockBean RunSupervision supervision;
     @MockBean com.iflytek.astron.console.commons.data.UserInfoDataService users;
     private static final String RUN="34fd353e-6cb4-43fd-86a6-6e94c220421a";
     private static final String CLAIM="/internal/platform/worker/runs/"+RUN+"/claim";
     private static final String SCOPE="{\"tenant\":\"space-10\",\"environment\":\"test\"}";
+
+    @Test void workerDispatcherAndUserCannotEnterAnyReconcilerOperation() throws Exception {
+        String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
+        var paths=java.util.List.of("runs/"+RUN+"/claim","pending","attempts/"+id+"/inspect","attempts/"+id+"/begin",
+                "attempts/"+id+"/observed","attempts/"+id+"/fence","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
+        for(String path:paths) {
+            String url="/internal/platform/reconcile/"+path;
+            mvc.perform(post(url).header("Authorization","Bearer user").contentType("application/json").content("{}"))
+                    .andExpect(status().isUnauthorized());
+            for(var identity:java.util.Map.of("worker-one","w","dispatcher-one","d").entrySet())
+                mvc.perform(post(url).header("X-Platform-Key-Id",identity.getKey()).header("X-Platform-Service-Key",identity.getValue().repeat(32))
+                        .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(supervision,ledger,journal);
+    }
+
+    @Test void reconcilerIdentityComesFromAuthenticationAndCannotReadWorkerSecrets() throws Exception {
+        String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
+        mvc.perform(post("/internal/platform/reconcile/attempts/"+id+"/fence")
+                .header("X-Platform-Key-Id","supervisor-one").header("X-Platform-Service-Key","s".repeat(32)))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(supervision).fence(id,"supervisor-one");
+        mvc.perform(post("/internal/platform/worker/runs/"+RUN+"/runtime")
+                .header("X-Platform-Key-Id","supervisor-one").header("X-Platform-Service-Key","s".repeat(32))
+                .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(runtime);
+        when(supervision.inspect(id,"supervisor-one")).thenThrow(new RunFailure("resource_unavailable"));
+        mvc.perform(post("/internal/platform/reconcile/attempts/"+id+"/inspect")
+                .header("X-Platform-Key-Id","supervisor-one").header("X-Platform-Service-Key","s".repeat(32)))
+                .andExpect(status().isNotFound());
+    }
 
     @Test void sandboxJournalRequiresServiceIdentityAndNeverAcceptsQuotaReleaseFromWorker() throws Exception {
         String lease="{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\"fc42b1dd-3f87-400c-a38b-2161cfdd988a\",\"fencingToken\":1}";

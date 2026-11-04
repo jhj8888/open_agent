@@ -32,3 +32,7 @@ V1.52、RunLedger/RunOutbox 与状态转换层已通过 21 项真实 MySQL 8.4.1
 沙盒 journal 已增加数据库原子预留、一次性 creating 状态、取消后仍可补报资源以及独立核验后释放的事务边界。MySQL 检查增至 31 项，含创建意图跨 SIGKILL/重启保存、配额竞争、未知创建持续占额和审计失败回滚。另有 44 项 Java 与 155 项 Python 检查通过，首轮两项 SSH 连接超时的重跑记录保留。见 `docs/platform/sandbox-journal.md`；实际回收器与完整 worker/API 接线仍未完成，不据此勾选 1.3 或 2.3。
 
 终态调度修复：正常 execute 结果也进入 reconcile，并保留旧历史重放兼容。真实 Temporal SDK/开发服务器及控制面传输用例现为 24 项通过、0 跳过，涵盖成功、失败、超时、取消、心跳丢失和服务重启。独立物理回收实现仍是前置工作，任务 2.3 不据此勾选。
+
+## 2026-11-05 执行监督增量
+
+V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑定同事务、一次性启动授权、按 supervisor 限定访问、未知创建保留配额、核验材料与两类配额/审计原子提交。80 项 Java 检查通过；随后扩展数据库 SIGKILL/重启用例验证 boot/unit/InvocationID 保留并禁止重复启动，该变更用例单独重跑通过。Python 监督/传输 24 项通过。实机 systemd 非 root 进程及子进程已核实停止，且无 Docker/system bus 权限；使用合成子程序，未重启共享服务器。证据见 `docs/platform/supervision-verification-20261105.json`、`run-supervision.md` 及链接的实机记录。真实 activity、物理沙盒回收、双租户与浏览器完整联调仍未完成，因此 1.3、2.1–2.3 保持未勾选。

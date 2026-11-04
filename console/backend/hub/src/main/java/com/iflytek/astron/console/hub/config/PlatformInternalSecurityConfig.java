@@ -40,11 +40,12 @@ public class PlatformInternalSecurityConfig {
         try {
             keys = json.readValue(environment.getProperty("PLATFORM_SERVICE_KEYS", "{}"), new TypeReference<>() {});
             if (keys == null || keys.size() > 100) throw new IllegalArgumentException();
+            var secrets = new java.util.HashSet<String>();
             for (var entry : keys.entrySet()) {
                 var key = entry.getValue();
                 if (!entry.getKey().matches("[A-Za-z0-9_.:-]{1,128}") || key == null || key.role() == null
-                        || !Set.of("worker", "dispatcher").contains(key.role()) || key.secret() == null
-                        || !key.secret().matches("[!-~]{32,256}")) throw new IllegalArgumentException();
+                        || !Set.of("worker", "dispatcher", "reconciler").contains(key.role()) || key.secret() == null
+                        || !key.secret().matches("[!-~]{32,256}") || !secrets.add(key.secret())) throw new IllegalArgumentException();
             }
             keys = Map.copyOf(keys);
         } catch (Exception invalid) { throw new IllegalStateException("Invalid platform service identity configuration"); }
@@ -53,6 +54,7 @@ public class PlatformInternalSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/internal/platform/dispatch/**").hasAuthority("PLATFORM_DISPATCHER")
                         .requestMatchers("/internal/platform/worker/**").hasAuthority("PLATFORM_WORKER")
+                        .requestMatchers("/internal/platform/reconcile/**").hasAuthority("PLATFORM_RECONCILER")
                         .anyRequest().denyAll())
                 .csrf(AbstractHttpConfigurer::disable)
                 .requestCache(AbstractHttpConfigurer::disable)
@@ -78,7 +80,7 @@ public class PlatformInternalSecurityConfig {
             }
             var context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(id, null,
-                    List.of(new SimpleGrantedAuthority(key.role().equals("worker") ? "PLATFORM_WORKER" : "PLATFORM_DISPATCHER"))));
+                    List.of(new SimpleGrantedAuthority("PLATFORM_" + key.role().toUpperCase(java.util.Locale.ROOT)))));
             SecurityContextHolder.setContext(context);
             chain.doFilter(request, response);
         }

@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -71,6 +71,24 @@ class RunLedgerMySqlTest {
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
     private RunOutbox outbox() { return new RunOutbox(new JdbcTemplate(source), new DataSourceTransactionManager(source)); }
     private RunSandboxJournal journal() { return new RunSandboxJournal(instance(), new JdbcTemplate(source)); }
+    private static final String SUPERVISOR = "supervisor-1", OTHER_SUPERVISOR = "supervisor-2";
+    private static final String BOOT = "5d93bc29-5ae4-4fce-8f06-5d2ebd121c09", INVOCATION = "c".repeat(32);
+    private RunSupervision supervision() {
+        var config = new org.springframework.mock.env.MockEnvironment()
+                .withProperty("PLATFORM_RECONCILER_WORKERS", "{\"supervisor-1\":\"worker-1\",\"supervisor-2\":\"worker-2\"}")
+                .withProperty("PLATFORM_SERVICE_KEYS", "{\"supervisor-1\":{\"role\":\"reconciler\",\"secret\":\""+"s".repeat(32)
+                        +"\"},\"supervisor-2\":{\"role\":\"reconciler\",\"secret\":\""+"t".repeat(32)
+                        +"\"},\"worker-1\":{\"role\":\"worker\",\"secret\":\""+"w".repeat(32)
+                        +"\"},\"worker-2\":{\"role\":\"worker\",\"secret\":\""+"v".repeat(32)+"\"}}");
+        return new RunSupervision(instance(),journal(),new JdbcTemplate(source),new DataSourceTransactionManager(source),json,config);
+    }
+    private RunSupervision.Snapshot supervised(String key) {
+        return supervision().claim(scope,submit(key).runId(),SUPERVISOR,BOOT).execution();
+    }
+    private RunSupervision.Proof proof(RunSupervision.Snapshot execution, String kind, String boot) {
+        return new RunSupervision.Proof(UUID.randomUUID().toString(),kind,boot,execution.unitName(),execution.invocationId(),
+                execution.sandboxId(),"e".repeat(64),true,true,true,true);
+    }
     private static final String IMAGE = "registry.invalid/skill@sha256:" + "a".repeat(64);
     private void bindSkill(RunLedger.Scope target, String deploymentId) {
         String release = UUID.randomUUID().toString();
@@ -332,6 +350,142 @@ class RunLedgerMySqlTest {
         assertEquals(1, results.stream().filter("sandbox_state_conflict"::equals).count());
         code("sandbox_state_conflict", () -> journal().reserve(lease,"gvisor-demo",IMAGE));
         assertEquals(1, count("oa_run_sandbox"));
+    }
+
+    @Test void supervisedClaimRollsBackAdmissionIfBindingCannotBeStored() {
+        String run=submit("bind-rollback").runId();
+        jdbc.execute("CREATE TRIGGER fail_supervision BEFORE INSERT ON oa_run_supervision FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->supervision().claim(scope,run,SUPERVISOR,BOOT));
+        assertEquals("queued",state(run)); assertEquals(0,count("oa_run_attempt")); assertEquals(0,count("oa_run_supervision"));
+        assertEquals(1,count("oa_run_event"));
+        jdbc.execute("DROP TRIGGER fail_supervision");
+        assertNotNull(supervision().claim(scope,run,SUPERVISOR,BOOT).lease());
+    }
+
+    @Test void supervisedConcurrentClaimsAndLaunchPermissionProduceOnlyOneExecutor() throws Exception {
+        String run=submit("bound-race").runId();
+        List<RunSupervision.Claim> claims=concurrent(List.of(()->supervision().claim(scope,run,SUPERVISOR,BOOT),
+                ()->supervision().claim(scope,run,OTHER_SUPERVISOR,BOOT)));
+        assertEquals(1,claims.stream().filter(c->c.lease()!=null).count());
+        var execution=claims.stream().filter(c->c.lease()!=null).findFirst().orElseThrow().execution();
+        var lease=execution.lease(); String owner=execution.supervisorId();
+        assertEquals("oa-exec-"+lease.leaseId().replace("-","")+".service",execution.unitName());
+        Callable<String> begin=()->{try {return supervision().begin(lease.leaseId(),owner).phase();} catch(RunFailure e) {return e.code();}};
+        var starts=concurrent(List.of(begin,begin));
+        assertEquals(1,starts.stream().filter("launching"::equals).count());
+        assertEquals(1,starts.stream().filter("supervision_conflict"::equals).count());
+        assertEquals(1,count("oa_run_attempt"));assertEquals(1,count("oa_run_supervision"));
+    }
+
+    @Test void supervisedPreparedCancellationReleasesIdempotentlyAndRejectsChangedProof() {
+        var execution=supervised("prepared-cancel");String id=execution.lease().leaseId();
+        ledger.cancel(scope,execution.lease().runId(),"alice",()->{});
+        code("lease_fenced",()->supervision().begin(id,SUPERVISOR));
+        code("cleanup_before_terminal",()->supervision().release(id,SUPERVISOR,proof(execution,"never_launched",BOOT)));
+        assertEquals("cancelled",supervision().fence(id,SUPERVISOR).state());
+        var proof=proof(execution,"never_launched",BOOT);
+        var result=supervision().release(id,SUPERVISOR,proof);
+        assertEquals("released",result.phase());assertEquals("released",result.leaseState());assertEquals("cancelled",result.state());
+        assertEquals(result,supervision().release(id,SUPERVISOR,proof));
+        code("cleanup_proof_conflict",()->supervision().release(id,SUPERVISOR,proof(execution,"never_launched",BOOT)));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='execution.release.verified'",Integer.class));
+    }
+
+    @Test void supervisedUnknownLaunchKeepsQuotaUntilExactUnitInvocationIsObserved() {
+        var execution=supervised("unknown-start");String id=execution.lease().leaseId();
+        supervision().begin(id,SUPERVISOR);supervision().fence(id,SUPERVISOR);
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(execution,"never_launched",BOOT)));
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(execution,"stopped_unit",BOOT)));
+        assertEquals("cleanup_pending",supervision().inspect(id,SUPERVISOR).leaseState());
+        var observed=supervision().observed(id,SUPERVISOR,INVOCATION);
+        assertEquals("failed",observed.state());
+        assertEquals(observed,supervision().observed(id,SUPERVISOR,INVOCATION));
+        code("supervision_conflict",()->supervision().observed(id,SUPERVISOR,"d".repeat(32)));
+        assertEquals("released",supervision().release(id,SUPERVISOR,proof(observed,"stopped_unit",BOOT)).leaseState());
+    }
+
+    @Test void supervisedUnknownSandboxCreationRejectsEmptyProofUntilResourceIsIdentified() {
+        bindSkill(scope,deployment);
+        var execution=supervised("unknown-sandbox");var lease=execution.lease();String id=lease.leaseId();
+        supervision().begin(id,SUPERVISOR);supervision().observed(id,SUPERVISOR,INVOCATION);
+        journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);
+        ledger.cancel(scope,lease.runId(),"alice",()->{});supervision().fence(id,SUPERVISOR);
+        var unknown=supervision().inspect(id,SUPERVISOR);
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(unknown,"stopped_unit",BOOT)));
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(unknown,"host_reboot",UUID.randomUUID().toString())));
+        assertEquals("creating",sandboxPhase(lease)); assertEquals("cleanup_pending",unknown.leaseState());
+        String sandbox=UUID.randomUUID().toString();var identified=supervision().adoptSandbox(id,SUPERVISOR,sandbox);
+        code("sandbox_state_conflict",()->supervision().adoptSandbox(id,SUPERVISOR,UUID.randomUUID().toString()));
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(unknown,"stopped_unit",BOOT)));
+        var released=supervision().release(id,SUPERVISOR,proof(identified,"stopped_unit",BOOT));
+        assertEquals("released",released.sandboxPhase());assertEquals("released",released.leaseState());assertEquals("cancelled",released.state());
+    }
+
+    @Test void supervisedProofAuditFailureRollsBackProofSandboxAndExecutionQuotaTogether() {
+        bindSkill(scope,deployment);
+        var execution=supervised("release-rollback");var lease=execution.lease();String id=lease.leaseId();
+        supervision().begin(id,SUPERVISOR);supervision().observed(id,SUPERVISOR,INVOCATION);
+        journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);
+        journal().created(lease,UUID.randomUUID().toString());
+        ledger.finish(lease,RunState.SUCCEEDED,null);
+        var finished=supervision().fence(id,SUPERVISOR);assertEquals("succeeded",finished.state());
+        var proof=proof(finished,"stopped_unit",BOOT);
+        jdbc.execute("CREATE TRIGGER fail_execution_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW BEGIN IF NEW.action='execution.release.verified' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'; END IF; END");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->supervision().release(id,SUPERVISOR,proof));
+        var rolledBack=supervision().inspect(id,SUPERVISOR);
+        assertEquals("observed",rolledBack.phase());assertEquals("created",rolledBack.sandboxPhase());assertEquals("cleanup_pending",rolledBack.leaseState());
+        assertNull(jdbc.queryForObject("SELECT proof_id FROM oa_run_supervision WHERE lease_id=?",String.class,id));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action IN ('execution.release.verified','sandbox.release.verified')",Integer.class));
+        jdbc.execute("DROP TRIGGER fail_execution_audit");
+        assertEquals("succeeded",supervision().release(id,SUPERVISOR,proof).state());
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action IN ('execution.release.verified','sandbox.release.verified')",Integer.class));
+    }
+
+    @Test void supervisedRebootProofRequiresDifferentBootAndStillPreservesExistingTerminalState() {
+        var execution=supervised("reboot");String id=execution.lease().leaseId();
+        supervision().begin(id,SUPERVISOR);
+        jdbc.update("UPDATE oa_run_attempt SET heartbeat_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE lease_id=?",id);
+        assertEquals("launching",supervision().inspect(id,SUPERVISOR).phase());
+        assertEquals("failed",supervision().fence(id,SUPERVISOR).state());
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(execution,"host_reboot",BOOT)));
+        assertEquals("released",supervision().release(id,SUPERVISOR,proof(execution,"host_reboot",UUID.randomUUID().toString())).leaseState());
+        assertEquals("outcome_unknown",ledger.get(scope,execution.lease().runId()).get("error_code"));
+    }
+
+    @Test void supervisedIdentityAndScanCannotAccessOtherHostsOrLeakRuntimePayload() throws Exception {
+        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=4 WHERE tenant_id=? AND environment='test'",A);
+        var first=supervised("scan-a");var second=supervised("scan-b");
+        var other=supervision().claim(scope,submit("scan-other").runId(),OTHER_SUPERVISOR,BOOT).execution();
+        String id=first.lease().leaseId();
+        code("resource_unavailable",()->supervision().inspect(id,OTHER_SUPERVISOR));
+        code("resource_unavailable",()->supervision().begin(id,OTHER_SUPERVISOR));
+        code("resource_unavailable",()->supervision().observed(id,OTHER_SUPERVISOR,INVOCATION));
+        code("resource_unavailable",()->supervision().fence(id,OTHER_SUPERVISOR));
+        code("resource_unavailable",()->supervision().adoptSandbox(id,OTHER_SUPERVISOR,UUID.randomUUID().toString()));
+        code("resource_unavailable",()->supervision().release(id,OTHER_SUPERVISOR,proof(first,"never_launched",BOOT)));
+        code("action_forbidden",()->supervision().inspect(id,"worker-1"));
+        var page=supervision().pending(SUPERVISOR,null,1);
+        var next=supervision().pending(SUPERVISOR,page.getFirst().lease().leaseId(),1);
+        assertEquals(1,page.size());assertEquals(1,next.size());
+        assertNotEquals(page.getFirst().lease().leaseId(),next.getFirst().lease().leaseId());
+        assertTrue(supervision().pending(SUPERVISOR,next.getFirst().lease().leaseId(),1).isEmpty());
+        assertEquals(other.lease(),supervision().pending(OTHER_SUPERVISOR,null,100).getFirst().lease());
+        String body=new ObjectMapper().findAndRegisterModules().writeValueAsString(page);
+        assertFalse(body.contains("hello"));assertFalse(body.contains("Synthetic test only"));
+        supervision().fence(id,SUPERVISOR);supervision().release(id,SUPERVISOR,proof(first,"never_launched",BOOT));
+        assertEquals(second.lease(),supervision().pending(SUPERVISOR,null,100).getFirst().lease());
+    }
+
+    @Test void supervisedProofRejectsInvocationMismatchAndIncompletePhysicalAssertions() {
+        var execution=supervised("invalid-proof");String id=execution.lease().leaseId();
+        code("supervision_conflict",()->supervision().observed(id,SUPERVISOR,INVOCATION));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_run_supervision SET phase='observed' WHERE lease_id=?",id));
+        supervision().begin(id,SUPERVISOR);var observed=supervision().observed(id,SUPERVISOR,INVOCATION);supervision().fence(id,SUPERVISOR);
+        code("cleanup_unverified",()->supervision().release(id,SUPERVISOR,proof(execution,"stopped_unit",BOOT)));
+        var proof=proof(observed,"stopped_unit",BOOT);
+        var incomplete=new RunSupervision.Proof(proof.proofId(),proof.kind(),proof.bootId(),proof.unitName(),proof.invocationId(),null,proof.evidenceSha256(),true,false,true,true);
+        code("invalid_cleanup_proof",()->supervision().release(id,SUPERVISOR,incomplete));
+        assertEquals("cleanup_pending",supervision().inspect(id,SUPERVISOR).leaseState());
     }
 
     @Test void sandboxAdmissionRejectsUnboundImageProductionDemoAndForeignOwner() {
@@ -608,7 +762,11 @@ class RunLedgerMySqlTest {
     void databaseCrashAndRestartPreserveRunOutboxAndIdempotency() throws Exception {
         String id = submit("restart").runId();
         bindSkill(scope, deployment);
-        var sandboxLease = reserved("restart-sandbox");
+        var execution = supervised("restart-sandbox");
+        var sandboxLease = execution.lease();
+        supervision().begin(sandboxLease.leaseId(),SUPERVISOR);
+        supervision().observed(sandboxLease.leaseId(),SUPERVISOR,INVOCATION);
+        journal().reserve(sandboxLease,"gvisor-demo",IMAGE);
         journal().creating(sandboxLease);
         var signal = java.nio.file.Path.of(System.getenv("OA_RUN_TEST_RESTART_SIGNAL"));
         java.nio.file.Files.writeString(signal, "restart");
@@ -621,6 +779,11 @@ class RunLedgerMySqlTest {
         assertEquals(id, submit("restart").runId());
         assertTrue(ledger.claim(scope, id, "after-restart").isPresent());
         assertEquals("creating", sandboxPhase(sandboxLease));
+        var restored = supervision().inspect(sandboxLease.leaseId(),SUPERVISOR);
+        assertEquals("observed",restored.phase());assertEquals(INVOCATION,restored.invocationId());
+        assertEquals(BOOT,restored.bootId());assertEquals(execution.unitName(),restored.unitName());
+        assertEquals("held",restored.leaseState());
+        code("supervision_conflict",()->supervision().begin(sandboxLease.leaseId(),SUPERVISOR));
         code("sandbox_state_conflict", () -> journal().creating(sandboxLease));
         assertTrue(ledger.claim(scope, sandboxLease.runId(), "after-restart").isEmpty());
     }

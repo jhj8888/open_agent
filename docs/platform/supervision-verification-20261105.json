@@ -1,0 +1,115 @@
+{
+  "recorded_at": "2026-11-04T17:05:58.441184+00:00",
+  "scope": "Supervisor identity, atomic launch binding and physical-proof transport; single-host process adapter verified separately",
+  "java_main_execution": {
+    "tests": 80,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.AgentRunHttpTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "17.001",
+        "timestamp": null
+      },
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.PlatformRunInternalSecurityTest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.986",
+        "timestamp": null
+      },
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.RunContractTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.034",
+        "timestamp": null
+      },
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.RunEventStreamsTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.121",
+        "timestamp": null
+      },
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+        "tests": "49",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "458.758",
+        "timestamp": null
+      },
+      {
+        "name": "com.iflytek.astron.console.hub.platform.run.RunSupervisionConfigurationTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.285",
+        "timestamp": null
+      }
+    ]
+  },
+  "java_restart_supplement": {
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "20.2",
+    "timestamp": null,
+    "case": "databaseCrashAndRestartPreserveRunOutboxAndIdempotency",
+    "change": "Existing crash test extended after the 80-test run; only that changed test rerun. Added persisted supervisor boot/unit/InvocationID and repeated-start rejection."
+  },
+  "python": {
+    "tests": "24",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "1.820",
+    "timestamp": "2026-11-05T00:58:02.368179+08:00"
+  },
+  "mysql": "8.4.13; dedicated disposable database over pinned SSH; SIGKILL/restart; verification container/network removed",
+  "physical_process_record": "process-verification-20261105.json",
+  "live_control_plane_record": "supervision-deployment-verification-20261105.json",
+  "artifact": "0fdde1add6b04bce63e88c57065d132d6064a829f361d7f6b0093f1170d3a83f",
+  "implementation_corrections": [
+    "Initial Java test compilation needed an explicit generic result type; corrected before tests ran.",
+    "First API upgrade reached ready state but refused replacing the old deployment descriptor. Mutable descriptor write corrected; idempotent reprovision and live checks passed."
+  ],
+  "source_sha256_normalized_lf": {
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/config/PlatformInternalSecurityConfig.java": "fca0ef2e548ae4ce9091343162bc8066a3e3c11e448333cfec1f2674947cb490",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/PlatformExceptionHandler.java": "17dfc8ea7dc2e393c9d7e3884fdff59733b28a3914c21b04e2703ae910db0e60",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunSupervision.java": "5a07b636e1d12c65dbdb3f17a043be6a981ac9fcfb224b189c06a81c3bd33854",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/PlatformRunReconcileController.java": "1afe43266e9032344fb5a462acc34d89ebfdf72de7f4ec797017eef32c4bb2fd",
+    "console/backend/hub/src/main/resources/db/migration/V1.55__add_run_supervision.sql": "a48cac1a2e3c483bde471d4879866772fee9ffb53aa9e651b9c20c980095628a",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunSupervisionConfigurationTest.java": "1e8c8e51ceeb61c0b5ed2b927d04aaa0d968ebc1eb8bbaaaa878da09cae48960",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunLedgerMySqlTest.java": "e4cf8d71375b4e0a480a37f7defb1e7244ee5a14c07a085a78093035e5134c9f",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/PlatformRunInternalSecurityTest.java": "1283c0d579a3f81b357cbcb9ffdcbc8ed008e01b8e86ab1c4d09d294e7597719",
+    "core/agent/durable/host_process.py": "91ed70b760418d14bb40183f1c7760c65498c11defdafb71d04bd24f8daae04c",
+    "core/agent/durable/supervision.py": "e937106826c964b1d0216c1e711016f3a70ff71832c885e0a8fae78f994e343d",
+    "core/agent/tests/test_durable_supervision.py": "2a1be091a2ee20bc230a52942640523038f667b263268ee8362ddd759fd16889",
+    "deploy/platform/worker/verify_process.py": "e4b399cb5b9890bec933734b5e173a6561b4be4a143778a3773abb766c505b4c",
+    "deploy/platform/control/provision_api.py": "a5ccbbe13f3aae3b3da401fbfed795900906025e58526f7e248683182db158e5",
+    "deploy/platform/control/verify_supervision.py": "4700f2d957f730cb2efc6689552991125f4f08a137838219413a6e598af7c63e"
+  },
+  "not_verified": [
+    "Actual execute/reconcile activity integration",
+    "Independent physical sandbox cleanup through the new supervisor",
+    "Shared-host reboot",
+    "Production Kubernetes/Kata recovery",
+    "Authenticated browser connected to this control plane"
+  ]
+}

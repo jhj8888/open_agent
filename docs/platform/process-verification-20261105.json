@@ -1,0 +1,59 @@
+{
+  "recorded_at": "2026-11-04T17:00:44.489889+00:00",
+  "host_process_sha256": "91ed70b760418d14bb40183f1c7760c65498c11defdafb71d04bd24f8daae04c",
+  "systemd": "systemd 255 (v255-12.alnx4)",
+  "actual_non_root_process": {
+    "uid": 989,
+    "pid": 940349,
+    "child_pid": 940354,
+    "capabilities_empty": true,
+    "no_new_privileges": true,
+    "credential_loaded": true,
+    "source_credential_denied": true,
+    "docker_denied": true,
+    "system_bus_denied": true
+  },
+  "physical_stop": {
+    "kind": "stopped_unit",
+    "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+    "unitName": "oa-exec-96a93e773fd641a8af0f7e0eed61e98b.service",
+    "invocationId": "12a08317e88c4f759e99a435e562e9da",
+    "workerStopped": true,
+    "cgroupEmpty": true,
+    "before": {
+      "Restart": "no",
+      "RemainAfterExit": "yes",
+      "MainPID": "940349",
+      "ControlPID": "0",
+      "ExecMainCode": "0",
+      "ExecMainStatus": "0",
+      "ControlGroup": "/openagent.slice/oa-exec-96a93e773fd641a8af0f7e0eed61e98b.service",
+      "User": "open-agent-worker",
+      "KillMode": "control-group",
+      "Id": "oa-exec-96a93e773fd641a8af0f7e0eed61e98b.service",
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "running",
+      "Transient": "yes",
+      "InvocationID": "12a08317e88c4f759e99a435e562e9da"
+    },
+    "after": null,
+    "cgroup": {
+      "path": "/openagent.slice/oa-exec-96a93e773fd641a8af0f7e0eed61e98b.service",
+      "exists": false,
+      "populated": 0
+    },
+    "observedAt": "2026-11-04T17:00:44.437920+00:00"
+  },
+  "duplicate_launch_rejected": true,
+  "foreign_invocation_rejected": true,
+  "descendants_removed": true,
+  "repeated_stop_confirmed": true,
+  "unknown_start_keeps_quota": true,
+  "prepared_not_started_confirmed": true,
+  "not_verified": [
+    "real RuntimeExecutor or Temporal integration",
+    "physical sandbox cleanup",
+    "host reboot"
+  ]
+}

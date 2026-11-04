@@ -16,7 +16,7 @@ import urllib.request
 from provision_data import ROOT, container_address, ensure_container, initialize, private_file, installation_lock
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = '05dda8bf769f25a02bd5edada88a7ead3ea79fde4338f3d1ef765dbd37d3d9fa'
+ARTIFACT_SHA256 = '0fdde1add6b04bce63e88c57065d132d6064a829f361d7f6b0093f1170d3a83f'
 
 
 def main():
@@ -34,6 +34,9 @@ def main():
                                          'worker_key': secrets.token_urlsafe(40),
                                          'dispatcher_key': secrets.token_urlsafe(40)}, indent=2) + '\n')
     api_secrets = json.loads(key_path.read_text())
+    if 'reconciler_key' not in api_secrets:
+        api_secrets['reconciler_key'] = secrets.token_urlsafe(40)
+        private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
     environment = {
         'PLATFORM_BIND_ADDRESS': '0.0.0.0', 'PLATFORM_PORT': '18082',
         'PLATFORM_JDBC_URL': 'jdbc:mysql://open-agent-control-mysql:3306/' + storage['database'] + '?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false',
@@ -47,7 +50,9 @@ def main():
         'PLATFORM_SERVICE_KEYS': json.dumps({
             'demo-worker': {'role': 'worker', 'secret': api_secrets['worker_key']},
             'demo-dispatcher': {'role': 'dispatcher', 'secret': api_secrets['dispatcher_key']},
+            'demo-supervisor': {'role': 'reconciler', 'secret': api_secrets['reconciler_key']},
         }),
+        'PLATFORM_RECONCILER_WORKERS': json.dumps({'demo-supervisor': 'demo-worker'}),
     }
     private_file(ROOT / 'api.env', ''.join(key + '=' + value + '\n' for key, value in environment.items()), replace=True)
     ensure_container('open-agent-control-api', JRE, [
@@ -81,7 +86,7 @@ def main():
             raise RuntimeError('API accepted an unauthorized request')
     result = {'artifact_sha256': ARTIFACT_SHA256, 'jre_image': JRE, 'database_ready': True,
               'forged_identity_rejected': True, 'admission_enabled': False, 'public_port': False}
-    private_file(ROOT / 'api-deployment.json', json.dumps(result, indent=2) + '\n')
+    private_file(ROOT / 'api-deployment.json', json.dumps(result, indent=2) + '\n', replace=True)
     print(json.dumps(result), flush=True)
 
 

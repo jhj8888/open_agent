@@ -17,6 +17,8 @@ V1.53 增加 `oa_run_sandbox`，一条 attempt/lease 只能拥有一条记录。
 
 `RunSandboxJournal.releaseVerified` 只供控制面进程内受信回收器使用，没有 worker HTTP 入口。调用者必须独立证明执行进程已停止、物理沙盒不存在，且没有在途创建能迟到成功；传入的验证 ID 引用保留的核验材料。事务同时更新沙盒状态、执行槽和审计，任一写入失败全部回滚。直接调用账本释放槽位也会检查未释放的沙盒记录。
 
+后续 V1.55 增量通过独立 reconciler 身份提供受约束的回收 HTTP 边界，详情见 [执行监督与回收](run-supervision.md)。它验证 supervisor/lease/启动阶段和证明结构后，在同一事务内调用上述进程内方法；worker 路由仍不能释放配额。未知 creating 且没有 sandbox ID 的记录即使收到回收请求也保持占额。
+
 私有接口都在 `/internal/platform/worker/runs/{runId}/sandbox/` 下：`reserve`、`creating`、`created`、`cleanup-pending`、`destruction-reported`。沿用独立 worker 服务密钥；worker 身份由认证取得，dispatcher 和用户 JWT 均不能调用。配额满返回 429，生命周期或租约冲突返回 409，错误不含私有凭据。
 
 数据库/传输测试使用合成核验材料，不声称物理回收器已经交付。独立执行进程终止、真实 execute/reconcile activity 接线及生产 Kata/K8S 故障验收仍需完成。缺少独立证明时保留记录和配额，并交给后续回收流程处理。

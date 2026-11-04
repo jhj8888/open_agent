@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-11-04T17:04:27.020350+00:00",
+  "artifact_sha256": "0fdde1add6b04bce63e88c57065d132d6064a829f361d7f6b0093f1170d3a83f",
+  "supervision_table_and_private_api_available": true,
+  "worker_dispatcher_denied": true,
+  "reconciler_cannot_read_model_credentials": true,
+  "unknown_attempt_rejected": true,
+  "admission_enabled": false,
+  "public_execution_available": false
+}
