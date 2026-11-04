@@ -1,0 +1,472 @@
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #4c806a;
+  font-size: 11px;
+}
+.live-badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4c9970;
+}
+.error-box {
+  margin: 12px 0;
+  padding: 13px 16px;
+  border: 1px solid #efc8be;
+  background: #fff5f2;
+  color: #a34e38;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  line-height: 1.7;
+  font-size: 12px;
+}
+.error-box .link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.topbar + .error-box {
+  margin: 16px 34px;
+}
+.form-body label > select {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 11px;
+  border: 1px solid #dfe7d5;
+  border-radius: 6px;
+  background: white;
+  color: #4e6c5a;
+  font-size: 12px;
+}
+.form-body > p {
+  line-height: 1.9;
+}
+.form-body .form-row {
+  margin-top: 17px;
+}
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  margin: 15px 0;
+  flex-wrap: wrap;
+}
+.checkbox-row input {
+  accent-color: var(--green);
+  margin-right: 6px;
+}
+.row-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.link + .link {
+  margin-left: 14px;
+}
+.danger {
+  color: #b36650;
+}
+.model-endpoint {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  min-height: 36px;
+  color: #708678;
+}
+.inline-form {
+  display: flex;
+  gap: 10px;
+  margin: 22px 0;
+}
+.inline-form input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.secret-reveal {
+  margin: 20px 0;
+  padding: 20px;
+  background: #edf5e9;
+  border: 1px solid #bfd4b5;
+  border-radius: 8px;
+}
+.secret-reveal p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 8px 0;
+}
+.secret-reveal textarea {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #c2d4bb;
+  border-radius: 6px;
+  resize: none;
+  font:
+    12px/1.8 Consolas,
+    monospace;
+}
+.file-tree button {
+  text-align: left;
+  font-size: 11px;
+  padding: 7px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.file-tree button.selected {
+  background: #e5eddf;
+  color: #466b48;
+}
+.skill-content {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 430px;
+  overflow: auto;
+  min-width: 0;
+  font:
+    12px/1.85 Consolas,
+    monospace;
+}
+.model-endpoint + .skill-tags {
+  margin-top: 12px;
+}
+.quota-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  padding: 26px;
+}
+.quota-grid span {
+  display: block;
+  font-size: 12px;
+  color: #7d9083;
+}
+.quota-grid strong {
+  display: block;
+  font-size: 23px;
+  font-weight: 600;
+  margin-top: 12px;
+  color: #395f4b;
+}
+.status-chart {
+  padding: 18px 24px;
+}
+.status-chart > div {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 20px 0;
+}
+.status-chart .status {
+  width: 70px;
+  flex-shrink: 0;
+}
+.status-chart .progress-track {
+  flex: 1;
+}
+.status-chart b {
+  font-size: 12px;
+  min-width: 20px;
+}
+.chat-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #0b1f1b33;
+  z-index: 50;
+}
+.live-chat {
+  width: min(780px, 100vw);
+  z-index: 51;
+}
+.live-chat .chat-toolbar {
+  gap: 14px;
+}
+.live-chat .chat-toolbar select {
+  min-width: 0;
+  max-width: 78%;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 11px;
+  background: white;
+  color: #5e7b68;
+}
+.live-chat > .error-box {
+  margin: 10px 24px;
+}
+.live-chat .answer-text {
+  font-size: 13px;
+  color: #425d4b;
+}
+.live-chat .answer-markdown {
+  white-space: normal;
+  line-height: 1.9;
+}
+.answer-markdown > * + * {
+  margin-top: 12px;
+}
+.answer-markdown h1,
+.answer-markdown h2,
+.answer-markdown h3 {
+  font-size: 15px;
+  margin: 18px 0 8px;
+}
+.answer-markdown ul,
+.answer-markdown ol {
+  padding-left: 22px;
+}
+.answer-markdown code {
+  background: #edf2e9;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.answer-markdown pre {
+  overflow: auto;
+  padding: 14px;
+  background: #edf2e9;
+  border-radius: 7px;
+}
+.answer-markdown pre code {
+  padding: 0;
+  white-space: pre;
+}
+.answer-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.answer-markdown th,
+.answer-markdown td {
+  padding: 8px 10px;
+  border: 1px solid #dfe7d8;
+  text-align: left;
+}
+.answer-markdown th {
+  background: #f0f5ed;
+  font-weight: 500;
+}
+.answer-markdown a {
+  color: #3e7754;
+  text-decoration: underline;
+}
+.answer-markdown blockquote {
+  margin: 12px 0;
+  padding-left: 14px;
+  border-left: 3px solid #b6cba9;
+}
+.live-chat .chat-scroll {
+  min-height: 0;
+}
+.live-chat .chat-composer {
+  flex-shrink: 0;
+}
+.live-chat .event-log {
+  max-height: 300px;
+  overflow: auto;
+  padding: 4px 14px 14px;
+  font-size: 11px;
+}
+.event-log > div {
+  border-top: 1px solid #e5ebdf;
+  padding: 9px 0;
+}
+.event-log b {
+  font-weight: 500;
+  color: #547456;
+}
+.event-log pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    10px/1.7 Consolas,
+    monospace;
+  color: #809176;
+}
+.status.test,
+.status.published,
+.status.ready,
+.status.active {
+  color: #278160;
+  background: #eaf5ed;
+}
+.status.disabled,
+.status.suspended,
+.status.revoked {
+  color: #8b7668;
+  background: #f3eee9;
+}
+.status.cancel_requested {
+  color: #b18a3c;
+  background: #fcf6e6;
+}
+.status.timed_out {
+  color: #b8664a;
+  background: #fbefea;
+}
+.info-strip {
+  overflow-wrap: anywhere;
+}
+.info-strip code {
+  min-width: 0;
+  font-size: 11px;
+}
+.form-note.mono {
+  overflow-wrap: anywhere;
+}
+.login-shell {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  min-height: 100vh;
+}
+.login-story {
+  background: #102b25;
+  color: #eaf3e8;
+  padding: 55px 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.login-story .brand {
+  padding: 0;
+}
+.login-story h1 {
+  font-size: 49px;
+  letter-spacing: -1.5px;
+  line-height: 1.45;
+  font-weight: 550;
+  margin: 22px 0;
+}
+.login-story p {
+  font-size: 15px;
+  line-height: 2.1;
+  color: #95b2a2;
+}
+.login-story > span {
+  font-size: 11px;
+  color: #6c9581;
+  letter-spacing: 2px;
+}
+.login-story .eyebrow {
+  color: #88ad8e;
+  letter-spacing: 2.5px;
+}
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 55px;
+}
+.login-panel > div {
+  width: 360px;
+  max-width: 100%;
+}
+.login-panel h1 {
+  font-size: 30px;
+  margin: 25px 0 16px;
+}
+.login-panel p {
+  line-height: 1.9;
+  color: #84938a;
+  font-size: 13px;
+  margin-bottom: 35px;
+}
+.login-panel .full {
+  padding: 15px;
+  justify-content: center;
+  gap: 20px;
+}
+.login-footnote {
+  display: block;
+  text-align: center;
+  margin-top: 30px;
+  color: #a2afa6;
+  font-size: 11px;
+}
+.login-panel .agent-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+}
+.panel .error-box {
+  margin: 12px 20px;
+}
+.skill-card p {
+  overflow-wrap: anywhere;
+}
+.page-footer {
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.agent-card p {
+  min-height: 42px;
+}
+.modal {
+  max-height: 90vh;
+}
+.modal > .form-body {
+  overflow: auto;
+}
+.agent-card footer > .link {
+  font-size: 12px;
+}
+.agent-card h2 {
+  overflow-wrap: anywhere;
+}
+.table-scroll table td {
+  max-width: 300px;
+  overflow-wrap: anywhere;
+}
+.agent-model {
+  overflow-wrap: anywhere;
+}
+.prose-card p + p {
+  margin-top: 10px;
+}
+.prose-card .button {
+  margin-top: 20px;
+}
+@media (max-width: 1000px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+  }
+  .login-story {
+    display: none;
+  }
+  .login-panel {
+    min-height: 100vh;
+  }
+  .quota-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 650px) {
+  .quota-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .login-panel {
+    padding: 28px;
+  }
+  .live-badge {
+    display: none;
+  }
+  .live-chat .chat-toolbar select {
+    max-width: 70%;
+  }
+  .package-layout {
+    grid-template-columns: 120px 1fr;
+  }
+  .live-chat .chat-composer > div > span {
+    max-width: 55%;
+    line-height: 1.7;
+  }
+}

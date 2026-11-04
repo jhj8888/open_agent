@@ -259,10 +259,14 @@ class RunLedgerMySqlTest {
 
     @Test void apiUsageIsDurableAndDuplicateOldEventsCannotRegressIt() throws Exception {
         actors();String run=api().submit(caller("alice"),deployment,"usage",input()).run_id();var lease=claim(run);
+        assertNull(api().list(caller("alice"),deployment).getFirst().get("usage"));
         var first=json.readTree("{\"prompt_tokens\":10,\"completion_tokens\":2,\"total_tokens\":12}");
         var last=json.readTree("{\"prompt_tokens\":20,\"completion_tokens\":5,\"total_tokens\":25}");
         ledger.append(lease,"usage-1","usage",first);ledger.append(lease,"usage-2","usage",last);ledger.append(lease,"usage-1","usage",first);
         assertEquals(25,((com.fasterxml.jackson.databind.JsonNode)api().status(caller("alice"),run).get("usage")).get("total_tokens").intValue());
+        var listed = api().list(caller("alice"),deployment).getFirst();
+        assertEquals(25,((com.fasterxml.jackson.databind.JsonNode)listed.get("usage")).get("total_tokens").intValue());
+        assertFalse(listed.containsKey("usage_json"));
         long before=((Number)ledger.get(scope,run).get("last_event_seq")).longValue();
         code("invalid_usage",()->ledger.append(lease,"bad-usage","usage",json.readTree("{\"prompt_tokens\":-1,\"completion_tokens\":0,\"total_tokens\":0}")));
         assertEquals(before,((Number)ledger.get(scope,run).get("last_event_seq")).longValue());

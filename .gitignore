@@ -263,3 +263,4 @@ docs/superpowers/
 
 # Standalone interface preview build
 /console/frontend/dist-preview/
+/console/frontend/dist-workbench/

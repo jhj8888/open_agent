@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "workbench/**/*.ts",
+    "workbench/**/*.tsx",
+    "vite.workbench.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-workbench"]
+}

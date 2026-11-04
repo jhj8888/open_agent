@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = '4fb24ce200aae3d8a9b79838c49d972faa1b6a3e9e63281c6b07b1264ccfa8de'
+ARTIFACT_SHA256 = '983164da71af4b662f6dfcaa9ef972e3880642183406a53e09a15459fdcdcd6f'
 API_NETWORK = 'open-agent-control-api'
 
 
@@ -81,7 +81,7 @@ def main():
         'PLATFORM_BIND_ADDRESS': '0.0.0.0', 'PLATFORM_PORT': '18082',
         'PLATFORM_JDBC_URL': 'jdbc:mysql://open-agent-control-mysql:3306/' + storage['database'] + '?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false',
         'PLATFORM_DB_USER': 'open_agent', 'PLATFORM_DB_PASSWORD': values['platform_db'],
-        'PLATFORM_OIDC_ISSUER': identity['issuer'], 'PLATFORM_OIDC_JWKS': identity['issuer'] + '/.well-known/jwks',
+        'PLATFORM_OIDC_ISSUER': identity['issuer'], 'PLATFORM_OIDC_JWKS': identity.get('internal_jwks', identity['issuer'] + '/.well-known/jwks'),
         'PLATFORM_OIDC_AUDIENCE': identity['client_id'],
         'PLATFORM_S3_ENDPOINT': storage['s3_endpoint'], 'PLATFORM_S3_BUCKET': storage['s3_bucket'],
         'PLATFORM_S3_ACCESS_KEY': values['s3_app_key'], 'PLATFORM_S3_SECRET_KEY': values['s3_app_secret'],

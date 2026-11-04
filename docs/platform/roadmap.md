@@ -1,6 +1,6 @@
 # 架构与实施顺序
 
-状态：七项 OpenSpec 变更已建立，实施任务未完成。当前工作是源码接管与规格基线，不是平台已可生产部署的声明。
+状态：真实单机展示链路和 HTTPS 工作台已部署，项目仍在按 OpenSpec 完成企业交付。当前证据见 [真实工作台](live-console.md)；未宣称生产集群、完整离线交付和容量已验收。
 
 ```mermaid
 flowchart LR
@@ -20,7 +20,7 @@ flowchart LR
   S --> O
 ```
 
-图为目标架构。OpenSandbox 适配和展示机 gVisor 隔离已验证；Temporal 调度骨架及展示服务已接入，真实持久执行链仍待联调；生产 Kata/K8S 未验收。当前证据见 implementation-progress.md。现有数据、身份和监控服务优先复用；模型系统只以 API 依赖出现。
+图为目标架构。展示机 OpenSandbox/gVisor、Temporal 持久执行、真实模型和 Skill 执行、独立资源回收及浏览器聊天已验证；生产 Kata/K8S 未验收。当前证据见 implementation-progress.md。现有数据、身份和监控服务优先复用；模型系统只以 API 依赖出现。
 
 | 阶段 | 变更 | 必要前置 | 完成标志 |
 |---|---|---|---|
@@ -32,7 +32,7 @@ flowchart LR
 | P2 | [publish-unified-agent-api](../../openspec/changes/publish-unified-agent-api/proposal.md) | 前述执行闭环 | 每个独立/工作流 Agent 均有 HTTP API，聊天复用同一任务链 |
 | P2 | [deliver-offline-platform](../../openspec/changes/deliver-offline-platform/proposal.md) | 前述能力；离线清单、监控可提前准备 | 完整断网冷启动、test/prod 隔离、监控告警、备份恢复与压测验收 |
 
-建议首个 apply：`manage-tenant-access`，先统一身份上下文和权限矩阵。模型接口 mock 契约、沙盒基础设施兼容性验证可以独立推进；这不改变最终联调前置关系。
+已从 `manage-tenant-access` 开始依次接通上述链路；后续继续补齐发布门禁、管理验收与交付运维，不改变最终联调前置关系。
 
 ## 任务与沙盒契约
 

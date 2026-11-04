@@ -76,8 +76,9 @@ public class AgentRunService {
             boolean own=authorization.onlyOwnRuns(caller,deployment);
             List<Object> args=new ArrayList<>(List.of(deployment.scope().tenant(),deployment.scope().environment(),id));
             if(own) args.add(caller.actor());
-            var rows=jdbc.queryForList("SELECT run_id,state,trace_id,error_code,created_at,started_at,finished_at,deadline_at FROM oa_agent_run "
+            var rows=jdbc.queryForList("SELECT run_id,state,trace_id,error_code,usage_json,created_at,started_at,finished_at,deadline_at FROM oa_agent_run "
                     +"WHERE tenant_id=? AND environment=? AND deployment_id=?"+(own?" AND actor_id=?":"")+" ORDER BY created_at DESC,run_id LIMIT 50",args.toArray());
+            rows.forEach(row -> row.put("usage",parse(row.remove("usage_json"))));
             return rows;
         });
     }
