@@ -37,5 +37,9 @@ class ReconcileRequest:
     reason: str
 
     def __post_init__(self) -> None:
-        if self.reason not in {"cancel_requested", "outcome_unknown"}:
+        if self.reason not in {
+            "cancel_requested",
+            "outcome_unknown",
+            "execution_completed",
+        }:
             raise ValueError("Invalid reconciliation reason")

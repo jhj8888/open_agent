@@ -36,6 +36,7 @@ runtime/artifact 均在租户锁内复查任务、租约、worker、截止时间
 - execute activity 不自动重试（maximum_attempts=1）。只有未获得执行槽、没有副作用的 queued 结果允许 2 秒后再次准入；不能把未知工具结果自动再执行。
 - execute 的排队等待上限 60 秒、运行上限 3660 秒、心跳上限 30 秒。数据库内的任务截止时间仍是执行器必须遵守的更严格边界。
 - 取消信号等待执行 activity 停止，然后进入 reconcile。reconcile 每次上限 90 秒，重试间隔 2–30 秒，总窗口 2 小时；仅允许幂等清理。窗口耗尽仍需要独立补偿扫描，不能静默释放配额。
+- execute 正常返回 succeeded、failed 或 timed_out 也进入 reconcile；数据库终态不释放物理资源配额。`reconcile-completed-v1` patch 保留旧历史的重放路径，新执行在独立核验完成后才结束调度。reconcile 必须返回数据库既有终态，不能用清理成功或迟到取消改写任务结果。
 - Temporal 心跳与数据库租约是两个不同机制。后续执行 activity 必须同时维护，并在每次模型/沙盒操作前检查许可；当前 workflow 测试不证明真实工具已具备该保证。
 
 ## 复现与展示服务
@@ -55,3 +56,5 @@ PYTHONPATH=core core/agent/.venv/bin/python -m pytest \
 这是官方开发服务器，仅用于单机展示。生产仍需单独配置 Temporal HA、持久数据库、TLS、命名空间、备份与恢复；`start-dev` 不作为生产部署模板。删除/回滚前应停止新任务、排空 worker 并备份 SQLite，不能直接删除进行中的状态。
 
 Context7 当前不可用，核对已安装 SDK 源码及官方文档：[Python SDK](https://github.com/temporalio/sdk-python)、[开发服务器](https://docs.temporal.io/cli/command-reference/server)、[CLI 全局配置](https://docs.temporal.io/cli/command-reference/env#global-flags)、[Spring 多 SecurityFilterChain](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html)。
+
+2026-11-04 终态清理修复：同一组命令现为 24 项通过、0 跳过（82.72 秒）。新增正常失败/超时也触发清理的检查，成功用例也必须观察一次 reconcile；仍使用真实 Temporal 开发服务验证取消、心跳丢失和服务重启。activity 在这些测试中是明确的测试实现，结果不代表生产物理清理已接通。

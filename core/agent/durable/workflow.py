@@ -27,6 +27,7 @@ class AgentRunWorkflow:
 
     @workflow.run
     async def run(self, run: RunRef) -> RunResult:
+        completed = False
         try:
             while not self.cancel_requested:
                 # A busy admission returns queued without performing effects. Once
@@ -44,7 +45,13 @@ class AgentRunWorkflow:
                 result = await self.executing
                 self.executing = None
                 if result.state != "queued":
-                    return result
+                    # A terminal database state still holds its execution and
+                    # sandbox reservations until independent physical cleanup.
+                    # Preserve replay of histories created before this repair.
+                    if not workflow.patched("reconcile-completed-v1"):
+                        return result
+                    completed = True
+                    break
                 try:
                     await workflow.wait_condition(
                         lambda: self.cancel_requested, timeout=timedelta(seconds=2)
@@ -60,7 +67,12 @@ class AgentRunWorkflow:
         return await workflow.execute_activity(
             RECONCILE_ACTIVITY,
             ReconcileRequest(
-                run, "cancel_requested" if self.cancel_requested else "outcome_unknown"
+                run,
+                (
+                    "cancel_requested"
+                    if self.cancel_requested
+                    else "execution_completed" if completed else "outcome_unknown"
+                ),
             ),
             result_type=RunResult,
             start_to_close_timeout=timedelta(seconds=90),

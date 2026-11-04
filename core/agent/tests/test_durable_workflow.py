@@ -47,6 +47,7 @@ class Activities:
         self.started = asyncio.Event()
         self.stopped = asyncio.Event()
         self.unblock = asyncio.Event()
+        self.terminal = None
 
     @activity.defn(name=EXECUTE_ACTIVITY)
     async def execute(self, run: RunRef) -> RunResult:
@@ -67,7 +68,10 @@ class Activities:
                 while not self.unblock.is_set():
                     activity.heartbeat()
                     await asyncio.sleep(0.1)
-            return RunResult("succeeded")
+            self.terminal = (
+                self.mode if self.mode in {"failed", "timed_out"} else "succeeded"
+            )
+            return RunResult(self.terminal)
         finally:
             self.stopped.set()
 
@@ -75,8 +79,11 @@ class Activities:
     async def reconcile(self, request: ReconcileRequest) -> RunResult:
         self.cleanups += 1
         activity.heartbeat()
+        # Reconciliation reads the ledger; it never replaces an established
+        # terminal outcome with a late cancellation or a generic cleanup result.
         return RunResult(
-            "cancelled" if request.reason == "cancel_requested" else "failed"
+            self.terminal
+            or ("cancelled" if request.reason == "cancel_requested" else "failed")
         )
 
     def worker(self, client, queue):
@@ -126,8 +133,26 @@ async def test_real_sdk_workflow_completes_and_history_contains_only_reference(
                 assert len(payloads) == 1 and json.loads(payloads[0].data) == expected
             if event.HasField("activity_task_scheduled_event_attributes"):
                 payloads = event.activity_task_scheduled_event_attributes.input.payloads
-                assert len(payloads) == 1 and json.loads(payloads[0].data) == expected
-        assert activities.calls == 1 and activities.cleanups == 0
+                attributes = event.activity_task_scheduled_event_attributes
+                value = json.loads(payloads[0].data)
+                assert len(payloads) == 1
+                if attributes.activity_type.name == RECONCILE_ACTIVITY:
+                    assert value == {"run": expected, "reason": "execution_completed"}
+                else:
+                    assert value == expected
+        assert activities.calls == 1 and activities.cleanups == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["failed", "timed_out"])
+async def test_returned_terminal_failure_also_reconciles_resources(temporal, state):
+    activities, run, queue = Activities(state), ref(), "test-" + uuid4().hex
+    async with activities.worker(temporal.client, queue):
+        result = await temporal.client.execute_workflow(
+            AgentRunWorkflow.run, run, id=workflow_id(run.run_id), task_queue=queue
+        )
+        assert result.state == state
+        assert activities.calls == 1 and activities.cleanups == 1
 
 
 @pytest.mark.asyncio

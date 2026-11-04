@@ -22,6 +22,7 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 6. 运行记录包含 deployment/release/config 摘要、tenant/environment、主体、截止时间、幂等键、trace_id 和 usage。事件保留有期限；客户端重连用 Last-Event-ID，超出保留范围明确报 event_history_expired 并引导查询状态。
 7. Temporal 成为新增基础设施依赖，但不替换所有现有 Kafka/Celery 功能。对接任务相关共享层前记录调用链与影响，先灰度迁移一条 Agent 路径，再扩至另一条。
 8. 调度载荷只传 tenant/environment/run_id 和安全状态。受信 worker 以独立服务身份及数据库租约按需取得固定模型/Skill 版本，密钥和用户输入不写入 Temporal 参数或结果。租约校验同时检查 worker 身份、取消、截止时间及版本撤销；对象读取后再复查一次。所有 worker 模型/沙盒操作仍须独立校验许可，取得一次配置不代表整个任务持续获准。
+9. execute 正常返回任何终态也必须进入 reconcile；终态提交不等于物理资源已释放。reconcile 读取数据库最终状态，独立确认 worker 与沙盒停止后才能释放配额，迟到取消不覆盖既有成功。旧 Temporal 历史通过 patch 标记保持可重放；独立补偿扫描负责旧历史及超过 activity 重试窗口的清理。
 
 ## Risks / Trade-offs
 
