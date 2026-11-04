@@ -28,6 +28,8 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+2026-11-05 运行配置读取诊断：展示机两次在模型/沙盒调用前出现 CONTROL_UNAVAILABLE；现有日志抹除了网络异常类别。仅在受信日志记录固定分类（连接、读取、总时限、传输、响应格式），不记录异常文本、URL、响应或凭据。只读 runtime 读取允许一次传输故障重试；重试前必须续约成功，HTTP 拒绝、响应格式错误和取消均不得重试。该机制不重放模型、工具、沙盒创建或任意有副作用操作，不把缓解视为已经证明根因。
+
 [跨数据库/调度器一致性] → outbox+唯一 ID+reconciler；[重复副作用] → operation_id、下游幂等与未知结果失败；[配额泄漏/旧 worker 继续执行] → fencing+心跳+回收；[Temporal 运维成本] → 限定任务用途并纳入离线备份恢复。
 
 ## Migration Plan

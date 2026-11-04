@@ -1,0 +1,257 @@
+{
+  "browser_observed": {
+    "run_id": "6289b572-eb36-42ba-a59b-0d7bb7483d89",
+    "state": "succeeded",
+    "event_count": 284,
+    "usage_total_tokens": 12717,
+    "manual_reconnect_clicked": false,
+    "cancel_run_id": "feb1bfb5-cea9-4602-8711-5f648e92251c",
+    "cancel_state": "cancelled"
+  },
+  "interruption": {
+    "checked_at": "2026-11-04T20:20:08.000785+00:00",
+    "run_id": "6289b572-eb36-42ba-a59b-0d7bb7483d89",
+    "mode": "interrupt_ingress",
+    "concurrent_run_id": "4768639c-9e5c-4903-abd5-037000efaa86",
+    "concurrent_running_observed": true,
+    "independent_leases": [
+      "8ce3cf7d-fc03-46a8-afbf-dc3084501a67",
+      "225aee12-4e83-431f-8a04-9cc4adbbf09b"
+    ],
+    "old_ingress_pid": "1241020",
+    "new_ingress_pid": "1314630",
+    "restart_seconds": 5.72,
+    "task_survived_disconnect": true,
+    "shared_services_restarted": false
+  },
+  "reconnected_run": {
+    "checked_at": "2026-11-04T20:28:56.101557+00:00",
+    "run_id": "6289b572-eb36-42ba-a59b-0d7bb7483d89",
+    "mode": "collect",
+    "state": "succeeded",
+    "event_count": 284,
+    "event_sequences_unique": true,
+    "answer_characters": 595,
+    "answer_sha256": "741d6ebc5929b307e156743b200e69fc7b4ce5d6e521bf3a9758b4c7b6b8ca47",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-8ce3cf7dfc0346a8afbfdc3084501a67.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-8ce3cf7dfc0346a8afbfdc3084501a67.service",
+            "InvocationID": "54568eab6bc94793a9d8690164e8d933",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "1313235",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-8ce3cf7dfc0346a8afbfdc3084501a67.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "54568eab6bc94793a9d8690164e8d933",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-04T20:21:49.242779+00:00",
+          "unitName": "oa-exec-8ce3cf7dfc0346a8afbfdc3084501a67.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "observedAt": "2026-11-04T20:21:49.483341+00:00",
+          "reason": "acknowledged_creation_entity_absent",
+          "removedContainerId": null,
+          "sandboxAbsent": true,
+          "sandboxId": "af7e6190-970d-4cf6-a833-ee21ac9305ed",
+          "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "14dabfcce30a11b4d5831590ceabbfce9402c5bc95767e8ef69923f805f6a022",
+        "invocationId": "54568eab6bc94793a9d8690164e8d933",
+        "kind": "stopped_unit",
+        "proofId": "ca87542f-5aae-4184-a257-ebb0caccbd1a",
+        "sandboxAbsent": true,
+        "sandboxId": "af7e6190-970d-4cf6-a833-ee21ac9305ed",
+        "unitName": "oa-exec-8ce3cf7dfc0346a8afbfdc3084501a67.service",
+        "workerStopped": true
+      }
+    },
+    "physical_container_absent": true,
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "succeeded"
+      }
+    },
+    "supervision_phase": "released",
+    "lease_state": "released",
+    "sandbox_phase": "released"
+  },
+  "concurrent_run": {
+    "checked_at": "2026-11-04T20:28:59.929919+00:00",
+    "run_id": "4768639c-9e5c-4903-abd5-037000efaa86",
+    "mode": "collect",
+    "state": "succeeded",
+    "event_count": 284,
+    "event_sequences_unique": true,
+    "answer_characters": 518,
+    "answer_sha256": "d9e701eda579b8974b5bcf2c5a3cb86b5b863340f202daa9fad012693820f9cf",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-225aee124e83431f8a049cc4adbbf09b.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-225aee124e83431f8a049cc4adbbf09b.service",
+            "InvocationID": "2491fe9899fe4a7088e48254af5186a3",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "1314459",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-225aee124e83431f8a049cc4adbbf09b.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "2491fe9899fe4a7088e48254af5186a3",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-04T20:20:30.064311+00:00",
+          "unitName": "oa-exec-225aee124e83431f8a049cc4adbbf09b.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "reason": "no_sandbox_creation_authorized",
+          "sandboxAbsent": true
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "6ec8414bda49e7696bea0cec049605e41ffb6fe2d05781ee90253ec435f6d07e",
+        "invocationId": "2491fe9899fe4a7088e48254af5186a3",
+        "kind": "stopped_unit",
+        "proofId": "0dd49394-042c-4063-b7f8-3298f5dc51a5",
+        "sandboxAbsent": true,
+        "sandboxId": null,
+        "unitName": "oa-exec-225aee124e83431f8a049cc4adbbf09b.service",
+        "workerStopped": true
+      }
+    },
+    "physical_container_absent": true,
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "succeeded"
+      }
+    },
+    "supervision_phase": "released",
+    "lease_state": "released",
+    "sandbox_phase": null
+  },
+  "cancelled_run": {
+    "checked_at": "2026-11-04T20:06:13.246717+00:00",
+    "run_id": "feb1bfb5-cea9-4602-8711-5f648e92251c",
+    "mode": "collect",
+    "state": "cancelled",
+    "event_count": 8,
+    "event_sequences_unique": true,
+    "answer_characters": 0,
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-a1bd2b07e6d548f7a62bdfe0b95624dd.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-a1bd2b07e6d548f7a62bdfe0b95624dd.service",
+            "InvocationID": "40aa179f2e1e407f859a2182632e9fc9",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "1287515",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-a1bd2b07e6d548f7a62bdfe0b95624dd.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "40aa179f2e1e407f859a2182632e9fc9",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-04T20:04:00.359809+00:00",
+          "unitName": "oa-exec-a1bd2b07e6d548f7a62bdfe0b95624dd.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "observedAt": "2026-11-04T20:04:00.474940+00:00",
+          "reason": "acknowledged_creation_entity_absent",
+          "removedContainerId": null,
+          "sandboxAbsent": true,
+          "sandboxId": "50a78b34-d2bb-41ba-9cb4-7b40eb8865bd",
+          "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "dcbd0c59e468bd892e7d0b4fa2f85f56be79cd4111875ce880ed9228fe61cac8",
+        "invocationId": "40aa179f2e1e407f859a2182632e9fc9",
+        "kind": "stopped_unit",
+        "proofId": "248895c5-79f0-4adf-83be-677e473dfc3e",
+        "sandboxAbsent": true,
+        "sandboxId": "50a78b34-d2bb-41ba-9cb4-7b40eb8865bd",
+        "unitName": "oa-exec-a1bd2b07e6d548f7a62bdfe0b95624dd.service",
+        "workerStopped": true
+      }
+    },
+    "physical_container_absent": true,
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "cancelled"
+      }
+    },
+    "supervision_phase": "released",
+    "lease_state": "released",
+    "sandbox_phase": "released"
+  }
+}

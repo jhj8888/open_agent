@@ -86,3 +86,12 @@ def test_executor_diagnostics_exclude_exception_message_and_locals():
     assert credential not in json.dumps(diagnostic)
     assert diagnostic['error_type'] == 'ValueError'
     assert diagnostic['frames'][-1]['function'] == 'test_executor_diagnostics_exclude_exception_message_and_locals'
+
+
+def test_control_diagnostics_use_only_fixed_categories():
+    from agent.durable.child import failure_location
+    from agent.durable.control import ControlPlaneError
+    diagnostic = failure_location(ControlPlaneError('untrusted-private-key', 'read_timeout'))
+    assert diagnostic['control_category'] == 'read_timeout'
+    assert 'untrusted-private-key' not in json.dumps(diagnostic)
+    assert failure_location(ControlPlaneError('CONTROL_UNAVAILABLE', 'untrusted-private-key'))['control_category'] == 'unspecified'

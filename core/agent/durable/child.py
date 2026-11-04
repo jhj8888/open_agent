@@ -18,7 +18,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from agent.durable.control import ControlPlaneClient
+from agent.durable.control import ControlPlaneClient, ControlPlaneError
 from agent.durable.contracts import TERMINAL
 from agent.durable.supervision import SupervisedLease
 
@@ -31,7 +31,10 @@ def failure_location(error: BaseException) -> dict:
         code = trace.tb_frame.f_code
         frames.append({'file': Path(code.co_filename).name, 'function': code.co_name, 'line': trace.tb_lineno})
         trace = trace.tb_next
-    return {'error_type': type(error).__name__, 'frames': frames[-8:]}
+    result = {'error_type': type(error).__name__, 'frames': frames[-8:]}
+    if isinstance(error, ControlPlaneError):
+        result['control_category'] = error.category
+    return result
 
 
 class SandboxSettings(BaseModel):

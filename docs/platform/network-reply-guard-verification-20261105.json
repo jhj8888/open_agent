@@ -1,0 +1,215 @@
+{
+  "before": {
+    "probes": [
+      {
+        "source_port": 45937,
+        "outcome": "connected",
+        "seconds": 0.0
+      },
+      {
+        "source_port": 46137,
+        "outcome": "timeout",
+        "seconds": 2.002
+      }
+    ],
+    "ephemeral_range": "32768\t60999",
+    "guard_counters": [
+      "    1043    57324 DROP       6    --  !lo    *       0.0.0.0/0            0.0.0.0/0            tcp dpts:46000:46499 /* open-agent-sandbox-published-deny */",
+      "     435    24236 DROP       6    --  !lo    *       0.0.0.0/0            0.0.0.0/0            tcp dpts:46000:46499 /* open-agent-sandbox-published-deny */"
+    ]
+  },
+  "after": {
+    "checked_at": "2026-11-04T20:28:37.282943+00:00",
+    "reply_probes": [
+      {
+        "source_port": 45941,
+        "connected": true,
+        "seconds": 0.0
+      },
+      {
+        "source_port": 46141,
+        "connected": true,
+        "seconds": 0.0
+      },
+      {
+        "source_port": 46441,
+        "connected": true,
+        "seconds": 0.0
+      }
+    ],
+    "new_non_loopback_connection_denied": true,
+    "guard_drop_counter_increased": true,
+    "ipv4_ipv6_rules_verified": true,
+    "legacy_rules_absent": true,
+    "shared_firewall_reloaded": false,
+    "probe_container_removed": true
+  },
+  "post_fix_skill_run": {
+    "checked_at": "2026-11-04T20:29:36.044167+00:00",
+    "run_id": "6562f262-cb68-4c6b-8cea-5484111da315",
+    "state": "succeeded",
+    "error_code": null,
+    "idempotency_verified": true,
+    "duration_seconds": 28.378,
+    "event_count": 208,
+    "event_types": [
+      "execution.notice",
+      "message.delta",
+      "run.state",
+      "tool.finished",
+      "usage"
+    ],
+    "answer_characters": 426,
+    "answer_sha256": "5f87b530c38c6035bb25f860138a8a8597d09b2c1d83bba3e1b315fb9a831d03",
+    "supervision_phase": "released",
+    "attempt_lease_state": "released",
+    "real_model_configured": true,
+    "model_answer_received": true,
+    "sandbox_used": true,
+    "public_endpoint": false,
+    "script_output_verified": true,
+    "tools": [
+      "read_file",
+      "ls",
+      "read_file",
+      "execute"
+    ],
+    "sandbox_phase": "released",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-b01d1caaa03b442693cbef5a62132cbf.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-b01d1caaa03b442693cbef5a62132cbf.service",
+            "InvocationID": "e04141abff73454cbfa8cec8820fd4f6",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "1341194",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-b01d1caaa03b442693cbef5a62132cbf.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "e04141abff73454cbfa8cec8820fd4f6",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-04T20:29:34.984582+00:00",
+          "unitName": "oa-exec-b01d1caaa03b442693cbef5a62132cbf.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "observedAt": "2026-11-04T20:29:35.088227+00:00",
+          "reason": "acknowledged_creation_entity_absent",
+          "removedContainerId": null,
+          "sandboxAbsent": true,
+          "sandboxId": "3732225a-58dc-42dd-8c8e-be0783f36442",
+          "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "da1537506c184860f6a743a167cdabee4bb728c2cab8d4e91f70c2579aa634a4",
+        "invocationId": "e04141abff73454cbfa8cec8820fd4f6",
+        "kind": "stopped_unit",
+        "proofId": "d7261e1b-dfcf-490f-8e27-854bec63eaad",
+        "sandboxAbsent": true,
+        "sandboxId": "3732225a-58dc-42dd-8c8e-be0783f36442",
+        "unitName": "oa-exec-b01d1caaa03b442693cbef5a62132cbf.service",
+        "workerStopped": true
+      }
+    },
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "succeeded"
+      }
+    }
+  },
+  "worker_source_sha256": "c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6",
+  "python_regression": {
+    "count": 63,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "cases": [
+      "test_control_service_credentials_require_tls_or_literal_loopback[http://control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://user:pass@control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal/base]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal?token=x]",
+      "test_client_sends_service_identity_but_never_accepts_worker_identity_from_body",
+      "test_errors_never_echo_private_response_or_follow_redirects[302]",
+      "test_errors_never_echo_private_response_or_follow_redirects[401]",
+      "test_errors_never_echo_private_response_or_follow_redirects[403]",
+      "test_errors_never_echo_private_response_or_follow_redirects[409]",
+      "test_errors_never_echo_private_response_or_follow_redirects[503]",
+      "test_client_bounds_response_and_rejects_paths_outside_internal_namespace",
+      "test_slow_stream_cannot_extend_outbox_claim_indefinitely",
+      "test_runtime_secret_is_masked_and_invalid_runtime_errors_do_not_echo_it",
+      "test_artifact_transport_preserves_exact_bytes_and_bounds_download",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[recovered]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[twice]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[fenced]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[http_denied]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[bad_json]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[cancelled]",
+      "test_mutation_transport_failure_is_never_retried",
+      "test_host_admission_sends_bound_capability_and_never_accepts_foreign_lease",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[200-body0]",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[200-body1]",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[200-body2]",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[200-None]",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[302-body4]",
+      "test_host_admission_fails_closed_on_invalid_evidence_or_redirect[403-body5]",
+      "test_executor_rejects_wrong_attempt_credentials_before_any_runtime_io",
+      "test_executor_diagnostics_exclude_exception_message_and_locals",
+      "test_control_diagnostics_use_only_fixed_categories",
+      "test_host_command_reads_fragmented_output_to_eof_with_a_hard_limit",
+      "test_admission_rejects_unsafe_container_before_root_initialization[Privileged-True]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[Runtime-runc]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[NetworkMode-host]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[PidMode-host]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[IpcMode-host]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[UTSMode-host]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[Binds-invalid6]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[Devices-invalid7]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[CapAdd-invalid8]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[DeviceRequests-invalid9]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[Memory-0]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[NanoCpus-0]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[PidsLimit--1]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[RestartPolicy-invalid13]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[SecurityOpt-invalid14]",
+      "test_admission_rejects_unsafe_container_before_root_initialization[CapDrop-invalid15]",
+      "test_admission_checks_bound_id_and_mounts_and_initializes_only_fixed_uid",
+      "test_unknown_creation_never_adopted_or_released_even_when_container_observed[False]",
+      "test_unknown_creation_never_adopted_or_released_even_when_container_observed[True]",
+      "test_acknowledged_cleanup_removes_exact_container_and_proves_absence_afterward",
+      "test_mismatched_cleanup_entity_never_removed_and_failed_verification_never_proves_absence",
+      "test_absence_checks_labels_and_same_name_containers",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[capability]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[extra]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[prod]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[cancelled]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[permit]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[image]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[oversized]",
+      "test_unix_admission_rejects_invalid_capability_scope_input_and_current_permission[wrong_id]",
+      "test_unix_admission_checks_permission_before_and_after_host_verification"
+    ]
+  }
+}

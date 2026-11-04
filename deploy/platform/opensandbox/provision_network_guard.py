@@ -26,7 +26,8 @@ def rules():
         yield 'FORWARD', [direction, BRIDGE, '-m', 'comment', '--comment', 'open-agent-sandbox-forward-deny', '-j', 'DROP']
     yield 'INPUT', ['-i', BRIDGE, '-m', 'conntrack', '!', '--ctstate', 'ESTABLISHED,RELATED', '-m', 'comment',
                     '--comment', 'open-agent-sandbox-host-deny', '-j', 'DROP']
-    yield 'INPUT', ['!', '-i', 'lo', '-p', 'tcp', '--dport', '46000:46499', '-m', 'comment', '--comment',
+    yield 'INPUT', ['!', '-i', 'lo', '-p', 'tcp', '--dport', '46000:46499',
+                    '-m', 'conntrack', '!', '--ctstate', 'ESTABLISHED,RELATED', '-m', 'comment', '--comment',
                     'open-agent-sandbox-published-deny', '-j', 'DROP']
 
 
@@ -47,6 +48,18 @@ def main(install=True):
             # Docker/firewalld setup. The admission verifier checks these live.
             if command(executable, '-w', '5', '-C', chain, *rule, check=False).returncode:
                 command(executable, '-w', '5', '-I', chain, '1', *rule)
+        # Install the replacement before removing only our exact legacy rules.
+        legacy = ['!', '-i', 'lo', '-p', 'tcp', '--dport', '46000:46499', '-m', 'comment', '--comment',
+                  'open-agent-sandbox-published-deny', '-j', 'DROP']
+        for flags in (['--permanent'], []):
+            if not command('firewall-cmd', *flags, '--direct', '--query-rule', family, 'filter', 'INPUT', '0', *legacy, check=False).returncode:
+                command('firewall-cmd', *flags, '--direct', '--remove-rule', family, 'filter', 'INPUT', '0', *legacy)
+        for _ in range(20):
+            if command(executable, '-w', '5', '-C', 'INPUT', *legacy, check=False).returncode:
+                break
+            command(executable, '-w', '5', '-D', 'INPUT', *legacy)
+        else:
+            raise RuntimeError('Unexpected duplicate legacy project rules')
     if install:
         target = Path('/opt/open-agent/sandbox/network_guard.py')
         unit = Path('/etc/systemd/system/open-agent-network-guard.service')

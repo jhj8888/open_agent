@@ -1,7 +1,7 @@
 {
-  "checked_at": "2026-11-04T19:13:51.658072+00:00",
+  "checked_at": "2026-11-04T20:29:04.366383+00:00",
   "origin": "https://120.26.81.83",
-  "console_archive_sha256": "d61a56e71a918d1e03db037c263995f25bcdee739eda42138a77ab3c67fbeed4",
+  "console_archive_sha256": "4be168bb11daca0978e0593490ff9f9ee38f392d29d77e3140234e47a90e1e29",
   "asset_digests_verified": 3,
   "trusted_tls": true,
   "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
@@ -12,7 +12,7 @@
   "forged_headers_rejected": true,
   "internal_route_denied": true,
   "authenticated_public_api": true,
-  "list_detail_usage_matches": 3,
+  "list_detail_usage_matches": 9,
   "static_csp": true,
   "browser_verification": "separate manual browser evidence required"
 }

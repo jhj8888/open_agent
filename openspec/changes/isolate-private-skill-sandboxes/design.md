@@ -31,6 +31,8 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 
 ## Risks / Trade-offs
 
+2026-11-05 展示机网络修复：宿主临时端口范围 32768–60999 与沙盒发布端口 46000–46499 重叠。原 INPUT 非 lo 的全状态 DROP 会拦截宿主主动连接私有容器时的 SYN-ACK/回包，已通过绑定源端口 45937 成功、46137 超时复现。发布端口规则增加 conntrack 非 ESTABLISHED,RELATED 条件；所有沙盒 FORWARD 和沙盒主动访问宿主的禁止规则保留。迁移先安装 IPv4/IPv6 新规则，再精确删除带项目 comment 的旧规则（含重复项和 firewalld runtime/permanent direct 规则），不 reload 共享防火墙。主机准入核验、初始安装与独立验证同步修改。验收必须覆盖重叠源端口回包成功以及其他 bridge 发起新连接仍被拒绝。
+
 [部署组合未验证] → 第一任务固定版本并验证兼容性；[容器逃逸与网络策略缺陷] → 独立内核+最小权限+攻击性验收；[沙盒泄漏] → 租约与周期回收；[启动延迟] → 后续基于实测决定预热，不预承诺并发量。
 
 ## Migration Plan

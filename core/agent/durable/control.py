@@ -18,8 +18,12 @@ from agent.durable.contracts import RunRef
 
 
 class ControlPlaneError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, category: str = "unspecified") -> None:
         self.code = code
+        self.category = category if category in {
+            "connect_timeout", "read_timeout", "write_timeout", "pool_timeout",
+            "total_timeout", "transport", "response_format", "unspecified",
+        } else "unspecified"
         super().__init__(code)
 
 
@@ -155,8 +159,22 @@ class ControlPlaneClient:
                 return data if raw else json.loads(data)
         except ControlPlaneError:
             raise
-        except (httpx.HTTPError, ValueError, UnicodeError, TimeoutError):
-            raise ControlPlaneError("CONTROL_UNAVAILABLE") from None
+        except (httpx.HTTPError, ValueError, UnicodeError, TimeoutError) as error:
+            if isinstance(error, httpx.ConnectTimeout):
+                category = "connect_timeout"
+            elif isinstance(error, httpx.ReadTimeout):
+                category = "read_timeout"
+            elif isinstance(error, httpx.WriteTimeout):
+                category = "write_timeout"
+            elif isinstance(error, httpx.PoolTimeout):
+                category = "pool_timeout"
+            elif isinstance(error, TimeoutError):
+                category = "total_timeout"
+            elif isinstance(error, httpx.HTTPError):
+                category = "transport"
+            else:
+                category = "response_format"
+            raise ControlPlaneError("CONTROL_UNAVAILABLE", category) from None
 
     async def deliveries(self, limit: int = 10) -> list[Delivery]:
         data = await self.request(
@@ -241,9 +259,21 @@ class ControlPlaneClient:
     async def runtime(self, lease: AttemptLease):
         from agent.durable.runtime_config import RuntimeBundle
 
-        data = await self.request(
-            f"/internal/platform/worker/runs/{lease.run.run_id}/runtime", lease.body()
-        )
+        path = f"/internal/platform/worker/runs/{lease.run.run_id}/runtime"
+        try:
+            data = await self.request(path, lease.body())
+        except ControlPlaneError as error:
+            if error.code != "CONTROL_UNAVAILABLE" or error.category not in {
+                "connect_timeout", "read_timeout", "write_timeout", "pool_timeout", "total_timeout", "transport",
+            }:
+                raise
+            # This endpoint only reads a lease-bound snapshot. Do not generalize
+            # this retry to model/tool calls or mutations with uncertain outcomes.
+            if not await self.heartbeat(lease):
+                raise ControlPlaneError("CONTROL_LEASE_FENCED") from None
+            print(json.dumps({"event": "control.runtime_retry", "run_id": lease.run.run_id,
+                              "category": error.category}), flush=True)
+            data = await self.request(path, lease.body())
         try:
             return RuntimeBundle.model_validate(data)
         except ValueError:

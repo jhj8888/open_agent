@@ -18,11 +18,27 @@
 | 环境切换 | 无生产成员权限时清空测试部署/任务，发布按钮禁用，服务端拒绝读取 |
 | HTTPS 与入口 | 公共 CA 校验通过，3 个静态资产摘要一致；匿名/伪造身份拒绝、内部路径拒绝、CSP 生效 |
 | 用量回归 | 一项真实 MySQL 用例通过，覆盖列表与详情一致、缺失为 null、旧重复事件不回退用量 |
+| 浏览器取消 | `feb1bfb5` 从运行中变为 cancelled；执行进程、沙盒与配额均经独立核验释放 |
+| 并发与自动重连 | `6289b572` 与 `4768639c` 同时运行，使用独立进程/租约；专属入口 SIGKILL 后 5.72 秒恢复，原任务继续成功。浏览器无手工重连，最终 284 条事件与数据库一致 |
+| 登出 | Casdoor 清除会话并返回工作台登录入口；应用回调白名单同时登记 callback 与登出落点 |
+| 生产发布与凭据 | 模型版生产任务 `e21cd081` 成功，219 Token；Skill 同摘要推广成功；旧/撤销凭据被拒绝，轮换凭据保留原任务查询权 |
+| 发布事务回归 | 4 项真实 MySQL 测试覆盖失败/取消/未回收/摘要不匹配、指定任务证据及失败回滚 |
+| 网络回归 | 源端口重叠误拦截已复现并修复；3 个固定源端口连通，其他网桥新建连接仍被拒绝；修复后真实 Skill 任务 `6562f262` 成功并回收 |
 | 构建 | TypeScript 与 Vite 工作台构建通过；Java 21 独立入口打包通过 |
 
-证据：`console-run-verification-20261105.json`、`public-console-verification-20261105.json`。当前静态包摘要 `d61a56e71a918d1e03db037c263995f25bcdee739eda42138a77ab3c67fbeed4`，Java 制品摘要 `983164da71af4b662f6dfcaa9ef972e3880642183406a53e09a15459fdcdcd6f`。
+证据：`console-run-verification-20261105.json`、`public-console-verification-20261105.json`、`production-promotion-verification-20261105.json`、`console-recovery-verification-20261105.json` 与 `network-reply-guard-verification-20261105.json`。
 
-工作台包含模型、Skill、部署凭据、成员配额和审计表单；本批证据不声称全部表单已完成浏览器验收。自动断线重连、浏览器取消、跨租户流程、登出和生产推广继续验收。统计仅代表每个可见部署最近 50 个任务；CPU/内存监控尚未接入。故障注入产生的失败/取消记录保留，成功率不会为演示而清洗。
+当前静态包 SHA256 `4be168bb11daca0978e0593490ff9f9ee38f392d29d77e3140234e47a90e1e29`；Java 制品 `cb25d4d6d604e4ae06bbd650e43b59da7c05973d8e0f13046f251b1f195ff6d9`；worker 源包 `c333a37c94a030b866452e262c6aedde24245f938ede54423b996738cfaad8a6`。
+
+工作台包含模型、Skill、部署凭据、成员配额和审计表单；完整管理表单及跨租户浏览器流程继续验收。统计仅代表每个可见部署最近 50 个任务；CPU/内存监控尚未接入。生产 Skill 已完成发布门禁和制品推广，执行仍要求 Kata，不在 gVisor 展示机放宽。故障注入及修复前真实失败/取消记录保留，成功率不会为演示而清洗。
+
+展示账号按职责分离：`demo` 为测试/生产 tenant_admin，管理模型、凭据与成员；`publisher` 为 operator，负责推广，不能管理密钥。生产执行权限按部署显式登记。凭据只保存在本机私有记录和展示机 root 可读文件，不写入 Git。
+
+## 网络故障与恢复
+
+`b4b5a9f0`、`303eb8c3` 在 runtime 读取阶段失败，另一次验证脚本连接 Casdoor 超时。已定位项目 INPUT 全状态端口规则与 Linux 临时端口范围重叠：固定源端口 46137 超时而 45937 成功，规则累计丢包可见。新增 conntrack 条件并迁移旧重复规则后，46141、46441 回包成功，其他 bridge 对沙盒端口的新连接仍被拒绝并增加 DROP 计数。迁移不 reload/flush 共享防火墙。语义依据 [iptables conntrack 手册](https://man7.org/linux/man-pages/man8/iptables-extensions.8.html)。
+
+执行配置获取另增加一次有限传输重试，重试前必须续约成功；HTTP 拒绝、无效 JSON、取消不重试，模型/工具不重放。只记录固定分类，保留单次总时限，采用 [HTTPX 官方异常类型](https://www.python-httpx.org/exceptions/)。相关传输/核验回归共 63 项通过。
 
 ## 构建与发布
 

@@ -99,7 +99,8 @@ class DockerSandboxHost:
                 '-m', 'conntrack', '!', '--ctstate', 'ESTABLISHED,RELATED', '-m', 'comment',
                 '--comment', 'open-agent-sandbox-host-deny', '-j', 'DROP')
             await self.command(executable, '-w', '5', '-C', 'INPUT', '!', '-i', 'lo', '-p', 'tcp',
-                '--dport', '46000:46499', '-m', 'comment', '--comment', 'open-agent-sandbox-published-deny', '-j', 'DROP')
+                '--dport', '46000:46499', '-m', 'conntrack', '!', '--ctstate', 'ESTABLISHED,RELATED',
+                '-m', 'comment', '--comment', 'open-agent-sandbox-published-deny', '-j', 'DROP')
 
     @staticmethod
     def scope(snapshot: ExecutionSnapshot) -> RunScope:
