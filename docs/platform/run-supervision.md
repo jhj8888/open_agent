@@ -35,3 +35,13 @@ Context7 在本会话不可用。事务采用 [Spring 官方 TransactionTemplate
 2026-11-05 展示机实际验证：真实 Casdoor PKCE 登录 → Agent HTTP 幂等提交 → MySQL outbox → Temporal → systemd 非 root executor → DeepSeek → 持久消息/usage → 终态 → 独立停止 cgroup → 证明与配额事务提交，耗时 18.556 秒，51 条事件、86 字回答；Temporal COMPLETED/succeeded，attempt 与 supervision 均 released。报告见 `model-run-verification-20261105.json`。首次两轮启动因 supervisor 的 UMask=0077 令参数目录不可遍历而失败，未调用模型；失败已完整回收。修复仅将无敏感内容的参数目录显式设为 0755，凭据及核验材料仍 0700/0600。
 
 展示机 `provision_supervisor.py` 只管理带自身 owner 标记的 systemd 服务及根目录。API 的显式 admission 记录需匹配仍在运行的 ready PID，安装器才开启准入；API 始终绑定 127.0.0.1:18082。本阶段 worker 没有 sandbox 适配配置，绑定 Skill 的执行在模型调用前失败关闭，不能作为 Skill 完整验收。前端仍为原展示页，生产 Kubernetes、多租户故障演练和浏览器完整联调尚待完成。
+
+## 沙盒核验接线的影响范围
+
+后续 `HostAdmissionClient → Unix socket/FastAPI → HostSandbox → Docker/systemd` 只位于独立主机 supervisor，不改变旧 Astron 的 provider 或共享业务服务。执行者仍使用官方 OpenSandbox SDK；宿主物理检查采用 Docker 官方 CLI，因为 SDK 的逻辑销毁/列表不能证明宿主 cgroup、挂载或 Docker 容器消失。Uvicorn 使用受限 Unix socket，owner/group 为 root/open-agent-worker，无 TCP 监听；capability 不进入沙盒或日志。cleanup 的控制面写入沿用既有 reconciler API 和事务，不增加 worker 权限。
+
+该适配现已在展示机接通：真实发布 Skill ZIP 到私有 S3 并绑定不可变部署，DeepAgents 读取 Skill、调用 execute，脚本返回 UID 1000 和总额 5420；179 条持久事件完整分页读取，回答与 usage 均保留。实际独立核验执行进程与沙盒消失后，两类配额均释放。见 `skill-run-verification-20261105.json`。实机重复取消在 1.663 秒内回收，SIGKILL 独立 executor 在 3.090 秒内回收，Temporal 分别完成 cancelled/failed；见 `run-recovery-verification-20261105.json`。未重启共享宿主或其他应用。
+
+防护同时写入 IPv4/IPv6 实时规则和 firewalld permanent direct 规则，不执行全局 reload。专属 network-guard systemd 服务在 supervisor 前恢复早期拦截规则；准入每次检查实际规则。参考 [firewalld 官方 runtime/permanent/direct 接口](https://firewalld.org/documentation/man-pages/firewall-cmd.html)。单元/端点测试不替代宿主重启或生产 CNI 验收。
+
+限制：OpenSandbox 1.1.0 创建线程在端口冲突时可内部重建容器。当前适配只自动释放已完整返回并持久登记 ID 的创建；没有 ID 的 creating 即使看到实体也不自动 adopt，保留配额直至独立确认在途创建终止。完整未知创建恢复、生产 Kata/K8S 与离线集群验收仍待完成。正常完成、已确认创建后的取消和 executor SIGKILL 已有上述实测证据。

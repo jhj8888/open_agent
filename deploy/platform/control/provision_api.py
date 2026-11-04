@@ -96,6 +96,12 @@ def main():
         }),
         'PLATFORM_RECONCILER_WORKERS': json.dumps({'demo-supervisor': 'demo-worker'}),
     }
+    sandbox_record = Path('/opt/open-agent/supervisor/sandbox-enabled.json')
+    if sandbox_record.exists():
+        sandbox = json.loads(Path('/opt/open-agent/sandbox/deployment.json').read_text())
+        if sandbox['profile'] != 'gvisor-demo' or sandbox['opensandbox'] != '1.1.0':
+            raise RuntimeError('Unexpected Skill sandbox installation')
+        environment['SKILL_RUNTIME_IMAGES'] = json.dumps([sandbox['runtime_image']])
     private_file(ROOT / 'api.env', ''.join(key + '=' + value + '\n' for key, value in environment.items()), replace=True)
     ensure_container('open-agent-control-api', JRE, [
         '--publish', '127.0.0.1:18082:18082/tcp',

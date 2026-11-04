@@ -80,6 +80,20 @@ def install():
             },
             'source': str(source), 'python': str(python), 'maximum': 2,
         }
+        sandbox_enabled = (ROOT / 'sandbox-enabled.json').exists()
+        if sandbox_enabled:
+            if json.loads((ROOT / 'sandbox-enabled.json').read_text()) != {'profile': 'gvisor-demo'}:
+                raise RuntimeError('Unexpected sandbox activation record')
+            sandbox_root = Path('/opt/open-agent/sandbox')
+            sandbox = json.loads((sandbox_root / 'deployment.json').read_text())
+            if sandbox['profile'] != 'gvisor-demo' or sandbox['endpoint'] != 'http://127.0.0.1:18081':
+                raise RuntimeError('Unexpected sandbox profile')
+            configuration.update(sandbox_image=sandbox['runtime_image'], sandbox_server_image=sandbox['server_image'])
+            configuration['worker_template']['sandbox'] = {
+                'endpoint': sandbox['endpoint'], 'credential': (sandbox_root / 'api-key').read_text().strip(),
+                'profile': 'gvisor-demo', 'admission_socket': '/run/open-agent/supervisor.sock',
+                'admission_capability': 'generated-per-attempt',
+            }
         body = json.dumps(configuration, sort_keys=True, indent=2) + '\n'
         config = ROOT / 'service.json'
         unit = f'''# {OWNER}
@@ -87,6 +101,8 @@ def install():
 Description=Open Agent private execution supervisor
 After=network-online.target open-agent-temporal.service docker.service
 Wants=network-online.target
+{'Requires=open-agent-network-guard.service' if sandbox_enabled else ''}
+{'After=open-agent-network-guard.service' if sandbox_enabled else ''}
 
 [Service]
 Type=simple
@@ -131,7 +147,7 @@ WantedBy=multi-user.target
             raise RuntimeError('Supervisor readiness timeout; inspect owned service logs')
         result = {'source': str(source), 'source_sha256': deployment['source_sha256'],
                   'configuration_sha256': hashlib.sha256(body.encode()).hexdigest(),
-                  'ready': True, 'sandbox_enabled': False, 'maximum': 2,
+                  'ready': True, 'sandbox_enabled': sandbox_enabled, 'maximum': 2,
                   'control_endpoint': api['loopback_endpoint']}
         write(ROOT / 'deployment.json', json.dumps(result, indent=2) + '\n')
         print(json.dumps(result), flush=True)

@@ -1,0 +1,116 @@
+{
+  "checked_at": "2026-11-04T17:55:40.409190+00:00",
+  "run_id": "13dfe984-11a7-4a18-9947-c43d6be05145",
+  "state": "succeeded",
+  "error_code": null,
+  "idempotency_verified": true,
+  "duration_seconds": 35.655,
+  "event_count": 179,
+  "event_types": [
+    "execution.notice",
+    "message.delta",
+    "run.state",
+    "tool.finished",
+    "usage"
+  ],
+  "answer_characters": 378,
+  "answer_sha256": "e3847e735cc76862f0739ac8e946c9652187cd766ebbd22b5a89f9866b7eacb8",
+  "supervision_phase": "released",
+  "attempt_lease_state": "released",
+  "real_model_configured": true,
+  "model_answer_received": true,
+  "sandbox_used": true,
+  "public_endpoint": false,
+  "script_output_verified": true,
+  "tools": [
+    "read_file",
+    "ls",
+    "read_file",
+    "execute"
+  ],
+  "sandbox_phase": "released",
+  "cleanup": {
+    "evidence": {
+      "process": {
+        "after": null,
+        "before": {
+          "ActiveState": "active",
+          "ControlGroup": "/openagent.slice/oa-exec-fb301736e0f64b10b9d04e158240b699.service",
+          "ControlPID": "0",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "Id": "oa-exec-fb301736e0f64b10b9d04e158240b699.service",
+          "InvocationID": "559ccf25391643b6adbce8177eeab21a",
+          "KillMode": "control-group",
+          "LoadState": "loaded",
+          "MainPID": "1047346",
+          "RemainAfterExit": "yes",
+          "Restart": "no",
+          "SubState": "running",
+          "Transient": "yes",
+          "User": "open-agent-worker"
+        },
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroup": {
+          "exists": false,
+          "path": "/openagent.slice/oa-exec-fb301736e0f64b10b9d04e158240b699.service",
+          "populated": 0
+        },
+        "cgroupEmpty": true,
+        "invocationId": "559ccf25391643b6adbce8177eeab21a",
+        "kind": "stopped_unit",
+        "observedAt": "2026-11-04T17:55:38.888044+00:00",
+        "unitName": "oa-exec-fb301736e0f64b10b9d04e158240b699.service",
+        "workerStopped": true
+      },
+      "sandbox": {
+        "creationSettled": true,
+        "observedAt": "2026-11-04T17:55:39.006353+00:00",
+        "reason": "acknowledged_creation_entity_absent",
+        "removedContainerId": null,
+        "sandboxAbsent": true,
+        "sandboxId": "ad25de5b-7e0a-4396-b8ea-38bea6c75b60",
+        "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+      }
+    },
+    "proof": {
+      "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+      "cgroupEmpty": true,
+      "creationSettled": true,
+      "evidenceSha256": "660357e2285e838dd0b6389dd7a512226a0ee170929b0a8a1c6b6279e4131d58",
+      "invocationId": "559ccf25391643b6adbce8177eeab21a",
+      "kind": "stopped_unit",
+      "proofId": "fd30aa0b-4dbd-40c8-ae2b-9639a07a39d4",
+      "sandboxAbsent": true,
+      "sandboxId": "ad25de5b-7e0a-4396-b8ea-38bea6c75b60",
+      "unitName": "oa-exec-fb301736e0f64b10b9d04e158240b699.service",
+      "workerStopped": true
+    }
+  },
+  "temporal": {
+    "status": "COMPLETED",
+    "result": {
+      "state": "succeeded"
+    }
+  },
+  "pagination_complete": true,
+  "validation": {
+    "python_tests": 53,
+    "failures": 0,
+    "errors": 0,
+    "openspec_changes_passed": 8
+  },
+  "host_reverification": {
+    "source": "/opt/open-agent/agent-worker/releases/acef3f82accb4062",
+    "network_policy_verified": true,
+    "released_sandbox_absence_reverified": true
+  },
+  "limits": [
+    "gvisor-demo only; production Kata/Kubernetes unverified",
+    "unknown creating without acknowledged ID retains quota; automatic creation-service drain not implemented",
+    "browser remains static preview; public execution is not exposed",
+    "host reboot was not performed on the shared server"
+  ],
+  "execution_source_sha256": "5ef37861f671ebe6ddd93b67fa712ed333aac34ea005b7c9dfbe5b79338914c1",
+  "current_source_sha256": "acef3f82accb4062183b2524ce9c1b10a0fc4595c003ef3bbbfa14fb008b7775"
+}

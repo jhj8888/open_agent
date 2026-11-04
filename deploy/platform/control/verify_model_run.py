@@ -22,13 +22,15 @@ async def workflow_result(run_id):
     return {'status': description.status.name, 'result': result}
 
 
-def main():
+def main(skill=False):
     session = DemoSession()
-    deployment = json.loads((ROOT / 'demo-agent.json').read_text())
+    deployment = json.loads((ROOT / ('demo-skill-agent.json' if skill else 'demo-agent.json')).read_text())
     started = time.monotonic()
     identifier = str(uuid4())
     route = '/api/v1/agent-deployments/' + deployment['deployment_id'] + '/runs'
     body = {'input': {'message': '请用一句中文说明企业为什么需要统一管理 Agent。', 'history': []}, 'timeoutSeconds': 180}
+    if skill:
+        body['input']['message'] = '请使用 isolation-check Skill，实际运行 Python 脚本，给出脚本输出的 uid、销售总额和检查码。'
     accepted = session.call(route, body, {'Idempotency-Key': 'verification-' + identifier})
     run_id = accepted['run_id']
     repeat = session.call(route, body, {'Idempotency-Key': 'verification-' + identifier})
@@ -52,7 +54,8 @@ def main():
         events.extend(page['events'])
         if len(page['events']) < 100:
             break
-        cursor = page['last_sequence']
+        # last_sequence is the run high-water mark, not this page's last item.
+        cursor = page['events'][-1]['sequence_no']
     text = ''.join(event['payload']['text'] for event in events if event['event_type'] == 'message.delta')
     report = {'checked_at': datetime.now(timezone.utc).isoformat(), 'run_id': run_id, 'state': status['state'],
               'error_code': status.get('error_code'), 'idempotency_verified': True, 'duration_seconds': round(time.monotonic() - started, 3),
@@ -61,17 +64,24 @@ def main():
               'supervision_phase': execution.get('phase') if execution else None,
               'attempt_lease_state': execution.get('leaseState') if execution else None,
               'real_model_configured': True, 'model_answer_received': bool(text.strip()),
-              'sandbox_used': False, 'public_endpoint': False}
+              'sandbox_used': bool(execution and execution.get('sandboxId')), 'public_endpoint': False}
+    if skill:
+        report['script_output_verified'] = all(value in text for value in ['1000', '5420', 'SKILL-READY-5420'])
+        report['tools'] = [event['payload']['name'] for event in events if event['event_type'] == 'tool.finished']
+        report['sandbox_phase'] = execution.get('sandboxPhase') if execution else None
     if execution and execution['phase'] == 'released':
         proof = json.loads((Path('/opt/open-agent/supervisor/state') / execution['lease']['leaseId'] / 'cleanup.json').read_text())
         report['cleanup'] = proof
         report['temporal'] = asyncio.run(workflow_result(run_id))
-    private_file(ROOT / ('model-run-' + identifier + '.json'), json.dumps(report, indent=2) + '\n')
-    private_file(ROOT / 'model-run-verification.json', json.dumps(report, indent=2) + '\n', replace=True)
+    prefix = 'skill-run' if skill else 'model-run'
+    private_file(ROOT / (prefix + '-' + identifier + '.json'), json.dumps(report, indent=2) + '\n')
+    private_file(ROOT / (prefix + '-verification.json'), json.dumps(report, indent=2) + '\n', replace=True)
     print(json.dumps(report), flush=True)
     if (status['state'] != 'succeeded' or not text.strip() or not execution or execution['phase'] != 'released'
             or execution['leaseState'] != 'released' or report['temporal']['status'] != 'COMPLETED'):
         raise RuntimeError('Real model run did not pass; evidence retained')
+    if skill and (not report['script_output_verified'] or 'execute' not in report['tools'] or report['sandbox_phase'] != 'released'):
+        raise RuntimeError('Real Skill execution did not pass; evidence retained')
 
 
 if __name__ == '__main__':

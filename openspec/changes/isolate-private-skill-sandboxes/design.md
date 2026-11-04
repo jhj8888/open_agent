@@ -27,6 +27,8 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 
 沙盒创建之前在同一租户/环境锁下预留 `max_sandboxes`，记录一次性的创建意图；SDK 操作在事务之外执行。创建确认丢失不重试创建，所有未知/清理中记录继续占用配额。worker 的创建/删除观察绑定认证身份及完整租约，取消后允许补报资源但不恢复执行许可。只有独立核验执行进程终止、物理沙盒不存在且没有在途创建后，受信回收器才能在同一事务释放沙盒/执行槽并写审计；worker 没有配额释放接口。详见 `docs/platform/sandbox-journal.md`。
 
+单机展示的独立适配器由 root supervisor 持有，仅通过 Unix socket 对外提供 before/after 两个核验操作。每个尝试使用不同 capability，读取控制面绑定与当前许可后才检查固定 gVisor、镜像 digest、Docker 网络、双栈宿主规则和完整租约标签；不接受任意命令。root 只执行固定的展示镜像账号初始化，生产镜像在构建时预置账号。清理先停止 executor cgroup，再按全部租约标签和 Docker 完整容器 ID 核验/删除。固定 OpenSandbox 1.1.0 在端口冲突时可能使用同一 sandbox UUID 重建 Docker 容器，因此只有 SDK 完整返回后持久记录的 ID 可直接进入物理清理；未知 creating 即使发现实体也需先独立确认创建服务已停止原在途创建，不能仅凭观察补记 ID 后释放。若版本、标签、数量或在途创建无法确认则失败关闭，不以 SDK 空列表或 TTL 代替证明。
+
 ## Risks / Trade-offs
 
 [部署组合未验证] → 第一任务固定版本并验证兼容性；[容器逃逸与网络策略缺陷] → 独立内核+最小权限+攻击性验收；[沙盒泄漏] → 租约与周期回收；[启动延迟] → 后续基于实测决定预热，不预承诺并发量。

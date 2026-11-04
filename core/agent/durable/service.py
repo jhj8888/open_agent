@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from datetime import timedelta
 import json
 import logging
 import os
 from pathlib import Path
 import signal
+import socket
 import sys
 from typing import Annotated
 
@@ -46,6 +48,52 @@ class ServiceSettings(BaseModel):
     temporal_namespace: Annotated[str, Field(pattern=r'^[A-Za-z0-9_.-]{1,128}$')] = 'default'
     task_queue: Annotated[str, Field(pattern=r'^open-agent-[A-Za-z0-9_.-]{1,100}$')] = 'open-agent-demo-v1'
     maximum: Annotated[int, Field(strict=True, ge=1, le=16)] = 2
+    sandbox_image: str | None = None
+    sandbox_server_image: str | None = None
+
+
+async def start_admission(app):
+    import pwd
+    import uvicorn
+    from agent.durable.supervisor import directory
+
+    class ManagedServer(uvicorn.Server):
+        @contextmanager
+        def capture_signals(self):
+            # The outer supervisor owns shutdown and fencing of all activities.
+            yield
+
+    path = Path('/run/open-agent/supervisor.sock')
+    directory(path.parent, 0o750)
+    group = pwd.getpwnam('open-agent-worker').pw_gid
+    os.chown(path.parent, 0, group)
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or not path.is_socket() or path.stat().st_uid != 0:
+            raise RuntimeError('supervisor_socket_unsafe')
+        path.unlink()
+    endpoint = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    endpoint.bind(str(path))
+    endpoint.listen(16)
+    os.chown(path, 0, group)
+    path.chmod(0o660)
+    server = ManagedServer(uvicorn.Config(app, log_config=None, access_log=False, proxy_headers=False,
+                                         limit_concurrency=8, timeout_keep_alive=2, timeout_graceful_shutdown=5))
+    task = asyncio.create_task(server.serve(sockets=[endpoint]))
+    try:
+        async with asyncio.timeout(10):
+            while not server.started:
+                if task.done():
+                    await task
+                    raise RuntimeError('supervisor_socket_start_failed')
+                await asyncio.sleep(0.05)
+    except BaseException:
+        server.should_exit = True
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        endpoint.close()
+        path.unlink(missing_ok=True)
+        raise
+    return server, task, endpoint
 
 
 async def serve(settings: ServiceSettings):
@@ -53,10 +101,9 @@ async def serve(settings: ServiceSettings):
         raise RuntimeError('supervisor_launch_invalid')
     if settings.worker_template.get('control_endpoint') != settings.control_endpoint:
         raise RuntimeError('supervisor_endpoint_mismatch')
-    # A sandbox-enabled deployment must install the independent verifier/cleanup adapter.
-    # A missing adapter rejects configuration; it cannot silently weaken Skill isolation.
-    if settings.worker_template.get('sandbox') is not None:
-        raise RuntimeError('supervisor_sandbox_adapter_unavailable')
+    sandbox_enabled = settings.worker_template.get('sandbox') is not None
+    if sandbox_enabled != bool(settings.sandbox_image and settings.sandbox_server_image):
+        raise RuntimeError('supervisor_sandbox_configuration_invalid')
     READY.unlink(missing_ok=True)
     stop = asyncio.Event()
     for event in (signal.SIGINT, signal.SIGTERM):
@@ -68,7 +115,18 @@ async def serve(settings: ServiceSettings):
     api = SupervisorClient(supervisor_control, settings.supervisor.id, settings.worker_template['worker_id'])
     host = HostSupervisor(api, SystemdProcesses(), AttemptFiles(settings.source, settings.python, settings.worker_template), maximum=settings.maximum)
     tasks = []
+    admission = None
+    verifier_control = None
     try:
+        if sandbox_enabled:
+            from agent.durable.host_sandbox import DockerSandboxHost, admission_app
+            sandbox_host = DockerSandboxHost(settings.sandbox_image, settings.sandbox_server_image)
+            await sandbox_host.policy()
+            verifier_control = ControlPlaneClient(settings.control_endpoint, settings.worker_template['worker_id'],
+                                                  settings.worker_template['worker_key'], ca_file=settings.control_ca_file)
+            host.sandbox_cleanup = lambda snapshot: sandbox_host.cleanup(api, snapshot)
+            admission = await start_admission(admission_app(api, verifier_control, sandbox_host, AttemptFiles.STATE))
+            admission[1].add_done_callback(lambda task: stop.set())
         temporal = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
         dispatcher = OutboxDispatcher(dispatcher_control, temporal, settings.task_queue)
         # A supervisor restart never replays an already admitted effect. Fence inherited attempts first.
@@ -92,7 +150,7 @@ async def serve(settings: ServiceSettings):
                      asyncio.create_task(loop('cleanup', host.scan_once, 5))]
             LOG.info('Supervisor ready identity=%s task_queue=%s', settings.supervisor.id, settings.task_queue)
             READY.write_text(json.dumps({'pid': os.getpid(), 'task_queue': settings.task_queue,
-                                         'source': str(settings.source), 'sandbox_enabled': False}) + '\n')
+                                         'source': str(settings.source), 'sandbox_enabled': sandbox_enabled}) + '\n')
             READY.chmod(0o600)
             await stop.wait()
     finally:
@@ -101,12 +159,20 @@ async def serve(settings: ServiceSettings):
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if admission is not None:
+            server, task, endpoint = admission
+            server.should_exit = True
+            await asyncio.gather(task, return_exceptions=True)
+            endpoint.close()
+            Path('/run/open-agent/supervisor.sock').unlink(missing_ok=True)
         try:
             await host.scan_once(startup=True)
         except Exception as error:
             LOG.warning('Shutdown cleanup pending error_type=%s', type(error).__name__)
         await supervisor_control.aclose()
         await dispatcher_control.aclose()
+        if verifier_control is not None:
+            await verifier_control.aclose()
 
 
 def main():

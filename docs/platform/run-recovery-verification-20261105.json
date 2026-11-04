@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-11-04T17:57:08.191857+00:00",
+  "scenarios": [
+    {
+      "operation": "cancel",
+      "run_id": "30b6411e-0997-4ef8-9bed-8a21c3f289a9",
+      "state": "cancelled",
+      "recovery_seconds": 1.663,
+      "total_seconds": 16.008,
+      "worker_released": true,
+      "sandbox_released": true,
+      "physical_container_absent": true,
+      "temporal": {
+        "status": "COMPLETED",
+        "result": {
+          "state": "cancelled"
+        }
+      }
+    },
+    {
+      "operation": "kill_executor",
+      "run_id": "4186171e-725f-49e0-8bd0-6be5a0232679",
+      "state": "failed",
+      "recovery_seconds": 3.09,
+      "total_seconds": 12.317,
+      "worker_released": true,
+      "sandbox_released": true,
+      "physical_container_absent": true,
+      "temporal": {
+        "status": "COMPLETED",
+        "result": {
+          "state": "failed"
+        }
+      }
+    }
+  ],
+  "shared_services_restarted": false
+}
