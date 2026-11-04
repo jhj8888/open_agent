@@ -21,6 +21,7 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 5. 任务准入采用数据库原子配额预留，worker 开始前再次确认租约；公平调度按租户轮转，任务在队列等待不占执行槽位，队列长度也有上限。租约带 fencing token，超时释放前必须阻止旧 worker 继续副作用。task 和 sandbox 配额分别计数，不能仅用某个进程的 Semaphore。
 6. 运行记录包含 deployment/release/config 摘要、tenant/environment、主体、截止时间、幂等键、trace_id 和 usage。事件保留有期限；客户端重连用 Last-Event-ID，超出保留范围明确报 event_history_expired 并引导查询状态。
 7. Temporal 成为新增基础设施依赖，但不替换所有现有 Kafka/Celery 功能。对接任务相关共享层前记录调用链与影响，先灰度迁移一条 Agent 路径，再扩至另一条。
+8. 调度载荷只传 tenant/environment/run_id 和安全状态。受信 worker 以独立服务身份及数据库租约按需取得固定模型/Skill 版本，密钥和用户输入不写入 Temporal 参数或结果。租约校验同时检查 worker 身份、取消、截止时间及版本撤销；对象读取后再复查一次。所有 worker 模型/沙盒操作仍须独立校验许可，取得一次配置不代表整个任务持续获准。
 
 ## Risks / Trade-offs
 

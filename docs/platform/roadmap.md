@@ -20,7 +20,7 @@ flowchart LR
   S --> O
 ```
 
-图为目标架构，Temporal/OpenSandbox/Kata 尚未在本仓库完成接入。现有数据、身份和监控服务优先复用；模型系统只以 API 依赖出现。
+图为目标架构。OpenSandbox 适配和展示机 gVisor 隔离已验证；Temporal 调度骨架及展示服务已接入，真实持久执行链仍待联调；生产 Kata/K8S 未验收。当前证据见 implementation-progress.md。现有数据、身份和监控服务优先复用；模型系统只以 API 依赖出现。
 
 | 阶段 | 变更 | 必要前置 | 完成标志 |
 |---|---|---|---|

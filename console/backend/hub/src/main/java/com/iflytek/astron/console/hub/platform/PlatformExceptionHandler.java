@@ -14,6 +14,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(basePackages = "com.iflytek.astron.console.hub.platform")
 public class PlatformExceptionHandler {
+    @ExceptionHandler(com.iflytek.astron.console.hub.platform.run.RunFailure.class)
+    public ResponseEntity<ApiResult<Void>> runFailure(com.iflytek.astron.console.hub.platform.run.RunFailure exception) {
+        HttpStatus status = switch (exception.code()) {
+            case "resource_unavailable" -> HttpStatus.NOT_FOUND;
+            case "queue_full" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "idempotency_conflict", "event_conflict", "state_conflict", "lease_fenced", "deployment_unavailable", "tenant_inactive" -> HttpStatus.CONFLICT;
+            case "event_history_expired" -> HttpStatus.GONE;
+            default -> HttpStatus.UNPROCESSABLE_ENTITY;
+        };
+        return error(status, exception.code());
+    }
     @ExceptionHandler(com.iflytek.astron.console.hub.platform.skill.SkillReleaseService.ReleaseConflictException.class)
     public ResponseEntity<ApiResult<Void>> skillConflict(RuntimeException exception) {
         return error(HttpStatus.CONFLICT, exception.getMessage());

@@ -1,0 +1,280 @@
+{
+  "recorded_at": "2026-11-04T12:47:27.459244+00:00",
+  "scope": "Temporal orchestration with synthetic activities, authenticated runtime broker and real MySQL admission; not the full Agent product",
+  "temporal_sdk": "1.35.0",
+  "temporal_cli": "1.10.0",
+  "python": {
+    "tests": 22,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 56.887,
+    "cases": [
+      "test_control_service_credentials_require_tls_or_literal_loopback[http://control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://user:pass@control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal/base]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal?token=x]",
+      "test_client_sends_service_identity_but_never_accepts_worker_identity_from_body",
+      "test_errors_never_echo_private_response_or_follow_redirects[302]",
+      "test_errors_never_echo_private_response_or_follow_redirects[401]",
+      "test_errors_never_echo_private_response_or_follow_redirects[403]",
+      "test_errors_never_echo_private_response_or_follow_redirects[409]",
+      "test_errors_never_echo_private_response_or_follow_redirects[503]",
+      "test_client_bounds_response_and_rejects_paths_outside_internal_namespace",
+      "test_slow_stream_cannot_extend_outbox_claim_indefinitely",
+      "test_runtime_secret_is_masked_and_invalid_runtime_errors_do_not_echo_it",
+      "test_artifact_transport_preserves_exact_bytes_and_bounds_download",
+      "test_real_sdk_workflow_completes_and_history_contains_only_reference",
+      "test_unknown_effect_is_not_automatically_reexecuted",
+      "test_busy_admission_waits_and_retries_only_the_nonexecuting_case",
+      "test_cancel_waits_for_execution_activity_to_stop_before_reconciliation",
+      "test_lost_ack_and_duplicate_delivery_use_one_temporal_execution",
+      "test_cancel_before_start_is_retried_and_terminal_run_needs_no_workflow",
+      "test_missing_activity_heartbeats_fail_without_a_second_execution",
+      "test_server_and_worker_restart_resume_persisted_workflow_without_resubmission"
+    ]
+  },
+  "java_unique_tests": 94,
+  "java_suites": [
+    {
+      "name": "commons.tenant.TenantAccessPolicyTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:28:08.594796+00:00",
+      "cases": [
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[1]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[2]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[3]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[4]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[5]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[6]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[7]",
+        "enforcesEveryRoleEnvironmentAndAction(TenantRole, TenantEnvironment, Set)[8]",
+        "suspendedTenantCannotSubmitEditPublishOrChangeCredentials",
+        "rejectsUnknownStatesAndEnvironmentsWithoutFallback"
+      ]
+    },
+    {
+      "name": "commons.tenant.TenantAccessServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:28:10.742184+00:00",
+      "cases": [
+        "missingEnvironmentCannotSilentlySelectAnotherScope",
+        "crossTenantCrossEnvironmentAndMissingResourceHaveIdenticalErrors",
+        "readsIdentityFromVerifiedJwtAttributeAndIgnoresForgedHeaders",
+        "rechecksDatabaseMembershipAfterRoleRevocation",
+        "rawIdentityHeaderCannotAuthenticate"
+      ]
+    },
+    {
+      "name": "hub.platform.run.RunContractTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:41:44.979864+00:00",
+      "cases": [
+        "malformedAndOversizedPayloadsAndScopeAreRejected",
+        "terminalStatesAreAbsorbingAndCancellationHasOnlyOneExit",
+        "nestedObjectOrderIsCanonicalButArrayOrderIsSignificant"
+      ]
+    },
+    {
+      "name": "hub.platform.run.RunLedgerMySqlTest",
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:32:09.351248+00:00",
+      "cases": [
+        "outboxFailureRollsBackRunEventAuditAndIdempotencyKey",
+        "concurrentDuplicateSubmissionsCreateOneRunAndOutbox",
+        "successAndCancelRaceHasOneStableTerminalOutcome",
+        "runtimeBundleUsesDeploymentVersionAndNeverCurrentModelPointer",
+        "outboxConcurrentPublishersDoNotClaimTheSameDelivery",
+        "databaseCrashAndRestartPreserveRunOutboxAndIdempotency",
+        "concurrentClaimsAcrossInstancesRespectExecutionQuotaAndDuplicates",
+        "concurrentQueueBackpressureDoesNotOvershoot",
+        "newControlPlaneInstanceReadsExistingRunAndCannotPrematurelyReleaseIt",
+        "runtimePermissionChecksCurrentLeaseAndRevocationBeforeReadingSecrets",
+        "revokedModelAndSuspendedTenantFailClosed",
+        "authorizationIsRecheckedInsideTransactionBeforeDuplicateReturn",
+        "cancellingQueuedRunNeverStartsAnAttempt",
+        "eventsAreOrderedDeduplicatedBoundedAndReconnectable",
+        "wrongScopeAndForgedLeaseAreRejected",
+        "heldAndCleanupPendingSlotsNeverExpireIntoFreeCapacity",
+        "deliveryRetryIsBoundedAndDoesNotChangeRunState",
+        "artifactBrokerRejectsUnboundReleaseAndCancellationDuringObjectRead",
+        "runningCancellationFencesEventsAndConvertsLateSuccessToCancelled",
+        "migrationRejectsCrossEnvironmentAndInvalidTerminalRows",
+        "publisherCrashIsRedeliveredWithNewClaimAndStaleAckCannotWin",
+        "eventRetentionIsExplicitEvenBeforeGarbageCollection",
+        "submissionIsCanonicalIdempotentAndActorBound",
+        "deadlinesBeforeAndDuringExecutionNeverBecomeSuccess"
+      ]
+    },
+    {
+      "name": "hub.platform.skill.SkillReleaseServiceTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:32:10.248310+00:00",
+      "cases": [
+        "manifestDigestBindsContentVersionAndRuntimeImage",
+        "approvedImagesRequireImmutableDigestsAndFailClosed",
+        "failureAfterOneObjectWasStoredStillCleansTheEntireUpload",
+        "identicalRetryReusesReleaseAndCleansItsNewStagingObjects",
+        "revokedMembershipDuringUploadPreventsPublication",
+        "missingMembershipStopsBeforeDatabaseOrStorageReads",
+        "failedUploadNeverPublishesAndCleansOnlyItsPrivatePrefix",
+        "productionPromotionRequiresOperatorAndSuccessfulEvidence",
+        "crossTenantAndCrossEnvironmentDownloadsNeverTouchObjectStorage",
+        "referencedOrRetainedReleaseCannotBeDeleted",
+        "sameVersionCannotBeOverwrittenWithDifferentContent",
+        "successfulPromotionGrantsTheOriginalReleaseAndAuditsItsDigest",
+        "commitsManifestOnlyAfterObjectUploadAndNeverReturnsStorageKeys"
+      ]
+    },
+    {
+      "name": "hub.platform.TenantGovernanceSecurityTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:32:13.917080+00:00",
+      "cases": [
+        "unauthorizedQuotaChangeDoesNotMutateOrAudit",
+        "controllerRejectsNegativeQuotasBeforeCallingService",
+        "deniedResourceReturns404WithoutDistinguishingExistence",
+        "ordinaryMemberCannotPromoteSelfOrBootstrapProduction",
+        "tenantCreationAndSuspensionRequirePlatformAdministration"
+      ]
+    },
+    {
+      "name": "hub.platform.model.ModelSecurityTest",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:41:32.694681+00:00",
+      "cases": [
+        "malformedEndpointsAreRejectedWithoutEcho(String)[1]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[2]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[3]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[4]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[5]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[6]",
+        "malformedEndpointsAreRejectedWithoutEcho(String)[7]",
+        "defaultConfigurationDoesNotAllowPublicFallback",
+        "unapprovedAddressesAreRejected(String)[1]",
+        "unapprovedAddressesAreRejected(String)[2]",
+        "unapprovedAddressesAreRejected(String)[3]",
+        "unapprovedAddressesAreRejected(String)[4]",
+        "unapprovedAddressesAreRejected(String)[5]",
+        "unapprovedAddressesAreRejected(String)[6]",
+        "unapprovedAddressesAreRejected(String)[7]",
+        "unapprovedAddressesAreRejected(String)[8]",
+        "unapprovedAddressesAreRejected(String)[9]",
+        "inputSerializationAndToStringNeverReturnTheKey",
+        "revokedEnvironmentAccessCannotReadModelConfigurationOrCredentials",
+        "ciphertextCannotBeMovedBetweenTenantsEnvironmentsOrVersions"
+      ]
+    },
+    {
+      "name": "hub.platform.model.ModelContractTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:41:30.642598+00:00",
+      "cases": [
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[1]",
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[2]",
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[3]",
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[4]",
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[5]",
+        "failedStreamsCannotBecomeSuccessfulResponses(String)[6]",
+        "fragmentedToolCallRunsOnceAndReturnsResult",
+        "fixedResolverConnectsToApprovedAddressWithoutLookingUpTheOriginalName",
+        "textAndStreamHaveEquivalentContentAndUsage"
+      ]
+    },
+    {
+      "name": "hub.platform.run.PlatformRunInternalSecurityTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "report_written_at": "2026-11-04T12:41:44.956037+00:00",
+      "cases": [
+        "missingWrongAndUserBearerCredentialsCannotEnterWorkerApi",
+        "runtimeCredentialAccessRequiresWorkerRoleAndAuthenticatedLeaseOwner",
+        "dispatcherAndWorkerRolesAreNotInterchangeable",
+        "authenticatedIdentityBindsClaimAndResponseIsNotCached",
+        "malformedScopeFailsBeforeStorageAndTrailingSlashCannotBypassServiceAuth"
+      ]
+    }
+  ],
+  "mysql_version": "8.4.13",
+  "database_restart": "SIGKILL and restart only the owned disposable database; no shared application restarted",
+  "python_existing_regression": {
+    "tests": 205,
+    "failures": 0,
+    "warnings": 4,
+    "summary": "205 passed, 4 warnings in 71.79s"
+  },
+  "demo_temporal": {
+    "cli_version": "1.10.0",
+    "archive_sha256": "521f461f3d108902763bb71e85cd0fd382dc9357b59604ae03da6ae734d16890",
+    "health": "SERVING",
+    "persistent_state": "/opt/open-agent/temporal/state/temporal.db",
+    "demo_only": true
+  },
+  "demo_listener_addresses": [
+    "127.0.0.1:44389",
+    "127.0.0.1:39749",
+    "127.0.0.1:37007",
+    "127.0.0.1:17235",
+    "127.0.0.1:17234",
+    "127.0.0.1:17233"
+  ],
+  "source_sha256_normalized_lf": {
+    "core/agent/durable/contracts.py": "07ff3b9ded4bf34edb7c98dab0537c09f56c8d62a651eb283b1351be7ce8cfbf",
+    "core/agent/durable/control.py": "b480a5cd9206ecba2c67816f789ad38460ff8fe78eb6a4283414fb9052f1c6d4",
+    "core/agent/durable/dispatcher.py": "1e1eb3ffafad4653669700485bd00f2b1561d5095ec1d610475a136296f768be",
+    "core/agent/durable/runtime_config.py": "297c1e7f6c855b23b22b38eb9c8af60b7e7abcfea80bcc14675d49de555319e0",
+    "core/agent/durable/workflow.py": "4ae1c00ee2f2e93a657adbd247df3b93bd99d411776f9c68280fa2157974f2cd",
+    "core/agent/durable/__init__.py": "47bd699fedd54028cc632584f396a2843a4b474cacd22c6dfab9f0fbdf6e141d",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/PlatformRunInternalController.java": "eea98210efa5caa4f60611da85e35d61ad1736fb6abe677cdde38cdc261ed376",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/PlatformRunRuntimeController.java": "5c535c9a6a71baa7fc6cb5852bee0b08f9be7acf83a4f07ffa784f82719e021b",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunFailure.java": "64fc9d873bc930d0d364e0374d60294d9e70c5f84f8897eae23a46b481669fc2",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunJson.java": "5df69974150c371df03948f4cf3b59bcae7259e2fe531378dbb9fb4addce75f8",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunLedger.java": "b6d972a1784b512326f0cb64681b680c501c1eac7ededa78074c7ff2d1d8fbf5",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunOutbox.java": "8e62031d76462fc31e2b16191c150f06349b8e9a46725930279e40334cc6ea64",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunRuntimeService.java": "e08369ef3ff4f1ab3e6425255b83eb30d9bccb2e8fd465006103717663dcece8",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/RunState.java": "8928c11e40d60d6e63b4d85d04d7f3134e2cb56d76a0a0ef4ae53d29a11a5e73",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/PlatformRunInternalSecurityTest.java": "6c1cfe3aa20b81dbdd2b31d9c6949ae9f6a26ee46470ab3e583eec27db9b3306",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunContractTest.java": "493f43bdef5214ec0586dac48f93ce1d1998bbdb49f94af00266bdce4f94a619",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunLedgerMySqlTest.java": "e71592b840253dcc2c79699766373b87500b48a297baf9c0321e3a01f7fe4f01",
+    "deploy/platform/temporal/provision_demo.py": "bd6fcc8fe51ae7aeab26f082f09726a2614073be9291ba92cdcc65e7baa0ec31",
+    "core/agent/tests/test_durable_workflow.py": "bbd3ef502de4fb812a247a449e01cf72f2610fcbd4f4783fe10938eb63a15a9c",
+    "core/agent/tests/test_durable_control.py": "b811c2e2e3bcb5e6794ea106d1ad2bf6702694b0becb1c16ab4a76a1b73488b1",
+    "core/agent/pyproject.toml": "f954e2a737350b2965683d6199fbcb4d40d39fa4296aa2c7b996f9d4f66ef8d9",
+    "core/agent/uv.lock": "87c0112d9fd9e69d4640b6545337664d002597bc52ff116915813be4de65847c",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/config/PlatformInternalSecurityConfig.java": "3dc60f91a07f097bca6a3e2cb820c1073b28d2df24da7c14847f0e0696cf78a6",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/model/ModelConnectionService.java": "be49c67aaef8673ff295626b130e2a4898bbecd0e157ae376ccfe4c6d90fc2c4"
+  },
+  "not_verified": [
+    "production execute/reconcile activities",
+    "end-to-end SQL/HTTP/Temporal/DeepAgents execution",
+    "physical sandbox cleanup and per-operation fencing",
+    "public HTTP/SSE/chat application",
+    "production HA, offline cold start and full demo platform"
+  ]
+}

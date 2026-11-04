@@ -114,6 +114,27 @@ public class ModelConnectionService {
 
     public record BoundModel(OpenAiChatModel model, long version, int totalTimeoutSeconds, boolean tools, boolean stream) {}
 
+    /** Transient response for the authenticated run worker broker, never user APIs or Temporal payloads. */
+    public record WorkerModel(String endpoint, String modelName, String credential, long version,
+            boolean supportsTools, boolean supportsUsage, int connectTimeoutSeconds, int readTimeoutSeconds,
+            int totalTimeoutSeconds, String caRef) {
+        @Override public String toString() { return "WorkerModel[credential=REDACTED]"; }
+    }
+
+    /** Caller must hold RunLedger.withPermit for the exact deployment's immutable version. */
+    public WorkerModel runtimeVersionForAuthorizedLease(String tenant, String env, String id, long version) {
+        var rows = jdbc.queryForList("SELECT v.* FROM oa_model_connection_version v JOIN oa_model_connection c "
+                + "ON c.tenant_id=v.tenant_id AND c.environment=v.environment AND c.connection_id=v.connection_id "
+                + "WHERE v.tenant_id=? AND v.environment=? AND v.connection_id=? AND v.version=? AND v.revoked=false AND c.enabled=true",
+                tenant, env, id, version);
+        if (rows.isEmpty()) throw new TenantAccessDeniedException();
+        var row = rows.getFirst();
+        return new WorkerModel((String)row.get("endpoint"), (String)row.get("model_name"), secret(tenant,env,id,row), version,
+                Boolean.TRUE.equals(row.get("supports_tools")), Boolean.TRUE.equals(row.get("supports_usage")),
+                ((Number)row.get("connect_timeout_seconds")).intValue(), ((Number)row.get("read_timeout_seconds")).intValue(),
+                ((Number)row.get("total_timeout_seconds")).intValue(), (String)row.get("ca_ref"));
+    }
+
     public BoundModel forRun(String tenant, String env, String id, boolean needTools, boolean needStream) {
         access.require(tenant, env, TenantPermission.RUN_CREATE);
         Map<String,Object> row = current(tenant, env, id);

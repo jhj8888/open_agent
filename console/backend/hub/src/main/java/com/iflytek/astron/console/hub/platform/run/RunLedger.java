@@ -178,6 +178,18 @@ public class RunLedger {
         });
     }
 
+    /** Trusted runtime broker only: revalidate fencing before reading any scoped secret/artifact metadata. */
+    public <T> T withPermit(Lease lease, Supplier<T> read) {
+        return tx(() -> {
+            var quota = lockScope(lease.scope(), false);
+            var run = run(lease.scope(), lease.runId());
+            var attempt = attempt(lease);
+            if (!"active".equals(quota.get("status")) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
+            deployment(lease.scope(), (String) run.get("deployment_id"));
+            return read.get();
+        });
+    }
+
     /** Completion and cleanup are deliberately separate. Terminal state does not free a slot. */
     public Map<String, Object> finish(Lease lease, RunState requested, String errorCode) {
         if (requested == null || !Set.of(RunState.SUCCEEDED, RunState.FAILED, RunState.TIMED_OUT).contains(requested)

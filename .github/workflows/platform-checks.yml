@@ -25,7 +25,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest,PlatformRunInternalSecurityTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04
@@ -90,3 +90,16 @@ jobs:
           core/agent/.venv/bin/python -m pytest core/agent/tests/test_platform_sandbox.py
           core/agent/tests/test_skill_plugin.py core/agent/tests/test_skill_sandbox_api.py
           -q -p no:cacheprovider
+      - name: Prepare the checksum-pinned official Temporal test server
+        run: |
+          mkdir -p .temporal-test
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/temporalio/cli/releases/download/v1.10.0/temporal_cli_1.10.0_linux_amd64.tar.gz \
+            -o .temporal-test/cli.tar.gz
+          printf '%s\n' '521f461f3d108902763bb71e85cd0fd382dc9357b59604ae03da6ae734d16890  .temporal-test/cli.tar.gz' | sha256sum -c -
+          tar -xzf .temporal-test/cli.tar.gz -C .temporal-test temporal LICENSE
+      - name: Exercise durable delivery, cancellation and server restart through the official SDK
+        run: |
+          export TEMPORAL_TEST_BINARY="$PWD/.temporal-test/temporal"
+          core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py \
+            core/agent/tests/test_durable_workflow.py -q -p no:cacheprovider

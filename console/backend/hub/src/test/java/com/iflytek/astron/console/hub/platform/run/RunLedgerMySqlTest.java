@@ -341,4 +341,63 @@ class RunLedgerMySqlTest {
         assertEquals(id, outbox().claim(1, 60).getFirst().runId());
         assertEquals("queued", state(id));
     }
+
+    @Test void runtimePermissionChecksCurrentLeaseAndRevocationBeforeReadingSecrets() {
+        String id=submit("runtime").runId(); var lease=claim(id);
+        var reads=new java.util.concurrent.atomic.AtomicInteger();
+        assertEquals(1,ledger.withPermit(lease,reads::incrementAndGet));
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=?",A);
+        code("deployment_unavailable",()->ledger.withPermit(lease,reads::incrementAndGet));
+        assertEquals(1,reads.get());
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=false WHERE tenant_id=?",A);
+        ledger.cancel(scope,id,"alice",()->{});
+        code("lease_fenced",()->ledger.withPermit(lease,reads::incrementAndGet));
+        assertEquals(1,reads.get());
+    }
+
+    @Test void runtimeBundleUsesDeploymentVersionAndNeverCurrentModelPointer() {
+        String id=submit("runtime").runId(); var lease=claim(id);
+        var models=org.mockito.Mockito.mock(com.iflytek.astron.console.hub.platform.model.ModelConnectionService.class);
+        var store=org.mockito.Mockito.mock(com.iflytek.astron.console.hub.platform.skill.SkillArtifactStore.class);
+        String connection=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,deployment);
+        jdbc.update("UPDATE oa_model_connection SET current_version=2 WHERE connection_id=?",connection);
+        var model=new com.iflytek.astron.console.hub.platform.model.ModelConnectionService.WorkerModel(
+                "https://model.invalid/v1","synthetic","synthetic-credential",1,true,true,5,60,120,null);
+        org.mockito.Mockito.when(models.runtimeVersionForAuthorizedLease(A,"test",connection,1)).thenReturn(model);
+        var runtime=new RunRuntimeService(ledger,jdbc,models,store,json);
+        var bundle=runtime.bundle(lease);
+        assertEquals(1,bundle.model().version());assertEquals("hello",bundle.input().get("message").asText());
+        assertEquals("Synthetic test only",bundle.snapshot().get("systemPrompt").asText());
+        assertFalse(bundle.toString().contains("synthetic-credential"));
+        org.mockito.Mockito.verify(models).runtimeVersionForAuthorizedLease(A,"test",connection,1);
+        ledger.cancel(scope,id,"alice",()->{});
+        code("lease_fenced",()->runtime.bundle(lease));
+        org.mockito.Mockito.verifyNoMoreInteractions(models);
+    }
+
+    @Test void artifactBrokerRejectsUnboundReleaseAndCancellationDuringObjectRead() {
+        String release=UUID.randomUUID().toString(), manifest="{\"synthetic\":true}", digest=RunJson.hash(manifest);
+        jdbc.update("""
+                INSERT INTO oa_skill_release(tenant_id,release_id,skill_name,description,version_label,source_kind,manifest_sha256,manifest_json,
+                runtime_image,object_prefix,total_bytes,file_count,created_by,retain_until)
+                VALUES(?,?,'test-skill','test','v1','upload',?,?,'registry.invalid/skill@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                'synthetic-prefix',5,1,'alice',TIMESTAMPADD(DAY,1,CURRENT_TIMESTAMP(3)))
+                """,A,release,digest,manifest);
+        jdbc.update("INSERT INTO oa_skill_release_environment(tenant_id,environment,release_id,granted_by) VALUES(?,'test',?,'alice')",A,release);
+        jdbc.update("INSERT INTO oa_agent_deployment_skill(tenant_id,environment,deployment_id,release_id,manifest_sha256) VALUES(?,'test',?,?,?)",
+                A,deployment,release,digest);
+        jdbc.update("INSERT INTO oa_skill_release_file(tenant_id,release_id,file_index,file_path,path_sha256,content_sha256,size_bytes,object_key) VALUES(?,?,0,'SKILL.md',?,?,5,'synthetic-object')",
+                A,release,RunJson.hash("SKILL.md"),RunJson.hash("hello"));
+        String id=submit("runtime").runId();var lease=claim(id);
+        var models=org.mockito.Mockito.mock(com.iflytek.astron.console.hub.platform.model.ModelConnectionService.class);
+        var store=org.mockito.Mockito.mock(com.iflytek.astron.console.hub.platform.skill.SkillArtifactStore.class);
+        var runtime=new RunRuntimeService(ledger,jdbc,models,store,json);
+        code("resource_unavailable",()->runtime.artifact(lease,UUID.randomUUID().toString(),0));
+        org.mockito.Mockito.verifyNoInteractions(store);
+        assertArrayEquals(manifest.getBytes(StandardCharsets.UTF_8),runtime.artifact(lease,release,-1));
+        org.mockito.Mockito.when(store.get("synthetic-object",5,RunJson.hash("hello"))).thenAnswer(call->{
+            ledger.cancel(scope,id,"alice",()->{});return "hello".getBytes(StandardCharsets.UTF_8);
+        });
+        code("lease_fenced",()->runtime.artifact(lease,release,0));
+    }
 }

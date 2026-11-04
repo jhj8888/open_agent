@@ -24,3 +24,5 @@
 V1.52、RunLedger/RunOutbox 与状态转换层已通过 21 项真实 MySQL 8.4.13 用例，含幂等并发、原子队列/执行槽、取消竞态、过期租约、outbox 重投和独占数据库 SIGKILL/重启；另外 3 项状态/输入契约及 33 项既有租户/Skill 回归通过。详见 `docs/platform/run-ledger-verification-20261104.json` 与 `docs/platform/durable-runs.md`。
 
 1.2 的数据库并发机制、1.3 的消息领取/确认已有证据，但 API 多实例联调、Temporal 发布/补偿及公平调度尚未完成，保持未勾选。数据库重启检查不等于完整 worker、沙盒或生产集群故障验收。
+
+后续增量已加入官方 Temporal SDK 1.35.0、稳定 workflow ID 的 outbox 发布器、独立内部服务身份及租约绑定模型/Skill 读取。22 项 Python 调度/传输测试通过（含真实 Temporal 服务、30 秒心跳丢失、SQLite 服务重启）；MySQL 增至 24 项；Java 模型和内部接口 37 项通过。展示机开发服务已返回 SERVING，监听均为 loopback。见 `docs/platform/temporal-runtime.md` 和对应验证记录。实际 execute/reconcile activity、清理补偿及公共 API/聊天未接通，1.3、2.1–2.3 仍不勾选。

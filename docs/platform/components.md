@@ -13,6 +13,7 @@
 | 独立内核隔离 | [kata-containers/kata-containers](https://github.com/kata-containers/kata-containers) | 9.1k | Apache-2.0 | 拟用于不可信生产代码；验证 CPU 节点虚拟化 |
 | 单机展示隔离 | [google/gvisor](https://github.com/google/gvisor) | 19.9k | Apache-2.0 | 2026-11-04 核验；固定 20261102.0，展示机使用 systrap；不替代生产 Kata 验收 |
 | 持久任务 | [temporalio/temporal](https://github.com/temporalio/temporal) | 24.1k | MIT | 拟新增私有服务；不能自动替代应用幂等和 checkpoint |
+| 持久任务 Python SDK | [temporalio/sdk-python](https://github.com/temporalio/sdk-python) | 1.2k | MIT | 2026-11-04 核验；已固定 1.35.0，真实调度测试通过，生产执行 activity 尚待接通 |
 | 遥测采集 | [open-telemetry/opentelemetry-collector](https://github.com/open-telemetry/opentelemetry-collector) | 7.7k | Apache-2.0 | 接内网后端，优先复用企业已有采集 |
 | 指标 | [prometheus/prometheus](https://github.com/prometheus/prometheus) | 66.9k | Apache-2.0 | 优先接企业已有实例，只采平台指标 |
 | 日志查询 | [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) | 14.0k | Apache-2.0 | 默认候选；已有企业日志平台时可复用 |
@@ -21,6 +22,8 @@
 这里只记录平台层采用/计划采用的主要组件，表中的主许可不代替版本级完整依赖审查。计划采用不代表已安装、已固定生产版本或已通过兼容测试。除 OpenSpec 外，本次不自动升级上游依赖。
 
 ## 企业许可与离线决策
+
+Temporal SDK 本次新增的锁定依赖为 `nexus-rpc==1.4.0`（MIT）与 `types-protobuf==7.35.1.20260906`（Apache-2.0），依据安装包 License-Expression 元数据核对。这两项是 SDK 的传递依赖，不作为满足主组件 stars 门槛的独立候选。展示使用官方 CLI 1.10.0 固定 SHA256 制品并保留 LICENSE；版本、用途和开发服务器限制见 [Temporal 接入记录](temporal-runtime.md)。
 
 优先选择 Apache-2.0/MIT 等宽松许可组件，保留版权与许可证及需要的 NOTICE。不把 AGPL、GPL、带附加限制的源码可见许可证混写为“都可无条件商用”。主仓库的许可标签不自动覆盖企业版、插件、模型权重、容器中的操作系统包或字体。
 
