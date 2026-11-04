@@ -260,3 +260,6 @@ docs/superpowers/
 # Retained locally; redistribution licenses were not found in the supplied snapshot.
 /console/frontend/public/fonts/PingFang.ttc
 /console/frontend/public/fonts/D-DIN-PRO-500-Medium.otf
+
+# Standalone interface preview build
+/console/frontend/dist-preview/

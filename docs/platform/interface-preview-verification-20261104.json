@@ -1,0 +1,39 @@
+{
+  "verified_at": "2026-11-04T14:52:16.658706+00:00",
+  "url": "http://120.26.81.83/open-agent-preview/",
+  "mode": "interface-preview",
+  "model_connected": false,
+  "archive_sha256": "cfd0c2fb4579f0b9882d43447e58f2cf8bc3c889b9a05da3c52d63dbe5bc52c5",
+  "http_assets": [
+    {
+      "path": "assets/index-BWP23tnV.js",
+      "status": 200,
+      "sha256": "2b6c9516de042f4a0606405a43bec4e4e61065847d0f6e72c0f4983468c7d6ca"
+    },
+    {
+      "path": "assets/index-CDN-AMCU.css",
+      "status": 200,
+      "sha256": "c9d1df5b5f3391d2cfd58510965a9639f696b2e46f12532bbfa6b9aea1a4a21c"
+    },
+    {
+      "path": "index.html",
+      "status": 200,
+      "sha256": "7fb8654bb3ca90f574c6bd3ad88a673a6fb6f935b28b12043bf73d3d6e391b85"
+    }
+  ],
+  "license_files_http_200": 5,
+  "non_public_files_http_404": 3,
+  "build": "passed",
+  "full_frontend_typecheck": "passed",
+  "preview_typecheck": "passed",
+  "openspec_strict": {
+    "passed": 8,
+    "failed": 0
+  },
+  "browser": {
+    "homepage_render": "passed",
+    "create_dialog": "passed",
+    "create_submit_and_other_interactions": "not fully verified: browser automation timed out"
+  },
+  "user_review": "User confirmed frontend style and current functionality meet expectations on 2026-11-04; requested continued implementation."
+}
