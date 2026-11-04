@@ -30,6 +30,8 @@ flowchart LR
 | P1 | [isolate-private-skill-sandboxes](../../openspec/changes/isolate-private-skill-sandboxes/proposal.md) | 租户、Skill release；基础设施兼容验证可先行 | 不可信 Python/Shell 在隔离沙盒运行，越权与外联测试失败关闭 |
 | P1 | [persist-agent-runs](../../openspec/changes/persist-agent-runs/proposal.md) | 租户配额、执行快照；模型/沙盒适配 | 持久状态、幂等、取消、配额、重启与未知副作用处理通过 |
 | P2 | [publish-unified-agent-api](../../openspec/changes/publish-unified-agent-api/proposal.md) | 前述执行闭环 | 每个独立/工作流 Agent 均有 HTTP API，聊天复用同一任务链 |
+| P2 | [observe-agent-execution](../../openspec/changes/observe-agent-execution/proposal.md) | 持久任务与 DeepAgents 回调 | 可授权逐步日志/Token/耗时、工具执行树、自然周/月统计与私有观测集成 |
+| P2 | [retain-task-artifacts](../../openspec/changes/retain-task-artifacts/proposal.md) | 任务/租约、沙盒、S3 | 沙盒回收与服务重启后仍可查看/下载产物，任务保留期间不自动删除，越权与文件攻击验证通过 |
 | P2 | [deliver-offline-platform](../../openspec/changes/deliver-offline-platform/proposal.md) | 前述能力；离线清单、监控可提前准备 | 完整断网冷启动、test/prod 隔离、监控告警、备份恢复与压测验收 |
 
 已从 `manage-tenant-access` 开始依次接通上述链路；后续继续补齐发布门禁、管理验收与交付运维，不改变最终联调前置关系。

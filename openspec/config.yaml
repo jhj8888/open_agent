@@ -7,6 +7,8 @@ context: |
   不开发或部署模型网关、模型调度、推理服务、GPU 管理、模型训练或模型运维。
   用户上传 SKILL.md + 脚本/资源包；上传代码一律不可信，必须在独立沙盒中执行。
   必需能力：租户与权限、Skill 版本、多 Agent 隔离、任务并发、持久状态、日志统计、HTTP API、测试与生产、聊天调试。
+  2026-11-05 新增 Agentic Observability：感知/执行/工具轨迹、逐步 Token/耗时、自然周/月统计；该领域顶层候选须超过 5000 stars。
+  任务未删除期间，其已生成并归档的资料文件必须可查看、下载，不随沙盒或观测数据 TTL 清理。
   复用 React/TypeScript 控制台、Java Spring Boot 控制面、Python agent/workflow 服务和现有认证。
   现有 E2B 调用不是已验证的离线沙盒；asyncio 任务与 Redis TTL 不是持久化任务执行保障。
   新增顶层开源组件需在评估时 >=1000 GitHub stars，优先 Apache-2.0/MIT/BSD，记录版本和许可范围。
