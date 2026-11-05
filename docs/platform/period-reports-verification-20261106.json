@@ -1,0 +1,63 @@
+{
+  "checked_at": "2026-11-05T16:09:10.329056+00:00",
+  "periods": {
+    "this_week": {
+      "start": "2026-11-01T16:00:00Z",
+      "end": "2026-11-08T16:00:00Z",
+      "asOf": "2026-11-05T16:09:08.708571423Z",
+      "days": 7,
+      "task_rows": 31,
+      "model_rows": 49,
+      "mean_task_ms": 36715.90322581,
+      "p95_task_ms": 127815.0,
+      "input_tokens": 167806,
+      "cache_tokens": 142080,
+      "new_tokens": 25726
+    },
+    "last_week": {
+      "start": "2026-10-25T16:00:00Z",
+      "end": "2026-11-01T16:00:00Z",
+      "asOf": "2026-11-01T16:00:00Z",
+      "days": 7,
+      "task_rows": 0,
+      "model_rows": 0,
+      "mean_task_ms": null,
+      "p95_task_ms": null,
+      "input_tokens": 0,
+      "cache_tokens": null,
+      "new_tokens": null
+    },
+    "this_month": {
+      "start": "2026-10-31T16:00:00Z",
+      "end": "2026-11-30T16:00:00Z",
+      "asOf": "2026-11-05T16:09:09.532559702Z",
+      "days": 30,
+      "task_rows": 31,
+      "model_rows": 49,
+      "mean_task_ms": 36715.90322581,
+      "p95_task_ms": 127815.0,
+      "input_tokens": 167806,
+      "cache_tokens": 142080,
+      "new_tokens": 25726
+    },
+    "last_month": {
+      "start": "2026-09-30T16:00:00Z",
+      "end": "2026-10-31T16:00:00Z",
+      "asOf": "2026-10-31T16:00:00Z",
+      "days": 31,
+      "task_rows": 0,
+      "model_rows": 0,
+      "mean_task_ms": null,
+      "p95_task_ms": null,
+      "input_tokens": 0,
+      "cache_tokens": null,
+      "new_tokens": null
+    }
+  },
+  "per_row_database_recomputed": true,
+  "wall_clock_and_nearest_rank_p95_verified": true,
+  "daily_timezone_and_unknown_cache_verified": true,
+  "model_or_tool_replayed": false,
+  "browser_csv_download_verified": false,
+  "scope": "Live idle demo dataset; calendar/large-dataset fixtures are separate tests."
+}
