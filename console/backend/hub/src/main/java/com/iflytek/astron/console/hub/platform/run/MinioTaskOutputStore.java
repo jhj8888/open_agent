@@ -16,11 +16,13 @@ import org.springframework.stereotype.Component;
 public class MinioTaskOutputStore implements TaskOutputStore {
     private final MinioClient client;
     private final String bucket;
+    private final OutputMultipartCleanup multipart;
     private final Semaphore downloads=new Semaphore(1), uploads=new Semaphore(2);
     public MinioTaskOutputStore(Environment env) {
         client=MinioClient.builder().endpoint(env.getRequiredProperty("s3.endpoint"))
                 .credentials(env.getRequiredProperty("s3.accessKey"),env.getRequiredProperty("s3.secretKey")).build();
         client.setTimeout(10000,60000,60000);bucket=env.getRequiredProperty("s3.bucket");
+        multipart=new OutputMultipartCleanup(env);
     }
     private static void expected(long size,String sha) {
         if(size<0 || size>MAX_FILE_BYTES || sha==null || !sha.matches("[a-f0-9]{64}")) throw new RunFailure("invalid_output");
@@ -76,7 +78,12 @@ public class MinioTaskOutputStore implements TaskOutputStore {
     }
     @Override public void remove(String key) {
         TaskOutputStore.checkKey(key);
-        try { client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build()); }
+        try {
+            multipart.remove(key);
+            client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build());
+        }
         catch(Exception failure) { throw new RunFailure("output_storage_unavailable"); }
     }
+    @jakarta.annotation.PreDestroy
+    public void close() throws Exception { try { multipart.close(); } finally { client.close(); } }
 }

@@ -14,7 +14,7 @@ from provision_data import ROOT, MYSQL, SEAWEED, command, private_file
 from provision_api import JRE, ARTIFACT_SHA256
 
 
-def main():
+def main(multipart_only=False):
     os.umask(0o077)
     available=int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))
     assert available>=1536*1024,'insufficient_memory_for_disposable_recovery_fixture'
@@ -45,6 +45,8 @@ def main():
     private_file(folder/'mysql.env','MYSQL_ROOT_PASSWORD='+root_password+'\nMYSQL_DATABASE=oa_output_fixture\nMYSQL_USER=fixture_output\nMYSQL_PASSWORD='+db_password+'\n')
     private_file(folder/'java.env','FIXTURE_ENDPOINT=http://127.0.0.1:8333\nFIXTURE_KEY='+key+'\nFIXTURE_SECRET='+secret+
         '\nFIXTURE_JDBC_URL=jdbc:mysql://127.0.0.1:3306/oa_output_fixture?useSSL=false&allowPublicKeyRetrieval=true&connectTimeout=5000&socketTimeout=15000\nFIXTURE_DB_PASSWORD='+db_password+'\n')
+    python_probe=Path(__file__).with_name('output_multipart_probe.py')
+    (folder/'multipart.py').write_bytes(python_probe.read_bytes());(folder/'multipart.py').chmod(0o444)
     containers=[];volumes=[];phases=[]
 
     def owned_container(identity):
@@ -114,40 +116,75 @@ def main():
              '-s3.concurrentUploadLimitMB=16','-s3.concurrentFileUploadLimit=4','-s3.readerCacheSizeMB=16'])
         time.sleep(8)
         run_probe('prepare',namespace)
-        crash=command('docker','run','--pull','never','-d','--name',name+'-crash','--label',label+'='+name,
-            *java_args('crash-upload',namespace)).stdout.strip();containers.append(crash)
-        for _ in range(60):
-            logs=command('docker','logs',crash)
-            if 'OUTPUT_RECONCILIATION_READY=crash-upload' in logs.stdout:break
-            assert owned_container(crash)['State']['Running'],'crash_fixture_exited_before_checkpoint'
-            time.sleep(1)
-        else:raise AssertionError('crash_fixture_checkpoint_timeout')
-        run_probe('candidate-present',namespace)
-        command('docker','kill','--signal=KILL',crash)
-        assert command('docker','wait',crash).stdout.strip()=='137'
-        phases.append('uploader-sigkill')
-        command('docker','kill','--signal=KILL',s3)
-        assert command('docker','wait',s3).stdout.strip()=='137'
-        run_probe('outage',namespace)
-        command('docker','start',s3);time.sleep(8)
-        run_probe('recover',namespace)
-        late=command('docker','run','--pull','never','-d','--name',name+'-late','--label',label+'='+name,
-            *java_args('late-upload',namespace)).stdout.strip();containers.append(late)
-        for checkpoint in ('late-start','late-committed'):
+        if not multipart_only:
+            crash=command('docker','run','--pull','never','-d','--name',name+'-crash','--label',label+'='+name,
+                *java_args('crash-upload',namespace)).stdout.strip();containers.append(crash)
             for _ in range(60):
-                logs=command('docker','logs',late)
-                if 'OUTPUT_RECONCILIATION_READY='+checkpoint in logs.stdout:break
-                assert owned_container(late)['State']['Running'],'late_upload_exited_before_checkpoint'
+                logs=command('docker','logs',crash)
+                if 'OUTPUT_RECONCILIATION_READY=crash-upload' in logs.stdout:break
+                assert owned_container(crash)['State']['Running'],'crash_fixture_exited_before_checkpoint'
                 time.sleep(1)
-            else:raise AssertionError('late_upload_checkpoint_timeout')
-            if checkpoint=='late-start':
-                run_probe('late-reap',namespace)
-                (folder/'late-release').write_text('release');(folder/'late-release').chmod(0o444)
-        run_probe('late-present',namespace)
-        command('docker','kill','--signal=KILL',late)
-        assert command('docker','wait',late).stdout.strip()=='137'
-        phases.append('late-uploader-sigkill')
-        run_probe('late-recover',namespace)
+            else:raise AssertionError('crash_fixture_checkpoint_timeout')
+            run_probe('candidate-present',namespace)
+            command('docker','kill','--signal=KILL',crash)
+            assert command('docker','wait',crash).stdout.strip()=='137'
+            phases.append('uploader-sigkill')
+            command('docker','kill','--signal=KILL',s3)
+            assert command('docker','wait',s3).stdout.strip()=='137'
+            run_probe('outage',namespace)
+            command('docker','start',s3);time.sleep(8)
+            run_probe('recover',namespace)
+            late=command('docker','run','--pull','never','-d','--name',name+'-late','--label',label+'='+name,
+                *java_args('late-upload',namespace)).stdout.strip();containers.append(late)
+            for checkpoint in ('late-start','late-committed'):
+                for _ in range(60):
+                    logs=command('docker','logs',late)
+                    if 'OUTPUT_RECONCILIATION_READY='+checkpoint in logs.stdout:break
+                    assert owned_container(late)['State']['Running'],'late_upload_exited_before_checkpoint'
+                    time.sleep(1)
+                else:raise AssertionError('late_upload_checkpoint_timeout')
+                if checkpoint=='late-start':
+                    run_probe('late-reap',namespace)
+                    (folder/'late-release').write_text('release');(folder/'late-release').chmod(0o444)
+            run_probe('late-present',namespace)
+            command('docker','kill','--signal=KILL',late)
+            assert command('docker','wait',late).stdout.strip()=='137'
+            phases.append('late-uploader-sigkill')
+            run_probe('late-recover',namespace)
+        multipart=command('docker','run','--pull','never','-d','--name',name+'-multipart','--label',label+'='+name,
+            *java_args('multipart-upload',namespace)).stdout.strip();containers.append(multipart)
+        for _ in range(60):
+            logs=command('docker','logs',multipart)
+            if 'OUTPUT_RECONCILIATION_READY=multipart-part' in logs.stdout:break
+            assert owned_container(multipart)['State']['Running'],'multipart_exited_before_checkpoint'
+            time.sleep(1)
+        else:raise AssertionError('multipart_checkpoint_timeout')
+        run_probe('multipart-key',namespace)
+        key=next(line.split('=',1)[1] for line in (folder/'multipart-key.log').read_text().splitlines() if line.startswith('OUTPUT_MULTIPART_KEY='))
+        worker='sha256:c87a7579793fa109b525ed2a6c2f3d1d1b95e43c142b33bd8f84fd59b4c58410'
+        def inspect_multipart(mode):
+            client_name=name+'-inspect-'+mode
+            try:
+                result=command('docker','run','--rm','--pull','never','--name',client_name,'--label',label+'='+name,
+                    '--network',namespace,'--read-only','--user','10001:10001',
+                    '--cap-drop','ALL','--security-opt','no-new-privileges','--memory','192m','--pids-limit','64',
+                    '--env-file',str(folder/'java.env'),'-e','FIXTURE_OBJECT_KEY='+key,
+                    '--mount','type=bind,source='+str(folder)+',target=/fixture,readonly','--entrypoint','python',worker,
+                    '/fixture/multipart.py',mode,check=False,timeout=60)
+            finally:
+                found=command('docker','inspect',client_name,check=False)
+                if found.returncode==0:
+                    identity=json.loads(found.stdout)[0]['Id'];owned_container(identity)
+                    command('docker','rm','-f',identity)
+            private_file(folder/('multipart-'+mode+'.log'),result.stdout+result.stderr)
+            assert result.returncode==0 and 'OUTPUT_MULTIPART_OK='+mode in result.stdout,'multipart_inspection_failed_'+mode
+            phases.append('multipart-'+mode)
+        inspect_multipart('present')
+        command('docker','kill','--signal=KILL',multipart)
+        assert command('docker','wait',multipart).stdout.strip()=='137'
+        phases.append('multipart-uploader-sigkill')
+        run_probe('multipart-reap',namespace)
+        inspect_multipart('absent')
     finally:
         # Inspect exact identities and labels before any destructive operation.
         for identity in reversed(containers):
@@ -168,11 +205,16 @@ def main():
         'uploader_sigkill_after_s3_commit_before_publication':True,'writing_record_persisted':True,
         'offline_reconciliation_preserves_reaping_for_retry':True,'failed_upload_has_no_public_object_reference':True,
         'initial_recovery_cleared_uploads':3,'final_recovery_cleared_uploads':4,'retained_published_uploads':2,'retry_uses_different_immutable_key':True,
+        'recovery_counts_exclude_multipart_phase':True,
         'repeated_reconciliation_keeps_published_objects':True,'network':'none; S3/Java share disposable MySQL network namespace',
         'object_committed_after_first_reap_is_eventually_removed':True,
+        'multipart_interruption':{'uploaded_part_bytes':5242880,'production_reconciliation_removes_incomplete_upload':True,
+            'independent_boto3_verification':True,'production_multipart_cleanup_implemented':True},
         'fixture_containers_volumes_credentials_removed':True,'production_data_modified':False,
-        'http_authorization_or_multipart_interruption_verified':False,'aging':'fixture created_at/reconcile_after advanced explicitly; no 15-minute/24-hour wall-clock wait'}
-    private_file(ROOT/'output-reconciliation-verification.json',json.dumps(result,indent=2)+'\n',replace=True)
+        'http_authorization_verified':False,'aging':'fixture created_at/reconcile_after advanced explicitly; no 15-minute/24-hour wall-clock wait'}
+    if multipart_only:
+        result={key:result[key] for key in ['checked_at','api_artifact_sha256','probe_sha256','mysql_image','s3_image','phases','multipart_interruption','fixture_containers_volumes_credentials_removed','production_data_modified','network']}
+    private_file(ROOT/'output-multipart-verification.json',json.dumps(result,indent=2)+'\n',replace=True)
     print(json.dumps(result),flush=True)
 
 

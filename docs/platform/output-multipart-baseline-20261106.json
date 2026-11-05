@@ -1,0 +1,24 @@
+{
+  "checked_at": "2026-11-05T23:18:07.763231+00:00",
+  "api_artifact_sha256": "300817a427ae88d0501559325786d618f9d8f5a522455145394e3fcc2a56722b",
+  "probe_sha256": "b08eac15b29a18949a6c41a1e751760cc36596d7f7eeeb22560353ee0203d4b1",
+  "mysql_image": "m.daocloud.io/docker.io/library/mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+  "s3_image": "m.daocloud.io/docker.io/chrislusf/seaweedfs@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+  "phases": [
+    "prepare",
+    "multipart-key",
+    "multipart-present",
+    "multipart-uploader-sigkill",
+    "multipart-reap",
+    "multipart-abort"
+  ],
+  "multipart_interruption": {
+    "uploaded_part_bytes": 5242880,
+    "delete_object_leaves_incomplete_upload": true,
+    "exact_official_sdk_abort_verified": true,
+    "production_multipart_cleanup_implemented": false
+  },
+  "fixture_containers_volumes_credentials_removed": true,
+  "production_data_modified": false,
+  "network": "none; S3/Java share disposable MySQL network namespace"
+}

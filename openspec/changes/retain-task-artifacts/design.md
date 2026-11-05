@@ -28,6 +28,8 @@
 
 ### Late upload completion and reconciliation scheduling
 
+未完成 multipart 分片由同一精确键对账清理：`TaskOutputService.reconcile → MinioTaskOutputStore.remove → OutputMultipartCleanup → AWS S3 SDK 2.27.16`。复用 toolkit 已包含的 Apache-2.0 官方 Java SDK，原因是当前 Minio 8.5.10 无法解析展示存储缺少 Initiator 的列表响应。固定 endpoint、显式凭据/region 与 path-style，不使用默认凭据发现。每键每轮最多处理 20 个上传，只中止完全相等的键并检查残余 parts；截断、残余分片或权限/存储错误保留可重试状态，不能标记 cleared。之后删除完整孤立对象；已有每日墓碑复查处理迟到写入。仅扩展任务输出清理，不改变 Skill 存储、bucket policy 或其他服务。
+
 2026-11-06 真实 MySQL/S3 演练复现：上传读取被阻塞，对账将旧 `writing` 记录清理为 `cleared`，随后上传恢复并在 S3 接收对象后进程被强杀；旧对账永久跳过 `cleared`，会留下孤立对象。因此 `cleared` 仅表示最近一次精确键清理成功，不代表旧写入绝不可能迟到。
 
 V1.67 增加 `reconcile_after` 和索引。初次清理仍要求创建超过 15 分钟；待清理/清理中的记录失败后至少间隔 5 分钟再处理，每批最多 20 条，按到期时间排序。已清理但未发布的记录每天复查精确对象键，成功后安排下一次复查；任何已被发布引用的键都不能删除。上传异常若发现对象尚未被引用，将 `writing/reaping/cleared` 重新标记 `abandoned` 并立即安排对账。后台重试不覆盖已有对象键、不重放模型/工具，也不给用户显示下载链接。

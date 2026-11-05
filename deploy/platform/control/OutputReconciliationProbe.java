@@ -192,10 +192,47 @@ public class OutputReconciliationProbe {
             rejected(()->store.verified(lateKey(),CONTENT.length,hash(CONTENT)),"output_storage_unavailable");retained();
             require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='cleared'",Integer.class)==4);
             require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='published'",Integer.class)==2);
+        } else if(mode.equals("multipart-upload")) {
+            byte[] data=new byte[12*1024*1024];Arrays.fill(data,(byte)17);
+            var lease=lease("multipart");String id=(String)outputs.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/multipart.bin",data.length,hash(data),"fixture")).get("output_id");
+            var input=new ByteArrayInputStream(data) {
+                @Override public synchronized int read(byte[] block,int offset,int length) {
+                    if(pos>=6*1024*1024) {
+                        System.out.println("OUTPUT_RECONCILIATION_READY=multipart-part");System.out.flush();
+                        try {new java.util.concurrent.CountDownLatch(1).await();}
+                        catch(InterruptedException e) {Thread.currentThread().interrupt();throw new IllegalStateException("fixture_interrupted");}
+                    }
+                    return super.read(block,offset,Math.min(length,65536));
+                }
+            };
+            outputs.upload(lease,id,input,data.length);throw new IllegalStateException("fixture_crash_not_injected");
+        } else if(mode.equals("multipart-key") || mode.equals("multipart-reap")) {
+            var row=output("multipart.bin");require(row.get("object_key")==null);
+            String key=jdbc.queryForObject("SELECT object_key FROM oa_run_output_upload WHERE output_id=?",String.class,row.get("output_id"));
+            TaskOutputStore.checkKey(key);
+            if(mode.equals("multipart-reap")) {
+                ageUploads();outputs.reconcile();
+                require(jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE object_key=?",String.class,key).equals("cleared"));
+            }
+            System.out.println("OUTPUT_MULTIPART_KEY="+key);retained();
         } else throw new IllegalArgumentException("unknown_fixture_mode");
     }
     public static void main(String[] args) {
         try {new OutputReconciliationProbe().execute(args[0]);System.out.println("OUTPUT_RECONCILIATION_OK="+args[0]);System.exit(0);}
-        catch(Throwable failure) {System.err.println("OUTPUT_RECONCILIATION_FAILED="+failure.getClass().getSimpleName());System.exit(1);}
+        catch(Throwable failure) {
+            System.err.println("OUTPUT_RECONCILIATION_FAILED="+failure.getClass().getSimpleName());
+            for(Throwable cause=failure;cause!=null;cause=cause.getCause()) {
+                System.err.println("OUTPUT_RECONCILIATION_CAUSE="+cause.getClass().getSimpleName());
+                if(cause instanceof io.minio.errors.XmlParserException && cause.getMessage()!=null) {
+                    String diagnostic=cause.getMessage().replaceAll("[A-Za-z0-9_+/=-]{24,}","[value]").replaceAll("[\\r\\n]"," ");
+                    System.err.println("OUTPUT_RECONCILIATION_XML="+diagnostic.substring(0,Math.min(500,diagnostic.length())));
+                }
+                if(cause instanceof io.minio.errors.ErrorResponseException response) {
+                    String code=response.errorResponse().code();
+                    if(code!=null && code.matches("[A-Za-z0-9_]{1,80}"))System.err.println("OUTPUT_RECONCILIATION_S3_CODE="+code);
+                }
+            }
+            System.exit(1);
+        }
     }
 }
