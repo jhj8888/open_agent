@@ -1,0 +1,33 @@
+{
+  "control_endpoint": "https://control.open-agent-test.svc:8443",
+  "control_ca_file": "/run/open-agent/certs/ca.pem",
+  "supervisor": {
+    "id": "cluster-test-supervisor",
+    "key": "REPLACE_WITH_SUPERVISOR_SECRET_AT_INSTALL_TIME"
+  },
+  "dispatcher": {
+    "id": "cluster-test-dispatcher",
+    "key": "REPLACE_WITH_DISPATCHER_SECRET_AT_INSTALL_TIME"
+  },
+  "target": {
+    "workerId": "cluster-test-executor",
+    "environment": "test",
+    "clusterId": "00000000-0000-0000-0000-000000000000",
+    "namespace": "open-agent-executors-test",
+    "namespaceUid": "00000000-0000-0000-0000-000000000000",
+    "executorImage": "registry.internal.example/open-agent/executor@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "program": {
+    "worker_secret": "open-agent-executor-test",
+    "service_account": "open-agent-executor",
+    "node_pool": "trusted",
+    "ca_config_map": "open-agent-internal-ca"
+  },
+  "temporal": {
+    "address": "temporal-frontend.open-agent-test.svc:7233",
+    "namespace": "open-agent-test",
+    "task_queue": "open-agent-test-v1",
+    "tls_mount": "/run/open-agent/temporal"
+  },
+  "maximum_activities": 16
+}

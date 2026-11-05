@@ -76,6 +76,7 @@ def main(bundle, manifest):
         base_before = json.loads(run([PYTHON, '-c', version_script], environment=base_environment))
         environment = {**os.environ, 'UV_OFFLINE': 'true', 'UV_PYTHON_DOWNLOADS': 'never',
                        'PYTHONDONTWRITEBYTECODE': '1', 'LANGSMITH_TRACING': 'false', 'LANGCHAIN_TRACING_V2': 'false',
+                       'TEMPORAL_TEST_BINARY': '/opt/open-agent/runtime/temporal/1.10.0/temporal',
                        'PYTHONPATH': str(folder / 'source') + ':' + str(vendor)}
         if vendor.is_symlink():
             raise RuntimeError('cluster_contract_path_invalid')
@@ -87,7 +88,8 @@ def main(bundle, manifest):
         if versions != {row['name']: row['version'] for row in data['additional_dependencies']}:
             raise RuntimeError('cluster_contract_dependency_mismatch')
         tests = [str(folder / 'source/agent/tests' / name) for name in
-                 ['test_cluster_control.py', 'test_cluster_process.py', 'test_cluster_child.py', 'test_cluster_transport.py']]
+                 ['test_cluster_control.py', 'test_cluster_process.py', 'test_cluster_child.py', 'test_cluster_transport.py',
+                  'test_cluster_supervisor.py', 'test_cluster_service.py']]
         xml = folder / 'pytest.xml'
         result = subprocess.run([str(PYTHON), '-m', 'pytest', *tests, '-q', '-p', 'no:cacheprovider', '--tb=short', '--junitxml=' + str(xml)],
                                 env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
@@ -106,6 +108,7 @@ def main(bundle, manifest):
                   'offline_overlay_install': True, 'live_worker_environment_modified': False,
                   'live_worker_dependencies_before_and_after': base_before,
                   'https_loopback_verified': True, 'projected_secret_symlinks_verified': True,
+                  'real_temporal_cluster_activities_and_service_verified': True,
                   'kubernetes_api_and_kubelet_verified': False, 'kata_and_cni_verified': False}
         (folder / 'verification.json').write_text(json.dumps(report, indent=2) + '\n')
         (ROOT / 'latest-verification.json').write_text(json.dumps(report, indent=2) + '\n')

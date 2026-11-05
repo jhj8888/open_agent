@@ -80,3 +80,13 @@ V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑
 - [x] 展示 API/worker 已更新，私有 SQL/配置备份与维护记录保留；真实 test Skill 与 prod 模型任务在不同队列完成，有 22.667 秒工作流重叠，资源均释放。旧 58 步、2 文件、Token 汇总及公网 HTTPS 检查通过。
 
 见 `docs/platform/environment-dispatch.md` 与 `environment-dispatch-verification-20261105.json`。展示机两个队列属于同一主机/namespace，不能代替生产基础设施隔离；完整集群服务、未知创建关闭、Kata/CNI/HA、离线冷启动及容量验收继续推进，原有整项任务保持未勾选。
+
+
+## 2026-11-05 集群监督活动与常驻服务增量
+
+- [x] ClusterSupervisor 将 claim/单次 launch、状态观察、有界 reconcile 与独立扫描接通；新副本保留有效租约，未知启动不重放，Pod 停止后重新读取沙盒 journal。
+- [x] 常驻入口使用官方 Kubernetes in-cluster/Temporal 客户端、固定 Secret 挂载、非 root 身份和外部 Temporal mTLS；调度鉴权或依赖异常时不宣布就绪，退出先撤销就绪。
+- [x] Windows 相关检查 100 通过/3 项 Linux 专属跳过；后续新增模块定向 23 通过/4 跳过，两轮重叠不相加。最终 Linux 105 项通过/0 跳过，包含真实 Temporal 活动和服务接线。
+- [x] 独立零节点 K3s 1.36.6 + Temporal 实验验证第二副本不误 fencing、取消后保存未启动证据、删除 Pod 和释放；账本明确为合成夹具。临时容器/卷/网络/admin 凭据均清理，公网 TLS/认证/21 项用量一致性复查通过。
+
+详见 `docs/platform/cluster-supervisor.md` 和 `cluster-supervisor-verification-20261105.json`。本轮不更新活动展示 worker，不启用集群任务准入。完整运行镜像/Helm/RBAC/NetworkPolicy、真实控制库/集群/模型共同联调、Kata admission/回收、未知创建关闭及节点故障验收仍未完成，原有整项任务不据此勾选。

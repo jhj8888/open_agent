@@ -1,0 +1,156 @@
+{
+  "recorded_at": "2026-11-05T08:58:03.008236+00:00",
+  "scope": "Cluster Temporal activity/service implementation and isolated test-server verification; production cluster admission remains closed",
+  "windows_initial_related_suite": {
+    "tests": 103,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3,
+    "passed": 100
+  },
+  "windows_final_new_modules": {
+    "tests": 27,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4,
+    "passed": 23
+  },
+  "windows_count_note": "Selections overlap; do not add them",
+  "final_linux_overlay": {
+    "checked_at": "2026-11-05T09:03:11.397856+00:00",
+    "archive_sha256": "6a83f1035a801fa7ad885a446dc7ce69c045aee87ac37271c39178c7c70f448a",
+    "tests_passed": 105,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "dependencies": {
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "durationpy": "0.11",
+      "kubernetes": "36.0.3",
+      "oauthlib": "4.0.1",
+      "requests-oauthlib": "2.0.0",
+      "yarl": "1.25.1"
+    },
+    "offline_overlay_install": true,
+    "live_worker_environment_modified": false,
+    "live_worker_dependencies_before_and_after": {
+      "aiohttp": "3.11.14",
+      "aiosignal": "1.3.2",
+      "yarl": "1.18.3"
+    },
+    "https_loopback_verified": true,
+    "projected_secret_symlinks_verified": true,
+    "real_temporal_cluster_activities_and_service_verified": true,
+    "kubernetes_api_and_kubelet_verified": false,
+    "kata_and_cni_verified": false
+  },
+  "real_temporal_and_kubernetes_api_fixture": {
+    "checked_at": "2026-11-05T08:54:57.481000+00:00",
+    "source_archive_sha256": "10728058cf34f7190e597b12958199ca2107b4f959daef1eb9f3167d2c04c7dd",
+    "kubernetes_version": "v1.36.6+k3s1",
+    "run_id": "b6d6142b-7cb7-479e-aaf4-f3339f75a51f",
+    "state": "cancelled",
+    "phase": "released",
+    "real_temporal_workflow_completed": true,
+    "real_kubernetes_api": true,
+    "nodes": 0,
+    "single_launch_authorization": true,
+    "second_replica_preserved_healthy_task": true,
+    "never_started_receipt": {
+      "id": "6ac37975-2d52-5574-b6a1-293ff301e2d5",
+      "podUid": "b5feb6ec-4ce4-4314-8e60-4bf1d051e92d",
+      "resourceVersion": "499",
+      "deletionTimestamp": "2026-11-05T08:54:55Z",
+      "schedulingGate": null,
+      "nodeUnbound": true,
+      "containerStatusesEmpty": true,
+      "evidenceSha256": "8ca42990b783849178e3f37828829b537e7f7105c261e25f2afe4baaaf292350"
+    },
+    "pod_absent_after_finalizer": true,
+    "proof_kind": "never_started_pod",
+    "ledger": "synthetic orchestration fixture; separate real MySQL/HTTP tests",
+    "kubelet_kata_cni_or_model_execution": false,
+    "live_worker_environment_changed": false
+  },
+  "fixture_cleanup": {
+    "container_removed": true,
+    "volume_removed": true,
+    "network_removed": true,
+    "admin_credentials_removed": true,
+    "checked_at": "2026-11-05T08:55:03.286394+00:00"
+  },
+  "public_demo_after_cleanup": {
+    "checked_at": "2026-11-05T08:56:51.800856+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "openspec": {
+    "strict": true,
+    "passed": 11,
+    "failed": 0
+  },
+  "initial_test_corrections": [
+    "Five new cleanup cases incorrectly assumed deletion and finalizer completion in one bounded pass; updated to assert retained proof/quota before the next pass.",
+    "A secret repr assertion used the same repeated character as the synthetic image digest; replaced with distinct fixture-only markers.",
+    "Temporal certificate mount validation now compares the POSIX form of the fixed path across platforms."
+  ],
+  "implemented": [
+    "Single environment dispatch, official Temporal activities and Kubernetes lifecycle integration.",
+    "Existing valid task leases survive a newly started scanner; no replay on unknown one-shot launch replies.",
+    "Positive Pod receipt before finalizer, reread late sandbox journal, stable proof and independent scanner.",
+    "Fixed Secret mounts, non-root service entry, external Temporal mTLS, finite dependency probes and removal of readiness on shutdown.",
+    "No readiness when the dispatcher identity cannot claim messages.",
+    "Readiness requires the configured Temporal namespace to exist in REGISTERED state; actual missing namespace test rejects startup before dispatch."
+  ],
+  "limitations": [
+    "The real Kubernetes test has zero nodes. Its ledger is a synthetic fixture; separate real Java/MySQL protocol tests are not a full combined deployment.",
+    "No kubelet, CRI, CNI or Kata execution was verified. No model/tool/tenant code ran in the API fixture.",
+    "Kata sandbox admission and independent cleanup adapter, full worker image/Helm/RBAC/NetworkPolicy connection remain incomplete.",
+    "Unknown creation and bound Pods without actual termination records retain quota; no timeout-based release.",
+    "Current initial attempt heartbeat is 30 seconds; slow scheduling/image startup requires deployment qualification and a separate startup budget design.",
+    "New cluster code is installed only in an isolated verification overlay. Active demo worker packages, source and public frontend were not replaced."
+  ],
+  "active_demo_runtime_after_verification": {
+    "worker_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+    "api_artifact_sha256": "32845a863efb0b1e71baf72aeb1fa2dba246832ff13f80ec96ad707d5bc03522",
+    "active_supervisor_ready": true,
+    "task_queues": {
+      "test": "open-agent-demo-v1",
+      "prod": "open-agent-demo-prod-v1"
+    },
+    "frozen_versions": {
+      "deepagents": "0.7.29",
+      "temporalio": "1.35.0",
+      "opensandbox": "1.1.0",
+      "langchain-openai": "1.7.2",
+      "aiohttp": "3.11.14"
+    }
+  },
+  "kubernetes_fixture_source_correlation": {
+    "fixture_archive_sha256": "10728058cf34f7190e597b12958199ca2107b4f959daef1eb9f3167d2c04c7dd",
+    "final_archive_sha256": "6a83f1035a801fa7ad885a446dc7ce69c045aee87ac37271c39178c7c70f448a",
+    "only_changed_files": [
+      "source/agent/durable/cluster_service.py",
+      "source/agent/tests/test_cluster_service.py"
+    ],
+    "activity_lifecycle_sdk_and_ledger_fixture_bytes_unchanged": true,
+    "note": "Final change adds namespace readiness validation; real Kubernetes activity experiment code is unchanged."
+  }
+}

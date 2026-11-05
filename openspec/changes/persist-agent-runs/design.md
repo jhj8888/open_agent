@@ -50,6 +50,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Migration Plan
 
+集群监督服务连接同一环境的 outbox、官方 Temporal Worker、ClusterSupervisorClient 与 KubernetesProcesses。execute 只在原子 claim 成功后调用一次 launch；未知回复不重放。reconcile 和独立周期扫描共用有界回收路径，先取得 Pod 停止证据，再重新读取沙盒 journal，最后提交稳定的回收证明。未接通 Kata 核验的已授权沙盒创建保留配额。服务重启/扩容只扫描终态、取消、截止或租约过期记录，不像独占单机进程那样 fencing 所有活动记录；控制数据库的租户配额跨副本生效，副本内锁只用于减少重复请求。
+
+监督服务配置来自固定 Secret 挂载，Kubernetes 使用官方 in-cluster 凭据加载与 TLS 校验；Temporal 使用内网 mTLS，只有明确 loopback 测试连接允许无 TLS。监督器只持有调度/回收身份，不持有模型密钥或 worker 模板。executor 继续使用独立无 Kubernetes token 的 ServiceAccount。依赖探测失败撤销就绪状态，服务退出不根据本地进程消失推断 Pod/沙盒已经停止。
+
 新增表及独立 worker，测试租户先启用持久模式；只读展示旧运行但不伪造历史事件。回滚先停止接新任务并排空新 workflow，保留查询服务和数据库；禁止删除进行中的持久记录。
 
 

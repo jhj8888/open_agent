@@ -17,6 +17,10 @@ SOURCES = [
     'agent/durable/host_process.py', 'agent/durable/supervision.py', 'agent/tests/__init__.py',
     'agent/tests/test_cluster_control.py', 'agent/tests/test_cluster_process.py',
     'agent/tests/test_cluster_child.py', 'agent/tests/test_cluster_transport.py',
+    'agent/durable/cluster_supervisor.py', 'agent/durable/cluster_service.py',
+    'agent/durable/workflow.py', 'agent/durable/dispatcher.py',
+    'agent/tests/test_cluster_supervisor.py', 'agent/tests/test_cluster_service.py',
+    'agent/tests/test_durable_workflow.py',
 ]
 ADDITIONAL = {'aiohttp', 'aiosignal', 'yarl', 'durationpy', 'kubernetes', 'oauthlib', 'requests-oauthlib'}
 LICENSES = {'aiohttp': 'Apache-2.0 AND MIT', 'aiosignal': 'Apache-2.0', 'yarl': 'Apache-2.0',

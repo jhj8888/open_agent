@@ -2,6 +2,8 @@
 
 ## 2026-11-05 当前状态
 
+常驻集群监督服务与 Temporal 活动已实现，在测试服务器独立 overlay 中 105 项检查通过。真实 Temporal + 零节点 K3s API 验证创建、第二副本保留健康任务、取消、未启动证据、finalizer 和释放；API 实验使用合成账本，不代表完整业务数据库/K8S 联调或物理隔离。临时容器、卷、网络和 admin 凭据已清理，展示入口复查通过。集群镜像/Helm/RBAC/NetworkPolicy、Kata admission/独立回收和真实节点验收仍未交付，集群总准入保持关闭。见[监督服务实现与证据](cluster-supervisor.md)。
+
 环境路由增量已部署到展示 API V1.64：SQL 领取、分派器和 activity 校验 test/prod，未配置执行路由的环境拒绝提交且不创建排队任务。两个实际 Temporal 队列共用主机容量，真实测试 Skill 与生产模型任务均成功并释放资源，工作流重叠 22.667 秒。43 项 Java、冻结 Linux 63 项与 Helm/交付 29 项检查通过；维护 80.14 秒，旧任务 58 步和 2 个下载文件保留。仅证明同主机逻辑队列分离，生产 Kata/K8S 及集群总准入保持未验收；详见[环境路由与证据](environment-dispatch.md)。
 
 未启动 Pod 的正向删除屏障已在 V1.63 完成账本与真实无节点 K3s API 检查，见[未启动回收证据](cluster-unstarted-pods.md)。未知创建、已绑定节点缺少真实终止记录、完整集群执行服务及 Kata/CNI 仍待交付。

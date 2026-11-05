@@ -1,7 +1,7 @@
 {
   "scope": "Linux contract verification overlay only; not a complete worker image or Kubernetes deployment",
-  "sha256": "5f96edac8a63e28009f16067c6db147c4b4153dca33553e04491b4d82b5c0e38",
-  "bytes": 6542823,
+  "sha256": "6a83f1035a801fa7ad885a446dc7ce69c045aee87ac37271c39178c7c70f448a",
+  "bytes": 6556702,
   "base": "Existing demo worker Python 3.11 frozen environment; unchanged",
   "files": [
     {
@@ -50,14 +50,29 @@
       "sha256": "e8129febb3bad2ff0177a59eb4ed712945c2b5e1ef20ee3a40f548170effea7a"
     },
     {
+      "path": "source/agent/durable/cluster_service.py",
+      "size": 11252,
+      "sha256": "1cf9b64a257b37f1f20c15ce322e9487dfb37aa266928047f7143df406935e17"
+    },
+    {
+      "path": "source/agent/durable/cluster_supervisor.py",
+      "size": 7846,
+      "sha256": "1d3d5bec65eea3c3377a0cce335cb7a3c9b30db16134e9aa9595676ac11dfdcc"
+    },
+    {
       "path": "source/agent/durable/contracts.py",
       "size": 1140,
       "sha256": "1883846d92e4b57184e0c2fa3a7bbf970ba1b2b71361dedfc64f146512c29d8f"
     },
     {
       "path": "source/agent/durable/control.py",
-      "size": 13658,
-      "sha256": "a94a380dc58727dc79cbbd71f8fd21f4774ee3ef7a13fea2dd8cc365fd187d91"
+      "size": 14230,
+      "sha256": "146d4d1f3c9c08264db8a21680c96eb6157e165dfeb80eb90162c1d0538aed81"
+    },
+    {
+      "path": "source/agent/durable/dispatcher.py",
+      "size": 3473,
+      "sha256": "48b3cceb5092a539c183f047582a21b1b49b5ffab062b31cb728cc19ca831f4e"
     },
     {
       "path": "source/agent/durable/host_process.py",
@@ -68,6 +83,11 @@
       "path": "source/agent/durable/supervision.py",
       "size": 9809,
       "sha256": "94698c1e8739fbb2344f68d1649abf06784e5e70cded76de14048399c8063ce5"
+    },
+    {
+      "path": "source/agent/durable/workflow.py",
+      "size": 3564,
+      "sha256": "63603cf23ff37e29cdb01b390547c02180f9a4071f74b7179170bc80c37bddf9"
     },
     {
       "path": "source/agent/tests/__init__.py",
@@ -90,9 +110,24 @@
       "sha256": "140136e48b8935d5a40bb0d6654658acc3f7da5690d4e4ef4bbada8cefe40919"
     },
     {
+      "path": "source/agent/tests/test_cluster_service.py",
+      "size": 7873,
+      "sha256": "522de7d95e7f7d11d13e33f4d9cc7e9069a24f569dca1bc70de6bd944e33fa9e"
+    },
+    {
+      "path": "source/agent/tests/test_cluster_supervisor.py",
+      "size": 10909,
+      "sha256": "61b442d27eda2b780a22d0cdab3f074b9dfa93561c0b66eed383a24472bc7435"
+    },
+    {
       "path": "source/agent/tests/test_cluster_transport.py",
       "size": 4952,
       "sha256": "a97dd954758975433532232f19cac44c445177ce31609c4664fa23151e7cf5f0"
+    },
+    {
+      "path": "source/agent/tests/test_durable_workflow.py",
+      "size": 14088,
+      "sha256": "d2bebb5776e533853165bd17d7feb9c1c59c9f8731c85960bcbd2edf044babe7"
     },
     {
       "path": "wheels/aiohttp-3.14.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
