@@ -1,0 +1,21 @@
+{
+  "checked_at": "2026-11-05T16:16:19.047852+00:00",
+  "image": "sha256:c87a7579793fa109b525ed2a6c2f3d1d1b95e43c142b33bd8f84fd59b4c58410",
+  "test_sha256": "d1d9e50ce274a510d80b822a7bde47bb029600a4dd5ecff6ca6c36c916712ecb",
+  "source_sha256": "7612f6edb43740eea034f6b76e9afa1796d1bdb28dbae2433e06ce0f1628c97e",
+  "tests_passed": 4,
+  "mutating_iterations": 30,
+  "mutations": [
+    "append",
+    "truncate",
+    "overwrite_restore_mtime"
+  ],
+  "real_linux_pipe_and_files": true,
+  "network": "none",
+  "uid": 10001,
+  "read_only_container": true,
+  "capabilities": [],
+  "stable_content_sha256_verified": true,
+  "production_code_changed": false,
+  "scope": "Exact production UID-reader logic with fixed input root redirected to private test folder; not full privileged-parent/SDK/Kata verification."
+}

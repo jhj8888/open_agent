@@ -2,6 +2,8 @@
 
 ## 2026-11-06 当前增量
 
+任务产物 reader 并发修改检查已交付测试服务器：真实 Linux 管道背压下 30 次追加/截断/覆盖（恢复原 mtime）均拒绝，稳定 4 MiB 文件内容/摘要正确；4 项测试通过并加入 CI。源码 SHA256 与此前 gVisor 验收相同，生产执行代码未变。该证据覆盖 reader，不替代完整父进程/SDK/Kata 或对象存储中断验收。见[文件竞态证据](output-races-verification-20261106.json)。
+
 周/月统计新增真实数据库逐条独立核算，四个自然周期的任务数、Token、缓存/新增、每日 UTC+8 归属、平均/P95 与线上接口一致；本周/月各 31 任务、49 模型调用。只读脚本已交付展示机，不重放业务。浏览器工具初始化超时，CSV 下载仍待补验，不关闭统计复合任务。见[核算证据](period-reports-verification-20261106.json)。
 
 后端已加入已绑定沙盒的控制器停止创建确认：读取当前租约与 executor 终止凭据，按固定 CR UID/resourceVersion 条件将副本数设为 0，仅接受当前 generation 的完整确认，不删除 Pod 或释放配额。固定官方 controller 已实际创建 Pod，后端完成确认、重启后不重建、过期版本冲突和删除中 CR 拒绝验证；业务账本/终止凭据为合成输入，无 kubelet/Kata/CNI。70 项本地、222 项 Linux overlay、280 项最终镜像、16 项打包与 11 项规格检查通过（重叠用例不相加）。新镜像约 706 MB 已交付测试服务器，原 58 步/2 文件/缓存 Token/公网权限复查通过，活动展示 worker 保持原执行链。物理停止及持久回收、HTTPS admission、真实目标集群和离线容量验收仍在推进。见[控制器收敛](cluster-controller-quiescence.md)及[UTC 2026-11-05 验证记录](cluster-controller-verification-20261105.json)。
