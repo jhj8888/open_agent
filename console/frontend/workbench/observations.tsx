@@ -3,6 +3,23 @@ import { ApiScope, errorMessage } from './api';
 import { ErrorBox, dateText, terminal } from './components';
 import type { AgentRun } from './types';
 
+type ContentBlock = {
+  text: string;
+  source: string;
+  availability: string;
+  truncated: boolean;
+  originalBytes: number;
+};
+type StepContent = {
+  inputMode?: string;
+  previousStepId?: string;
+  availability?: string;
+  input?: ContentBlock;
+  thinking?: ContentBlock;
+  toolCalls?: ContentBlock;
+  toolResult?: ContentBlock;
+  output?: ContentBlock;
+};
 type Step = {
   id: number;
   attempt_no: number;
@@ -19,8 +36,11 @@ type Step = {
   output_tokens: number | null;
   cache_read_tokens: number | null;
   cache_write_tokens: number | null;
-  start_json: { summary: Record<string, string> };
-  finish_json: { summary: Record<string, string> } | null;
+  start_json: { summary: Record<string, string>; content?: StepContent };
+  finish_json: {
+    summary: Record<string, string>;
+    content?: StepContent;
+  } | null;
 };
 type Page = {
   items: Step[];
@@ -58,6 +78,91 @@ const summaries: Record<string, string> = {
   manifestSha256: '清单摘要',
   fileCount: '文件数量',
 };
+const inputModes: Record<string, string> = {
+  initial: '首次输入',
+  append: '本次新增消息',
+  context_changed: '上下文已变化 · 当前上下文',
+  tool_arguments: '本次工具参数',
+};
+function StepBody({ row }: { row: Step }): JSX.Element {
+  const start = row.start_json.content;
+  const end = row.finish_json?.content;
+  if (!start && !end)
+    return <p>此历史步骤未采集输入、think、工具结果与输出正文。</p>;
+  const sections: [string, ContentBlock | undefined, string, boolean][] = [
+    [
+      `增量输入 · ${inputModes[start?.inputMode ?? ''] ?? '未记录'}`,
+      start?.input,
+      '未记录本次输入',
+      start?.availability === 'run_limit',
+    ],
+    [
+      'Think · 模型实际返回',
+      end?.thinking,
+      row.kind === 'model'
+        ? row.status === 'running'
+          ? '等待模型返回思考内容'
+          : '模型未返回思考内容'
+        : '此步骤不调用模型',
+      end?.availability === 'run_limit',
+    ],
+    [
+      '工具调用',
+      end?.toolCalls,
+      '本次没有模型工具调用',
+      end?.availability === 'run_limit',
+    ],
+    [
+      '工具调用结果',
+      end?.toolResult,
+      row.kind === 'tool'
+        ? '尚无返回结果；错误分类见步骤摘要'
+        : '请查看对应工具步骤',
+      end?.availability === 'run_limit',
+    ],
+    [
+      '输出',
+      end?.output,
+      row.kind === 'tool' ? '此步骤输出见「工具调用结果」' : '未记录输出正文',
+      end?.availability === 'run_limit',
+    ],
+  ];
+  return (
+    <div className="step-content">
+      {start?.previousStepId && (
+        <small>
+          输入比较基准：步骤 {start.previousStepId}
+          ；上下文变化时显示当前输入，不标作增量。
+        </small>
+      )}
+      {sections.map(([title, block, absent, limited]) => (
+        <section key={title}>
+          <strong>{title}</strong>
+          {limited ? (
+            <p>已达到本次任务的正文记录上限；用量、状态与产出文件继续记录。</p>
+          ) : block &&
+            (block.availability === 'provided' ||
+              block.availability === 'partial') ? (
+            <>
+              {block.availability === 'partial' && (
+                <small>执行中断前已返回的部分内容</small>
+              )}
+              {block.truncated && (
+                <small>
+                  内容较长，已截断展示（脱敏后原文{' '}
+                  {block.originalBytes.toLocaleString()} 字节）
+                </small>
+              )}
+              <pre>{block.text || '（空内容）'}</pre>
+            </>
+          ) : (
+            <p>{absent}</p>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 export function TaskObservations({
   api,
@@ -131,7 +236,8 @@ export function TaskObservations({
       </div>
       <p className="form-note">
         模型用量逐次记录，缓存包含在输入 Token 中；纯工具直接用量为
-        0，框架父步骤不重复计入。摘要仅包含结构与长度。
+        0，框架父步骤不重复计入。展开模型或工具步骤，可查看脱敏后的输入、实际
+        think、工具结果与输出；较长内容会标明截断。
       </p>
       <ErrorBox message={error} />
       {page && page.totals.steps > 0 ? (
@@ -232,6 +338,9 @@ export function TaskObservations({
                         {value}
                       </span>
                     ))}
+                    {(row.kind === 'model' || row.kind === 'tool') && (
+                      <StepBody row={row} />
+                    )}
                   </div>
                 </details>
               );

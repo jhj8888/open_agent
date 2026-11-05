@@ -51,4 +51,5 @@ dependencies = [
     "jsonschema>=4.25,<5",
     "opensandbox==1.1.0",
     "temporalio==1.35.0",
+    "langchain-deepseek==1.1.1",
 ]

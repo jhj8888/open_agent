@@ -120,8 +120,9 @@ def completion():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["openai", "deepseek"])
 async def test_actual_engine_streams_events_and_usage_through_approved_fenced_transport(
-    execution,
+    execution, adapter,
 ):
     lease, control, span, trace = execution
     requests = []
@@ -135,11 +136,15 @@ async def test_actual_engine_streams_events_and_usage_through_approved_fenced_tr
     app.router.add_post("/v1/chat/completions", respond)
     async with AiohttpServer(app) as server:
         endpoint = str(server.make_url("/v1"))
+        config = bundle(endpoint)
+        config = config.model_copy(update={"model": config.model.model_copy(update={"adapter": adapter, "thinkingEnabled": adapter == "deepseek"})})
         result = await RuntimeExecutor(control, policy=policy(endpoint)).execute(
-            lease, bundle(endpoint), span, trace
+            lease, config, span, trace
         )
     assert result == {"prompt_tokens": 22, "completion_tokens": 10, "total_tokens": 32}
     assert len(requests) == 2 and requests[0]["stream"] is True
+    if adapter == "deepseek":
+        assert all(request["thinking"] == {"type": "enabled"} for request in requests)
     model_steps = [call.args[2] for call in control.observation.await_args_list if call.args[1] == "finish" and call.args[2]["kind"] == "model"]
     assert len(model_steps) == 2
     assert sum(row["inputTokens"] for row in model_steps) == 22
@@ -158,6 +163,7 @@ async def test_actual_engine_streams_events_and_usage_through_approved_fenced_tr
     assert len({call.args[1] for call in calls}) == len(calls)
     assert control.permit.await_count >= 4
     assert "synthetic-executor-key" not in repr(calls)
+    assert "synthetic-executor-key" not in repr(control.observation.await_args_list)
 
 
 @pytest.mark.asyncio

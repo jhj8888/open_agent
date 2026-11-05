@@ -65,8 +65,17 @@ class ModelSecurityTest {
     }
 
     @Test void inputSerializationAndToStringNeverReturnTheKey() throws Exception {
-        var input=new PlatformModelController.ModelInput("example","http://llm.local/v1","model",true,true,true,10,90,180,null,"synthetic-private-key",0,false);
+        var input=new PlatformModelController.ModelInput("example","http://llm.local/v1","model",true,true,true,10,90,180,null,"synthetic-private-key",0,false,"deepseek",true);
         assertFalse(input.toString().contains("synthetic-private-key"));
         assertFalse(new ObjectMapper().writeValueAsString(input).contains("synthetic-private-key"));
+    }
+    @Test void existingWorkerPayloadOmitsNewFieldsUntilVersionOptsIn() throws Exception {
+        var json=new ObjectMapper();
+        var old=new ModelConnectionService.WorkerModel("http://llm.local/v1","model","synthetic",1,true,true,10,90,180,null,null,null);
+        assertFalse(json.valueToTree(old).has("adapter"));
+        assertFalse(json.valueToTree(old).has("thinkingEnabled"));
+        var current=new ModelConnectionService.WorkerModel("http://llm.local/v1","model","synthetic",2,true,true,10,90,180,null,"deepseek",true);
+        assertEquals("deepseek",json.valueToTree(current).path("adapter").asText());
+        assertTrue(json.valueToTree(current).path("thinkingEnabled").asBoolean());
     }
 }

@@ -101,7 +101,7 @@ class RuntimeExecutor:
             raise RuntimeError("execution_configuration_invalid") from None
 
         permit = ExecutionPermit(self.control, lease, bundle.deadline)
-        observations = ExecutionObservations(lambda phase, step: self.control.observation(lease, phase, step))
+        observations = ExecutionObservations(lambda phase, step: self.control.observation(lease, phase, step), secrets=(bundle.model.credential.get_secret_value(),))
         sequence = 0
 
         async def emit(kind: str, payload: dict[str, Any]):
@@ -167,12 +167,13 @@ class RuntimeExecutor:
                 handle = await create_provider_model(
                     model_name=config.modelName,
                     base_url=config.endpoint,
-                    provider="openai",
+                    provider=config.adapter,
                     api_key=config.credential.get_secret_value(),
                     http_client=client,
                     parameters={
                         "temperature": plan.temperature,
                         "max_tokens": plan.maxTokens,
+                        **({"thinking": {"type": "enabled" if config.thinkingEnabled else "disabled"}} if config.adapter == "deepseek" else {}),
                     },
                     timeout=config.readTimeoutSeconds,
                     max_retries=0,

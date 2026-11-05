@@ -233,6 +233,7 @@ export function ModelEditor({
   saved,
   model,
 }: EditorProps & { model?: ModelConnection }): JSX.Element {
+  const [adapter, setAdapter] = useState(model?.adapter ?? 'openai');
   return (
     <EditForm
       title={model ? '更新模型连接版本' : '添加模型连接'}
@@ -245,6 +246,8 @@ export function ModelEditor({
             displayName: text(data, 'name'),
             endpoint: text(data, 'endpoint'),
             modelName: text(data, 'model'),
+            adapter,
+            thinkingEnabled: adapter === 'deepseek' && data.has('thinking'),
             apiKey: text(data, 'key') || undefined,
             supportsStream: data.has('stream'),
             supportsTools: data.has('tools'),
@@ -299,6 +302,28 @@ export function ModelEditor({
           required={!model}
         />
       </label>
+      <label>
+        模型接口类型
+        <select
+          value={adapter}
+          onChange={event =>
+            setAdapter(event.target.value as 'openai' | 'deepseek')
+          }
+        >
+          <option value="openai">OpenAI 兼容</option>
+          <option value="deepseek">DeepSeek（支持 think）</option>
+        </select>
+      </label>
+      {adapter === 'deepseek' && (
+        <label className="checkbox-row">
+          <input
+            name="thinking"
+            type="checkbox"
+            defaultChecked={model?.thinking_enabled ?? true}
+          />
+          启用模型思考（步骤详情可查看模型返回的 think）
+        </label>
+      )}
       <div className="checkbox-row">
         <label>
           <input

@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ModelConnectionService {
     private static final String PUBLIC_COLUMNS = "c.connection_id,c.display_name,c.current_version,c.enabled,v.endpoint,v.model_name,v.protocol,"
-            + "v.supports_stream,v.supports_tools,v.supports_usage,v.connect_timeout_seconds,v.read_timeout_seconds,v.total_timeout_seconds,v.ca_ref,v.credential_ref,v.revoked";
+            + "v.supports_stream,v.supports_tools,v.supports_usage,v.connect_timeout_seconds,v.read_timeout_seconds,v.total_timeout_seconds,v.ca_ref,v.credential_ref,v.revoked,v.adapter,v.thinking_enabled";
     private final JdbcTemplate jdbc;
     private final TenantAccessService access;
     private final ModelCredentialCipher cipher;
@@ -52,6 +52,9 @@ public class ModelConnectionService {
         if (jdbc.queryForList("SELECT tenant_id FROM oa_tenant WHERE tenant_id=? FOR UPDATE", tenant).isEmpty()) throw new TenantAccessDeniedException();
         access.require(tenant, env, TenantPermission.CREDENTIAL_MANAGE);
         policy.validate(input.endpoint());
+        String adapter=input.adapter()==null?"openai":input.adapter();
+        if(!java.util.Set.of("openai","deepseek").contains(adapter) || (input.thinkingEnabled()&&!adapter.equals("deepseek")))
+            throw new IllegalArgumentException("Thinking mode requires the DeepSeek adapter");
         if (input.totalTimeoutSeconds() < input.readTimeoutSeconds()) throw new IllegalArgumentException("Total timeout must cover the read timeout");
         caFile(input.caRef());
         String id = existingId == null ? UUID.randomUUID().toString() : existingId;
@@ -74,10 +77,10 @@ public class ModelConnectionService {
         jdbc.update("""
                 INSERT INTO oa_model_connection_version(tenant_id,environment,connection_id,version,endpoint,model_name,
                 supports_stream,supports_tools,supports_usage,connect_timeout_seconds,read_timeout_seconds,total_timeout_seconds,
-                ca_ref,credential_ref,credential_key_id,credential_nonce,credential_cipher) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ca_ref,credential_ref,credential_key_id,credential_nonce,credential_cipher,adapter,thinking_enabled) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, tenant, env, id, version, input.endpoint(), input.modelName(), input.supportsStream(), input.supportsTools(), input.supportsUsage(),
                 input.connectTimeoutSeconds(), input.readTimeoutSeconds(), input.totalTimeoutSeconds(), input.caRef(), credentialRef,
-                encrypted.keyId(), encrypted.nonce(), encrypted.ciphertext());
+                encrypted.keyId(), encrypted.nonce(), encrypted.ciphertext(),adapter,input.thinkingEnabled());
         if (input.revokePrevious()) jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=? AND environment=? AND connection_id=? AND version<?", tenant, env, id, version);
         jdbc.update("""
                 INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,after_value,retain_until)
@@ -117,7 +120,9 @@ public class ModelConnectionService {
     /** Transient response for the authenticated run worker broker, never user APIs or Temporal payloads. */
     public record WorkerModel(String endpoint, String modelName, String credential, long version,
             boolean supportsTools, boolean supportsUsage, int connectTimeoutSeconds, int readTimeoutSeconds,
-            int totalTimeoutSeconds, String caRef) {
+            int totalTimeoutSeconds, String caRef,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String adapter,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) Boolean thinkingEnabled) {
         @Override public String toString() { return "WorkerModel[credential=REDACTED]"; }
     }
 
@@ -132,7 +137,9 @@ public class ModelConnectionService {
         return new WorkerModel((String)row.get("endpoint"), (String)row.get("model_name"), secret(tenant,env,id,row), version,
                 Boolean.TRUE.equals(row.get("supports_tools")), Boolean.TRUE.equals(row.get("supports_usage")),
                 ((Number)row.get("connect_timeout_seconds")).intValue(), ((Number)row.get("read_timeout_seconds")).intValue(),
-                ((Number)row.get("total_timeout_seconds")).intValue(), (String)row.get("ca_ref"));
+                ((Number)row.get("total_timeout_seconds")).intValue(), (String)row.get("ca_ref"),
+                "deepseek".equals(row.get("adapter"))?"deepseek":null,
+                "deepseek".equals(row.get("adapter"))?Boolean.TRUE.equals(row.get("thinking_enabled")):null);
     }
 
     public BoundModel forRun(String tenant, String env, String id, boolean needTools, boolean needStream) {

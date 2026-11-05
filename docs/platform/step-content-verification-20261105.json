@@ -1,0 +1,63 @@
+{
+  "model_version": 2,
+  "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+  "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+  "verified_at": "2026-11-05T01:47:01.736720+00:00",
+  "steps": 58,
+  "model_calls": 6,
+  "tool_calls": 4,
+  "steps_with_think": 2,
+  "input_modes": [
+    "initial",
+    "append",
+    "append",
+    "append",
+    "append",
+    "context_changed"
+  ],
+  "totals": {
+    "steps": 58,
+    "modelCalls": 6,
+    "toolCalls": 4,
+    "unknownModelCalls": 0,
+    "inputTokens": 21274,
+    "outputTokens": 968
+  },
+  "actual_tool_results": true,
+  "output_text": true,
+  "synthetic_secret_redacted": true,
+  "other_tenant_denied": true,
+  "token_sum_matches_task": true,
+  "retained_files": 2,
+  "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+  "download_digests_verified": true,
+  "thinking_steps": [
+    {
+      "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+      "input_tokens": 3609,
+      "duration_ms": 1850
+    },
+    {
+      "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+      "input_tokens": 3865,
+      "duration_ms": 1928
+    }
+  ],
+  "validation": {
+    "python_checks": 86,
+    "redaction_followup_checks": 14,
+    "java_checks": 30,
+    "java_new_fixture_rechecked": true,
+    "session_checks": 5,
+    "openspec_changes": 11,
+    "workbench_build": true,
+    "https_authorization": true,
+    "browser_expanded_inputs_think_tools_output": true
+  },
+  "deployment": {
+    "api_sha256": "cc5cef4bf9418dcbf5eb9ae8ce31be91a3e693d940ddcf78e5e01920bd67ce5c",
+    "worker_sha256": "8c64a5475a783efd607f40d86f62e9f30967609309603497f561bd8358fbb7a0",
+    "console_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+    "screenshot_sha256": "eee3011dc26c01fbe5354c28f2710fb53a64d01bcfae99b19f903bbd5d931f91"
+  }
+}

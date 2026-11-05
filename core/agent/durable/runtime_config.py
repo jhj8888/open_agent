@@ -1,7 +1,7 @@
 """Transient worker-only data. These types must never be workflow/activity arguments or results."""
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -22,6 +22,8 @@ class WorkerModel(BaseModel):
     readTimeoutSeconds: Annotated[int, Field(ge=1, le=1800)]
     totalTimeoutSeconds: Annotated[int, Field(ge=1, le=3600)]
     caRef: Annotated[str, Field(max_length=128)] | None
+    adapter: Literal["openai", "deepseek"] = "openai"
+    thinkingEnabled: bool = False
 
 
 class SkillBinding(BaseModel):

@@ -4,7 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 import pytest
 
@@ -60,7 +60,9 @@ async def test_each_leaf_call_has_provider_usage_and_parent_counts_are_not_repea
         for row in leaf
     )
     assert all(row["inputTokens"] is None for row in finished if row["kind"] != "model")
-    assert "private" not in str(sink.await_args_list)
+    assert leaf[0]["content"]["output"]["text"] == "private response"
+    assert leaf[0]["content"]["thinking"]["availability"] == "not_returned"
+    assert all("content" not in row for row in finished if row["kind"] == "chain")
 
 
 @pytest.mark.asyncio
@@ -96,9 +98,8 @@ async def test_unknown_tool_errors_and_interrupted_calls_are_not_reported_as_zer
     ]
     assert all(row["inputTokens"] is None for row in finished)
     assert observer.tool_steps["tool:call_1"] == str(tool)
-    assert "secret" not in str(sink.await_args_list) and "private" not in str(
-        sink.await_args_list
-    )
+    assert finished[1]["content"]["toolResult"]["text"] == "secret error"
+    assert "private cancellation" not in str(sink.await_args_list)
 
 
 @pytest.mark.asyncio
@@ -113,3 +114,95 @@ async def test_failed_start_prevents_call_and_unfinished_steps_are_interrupted()
     sink.side_effect = None
     await observer.interrupt_open()
     assert not observer.open
+
+
+@pytest.mark.asyncio
+async def test_delta_inputs_reasoning_and_tool_results_are_redacted_without_mutating_history():
+    from agent.engine.observation_content import ObservationContent
+
+    sink = AsyncMock()
+    observer = ExecutionObservations(sink, secrets=("synthetic-test-key",))
+    user = HumanMessage(content="请计算，并记录 password=do-not-store")
+    first, tool, second, compressed = [uuid4() for _ in range(4)]
+    await observer.on_chat_model_start({}, [[user]], run_id=first)
+    answer = AIMessage(
+        content="",
+        additional_kwargs={"reasoning_content": "先使用工具计算 synthetic-test-key"},
+        tool_calls=[
+            {
+                "id": "call_a",
+                "name": "calculate",
+                "args": {"value": 7, "api_key": "do-not-store"},
+            }
+        ],
+    )
+    await observer.on_llm_end(
+        LLMResult(generations=[[ChatGeneration(message=answer)]]), run_id=first
+    )
+    await observer.on_tool_start(
+        {"name": "calculate"},
+        "",
+        run_id=tool,
+        inputs={"value": 7, "password": "do-not-store", "runtime": object()},
+    )
+    result = ToolMessage(
+        content="14; Bearer abcdefghijkl; sk-synthetic123456", tool_call_id="call_a"
+    )
+    await observer.on_tool_end(result, run_id=tool)
+    await observer.on_chat_model_start({}, [[user, answer, result]], run_id=second)
+    await observer.on_chat_model_start(
+        {}, [[HumanMessage(content="compressed context")]], run_id=compressed
+    )
+    records = [call.args[1] for call in sink.await_args_list]
+    assert records[0]["content"]["inputMode"] == "initial"
+    assert records[4]["content"]["inputMode"] == "append"
+    assert records[4]["content"]["previousStepId"] == str(first)
+    assert "请计算" not in records[4]["content"]["input"]["text"]
+    assert records[5]["content"]["inputMode"] == "context_changed"
+    assert records[1]["content"]["thinking"]["text"] == "先使用工具计算 [REDACTED]"
+    for secret in (
+        "do-not-store",
+        "synthetic-test-key",
+        "abcdefghijk",
+        "sk-synthetic123456",
+    ):
+        assert secret not in str(records)
+    assert "synthetic-test-key" in answer.additional_kwargs["reasoning_content"]
+    assert "do-not-store" in user.content
+    assert (
+        observer.content.block("bare echo do-not-store", "model_message")["text"]
+        == "bare echo [REDACTED]"
+    )
+    independent = ObservationContent()
+    assert (
+        independent.block("bare echo do-not-store", "model_message")["text"]
+        == "bare echo do-not-store"
+    )
+    limited = ObservationContent().block("开头" + "界" * 9000 + "末尾", "tool_message")
+    assert limited["truncated"] and len(limited["text"].encode()) <= 6144
+    assert limited["text"].startswith("开头") and limited["text"].endswith("末尾")
+
+
+@pytest.mark.asyncio
+async def test_partial_stream_retains_only_actually_returned_content():
+    sink = AsyncMock()
+    observer = ExecutionObservations(sink)
+    key = uuid4()
+    await observer.on_chat_model_start({}, [[]], run_id=key)
+    partial = LLMResult(
+        generations=[
+            [
+                ChatGeneration(
+                    message=AIMessage(
+                        content="partial answer",
+                        additional_kwargs={"reasoning_content": "partial reasoning"},
+                    )
+                )
+            ]
+        ]
+    )
+    await observer.on_llm_error(asyncio.CancelledError(), run_id=key, response=partial)
+    end = sink.await_args.args[1]
+    assert end["status"] == "interrupted" and end["inputTokens"] is None
+    assert end["content"]["thinking"]["availability"] == "partial"
+    assert end["content"]["output"]["text"] == "partial answer"

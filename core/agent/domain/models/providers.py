@@ -115,13 +115,21 @@ async def create_provider_model(
                 async_close=google_model.client.aio.aclose,
                 sync_close=google_model.client.close,
             )
-        elif normalized == "openai":
+        elif normalized in {"openai", "deepseek"}:
+            adapter = ChatOpenAI
+            if normalized == "deepseek":
+                from agent.domain.models.deepseek import PlatformChatDeepSeek
+                adapter = PlatformChatDeepSeek
+                thinking = options.pop("thinking", {"type": "disabled"})
+                if thinking not in ({"type": "enabled"}, {"type": "disabled"}):
+                    raise ValueError("Invalid DeepSeek thinking configuration")
+                options["extra_body"] = {"thinking": thinking}
             if "response_format" in options:
                 options["model_kwargs"] = {
                     "response_format": options.pop("response_format")
                 }
             endpoint = re.sub(r"/(?:chat/)?completions$", "", endpoint)
-            model = ChatOpenAI(
+            model = adapter(
                 **options,
                 base_url=endpoint or None,
                 http_async_client=http_client,

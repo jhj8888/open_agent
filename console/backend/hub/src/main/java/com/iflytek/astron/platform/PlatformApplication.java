@@ -126,6 +126,8 @@ public class PlatformApplication {
                 jdbc.queryForList("SELECT key_id FROM oa_deployment_credential LIMIT 0");
                 jdbc.queryForList("SELECT upload_id FROM oa_run_output_upload LIMIT 0");
                 jdbc.queryForList("SELECT id FROM oa_run_step LIMIT 0");
+                jdbc.queryForList("SELECT adapter,thinking_enabled FROM oa_model_connection_version LIMIT 0");
+                jdbc.queryForList("SELECT observation_content_bytes FROM oa_run_attempt LIMIT 0");
                 return ResponseEntity.ok(Map.of("status", "UP"));
             } catch (RuntimeException unavailable) {
                 return ResponseEntity.status(503).body(Map.of("status", "DOWN"));

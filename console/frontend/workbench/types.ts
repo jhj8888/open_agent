@@ -118,6 +118,8 @@ export interface ModelConnection {
   endpoint: string;
   model_name: string;
   protocol: 'openai';
+  adapter: 'openai' | 'deepseek';
+  thinking_enabled: boolean;
   supports_stream: boolean;
   supports_tools: boolean;
   supports_usage: boolean;
@@ -129,6 +131,8 @@ export interface ModelConnection {
   revoked: boolean;
 }
 export interface ModelInput {
+  adapter: 'openai' | 'deepseek';
+  thinkingEnabled: boolean;
   displayName: string;
   endpoint: string;
   modelName: string;

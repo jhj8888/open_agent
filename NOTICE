@@ -26,3 +26,9 @@ These components run as separate services. MySQL, the Java runtime and container
 OS packages retain their own licenses; see docs/platform/components.md and the
 versioned deployment manifest. This notice does not relicense those components
 or constitute a complete distribution SBOM.
+
+The optional DeepSeek model adapter uses langchain-deepseek 1.1.1 from
+LangChain (https://github.com/langchain-ai/langchain), licensed under MIT.
+Its package license is retained in the frozen Python environment. The small
+platform subclass preserves reasoning_content in tool history; all provider
+HTTP, streaming and usage parsing remain in the official integration.

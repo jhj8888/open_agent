@@ -26,10 +26,11 @@ public class TaskObservationService {
     }
     public record Step(String stepId,String parentStepId,String kind,String name,Instant startedAt,
             Instant endedAt,Long durationMs,String status,String usageSource,Long inputTokens,Long outputTokens,
-            Long cacheReadTokens,Long cacheWriteTokens,JsonNode summary) {}
+            Long cacheReadTokens,Long cacheWriteTokens,JsonNode summary,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) JsonNode content) {}
     public Map<String,Object> record(RunLedger.Lease lease,String phase,Step step) {
         validate(phase,step);
-        String body=RunJson.encode(json,json.valueToTree(step),8192),hash=RunJson.hash(body);
+        String body=RunJson.encode(json,json.valueToTree(step),131072),hash=RunJson.hash(body);
         // Identical retransmission is safe, including after cancellation. No new execution is authorized here.
         return ledger.withAttempt(lease,()-> {
             var rows=jdbc.queryForList("SELECT * FROM oa_run_step WHERE run_id=? AND attempt_no=? AND step_id=?",
@@ -50,7 +51,7 @@ public class TaskObservationService {
                             INSERT INTO oa_run_step(tenant_id,environment,run_id,attempt_no,step_id,parent_step_id,kind,name,started_at,usage_source,start_json,start_hash)
                             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
                             """,lease.scope().tenant(),lease.scope().environment(),lease.runId(),lease.attempt(),step.stepId(),step.parentStepId(),
-                            step.kind(),step.name(),Timestamp.from(step.startedAt()),step.usageSource(),body,hash);
+                            step.kind(),step.name(),Timestamp.from(step.startedAt()),step.usageSource(),boundedContent(lease,step,body),hash);
                     return Map.of("accepted",true);
                 });
             }
@@ -64,9 +65,43 @@ public class TaskObservationService {
                     || !((Timestamp)row.get("started_at")).toInstant().equals(step.startedAt()) || step.endedAt().isAfter(Instant.now().plusSeconds(60)))throw new RunFailure("invalid_observation");
             jdbc.update("""
                     UPDATE oa_run_step SET ended_at=?,duration_ms=?,status=?,usage_source=?,input_tokens=?,output_tokens=?,cache_read_tokens=?,cache_write_tokens=?,finish_json=?,finish_hash=? WHERE id=?
-                    """,Timestamp.from(step.endedAt()),step.durationMs(),step.status(),step.usageSource(),step.inputTokens(),step.outputTokens(),step.cacheReadTokens(),step.cacheWriteTokens(),body,hash,row.get("id"));
+                    """,Timestamp.from(step.endedAt()),step.durationMs(),step.status(),step.usageSource(),step.inputTokens(),step.outputTokens(),step.cacheReadTokens(),step.cacheWriteTokens(),boundedContent(lease,step,body),hash,row.get("id"));
             return Map.of("accepted",true);
         });
+    }
+    private String boundedContent(RunLedger.Lease lease,Step step,String body) {
+        if(step.content()==null)return body;
+        long bytes=RunJson.encode(json,step.content(),65536).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        // withAttempt holds the run lock. Duplicate deliveries never consume quota twice.
+        int reserved=jdbc.update("""
+                UPDATE oa_run_attempt SET observation_content_bytes=observation_content_bytes+?
+                WHERE run_id=? AND attempt_no=? AND observation_content_bytes+?<=4194304
+                """,bytes,lease.runId(),lease.attempt(),bytes);
+        if(reserved==1)return body;
+        var limited=json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(step);
+        limited.set("content",json.createObjectNode().put("availability","run_limit"));
+        return RunJson.encode(json,limited,131072);
+    }
+    static void validateContent(JsonNode content) {
+        if(content==null)return;
+        if(!content.isObject()||content.size()>7)throw new RunFailure("invalid_observation");
+        var fields=content.fieldNames();
+        while(fields.hasNext()) {
+            String field=fields.next();var value=content.get(field);
+            if(field.equals("inputMode")) {
+                if(!value.isTextual()||!Set.of("initial","append","context_changed","tool_arguments").contains(value.asText()))throw new RunFailure("invalid_observation");
+            } else if(field.equals("previousStepId")) {
+                if(!value.isTextual()||!id(value.asText()))throw new RunFailure("invalid_observation");
+            } else {
+                if(!Set.of("input","thinking","toolCalls","toolResult","output").contains(field)||!value.isObject()||value.size()!=5
+                        ||!value.path("text").isTextual()||value.path("text").asText().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>6144
+                        ||value.path("text").asText().chars().anyMatch(c->(c<32&&c!=9&&c!=10&&c!=13)||c==127)
+                        ||!Set.of("model_messages","tool_arguments","provider_reasoning","model_message","model_tool_calls","tool_message").contains(value.path("source").asText())
+                        ||!Set.of("provided","partial","not_returned","not_applicable").contains(value.path("availability").asText())
+                        ||!value.path("truncated").isBoolean()||!value.path("originalBytes").isIntegralNumber()
+                        ||!value.path("originalBytes").canConvertToLong()||value.path("originalBytes").asLong()<0)throw new RunFailure("invalid_observation");
+            }
+        }
     }
     static void validate(String phase,Step step) {
         if(!Set.of("start","finish").contains(phase==null?"":phase) || step==null || !id(step.stepId())
@@ -74,6 +109,7 @@ public class TaskObservationService {
                 || !Set.of("agent","chain","model","tool","skill","artifact").contains(step.kind()==null?"":step.kind())
                 || step.name()==null || !step.name().matches("[A-Za-z0-9_./: -]{1,128}") || step.startedAt()==null
                 || step.startedAt().getNano()%1000000!=0 || step.summary()==null || !step.summary().isObject())throw new RunFailure("invalid_observation");
+        validateContent(step.content());
         // Summary schema contains metadata only. Never accept raw prompts/arguments/headers as extra fields.
         var fields=step.summary().fieldNames();
         while(fields.hasNext()) {

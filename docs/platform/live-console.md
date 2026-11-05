@@ -2,7 +2,7 @@
 
 2026-11-05 展示入口：<https://120.26.81.83/open-agent/>。原 `/open-agent-preview/` 保留为明确标记的静态预览。绿色/白色设计保持一致，真实工作台不使用模拟数据。
 
-当前新增「Agent 执行过程」与「Agent 周 / 月统计」，真实任务 `d33a2abc` 的 87 步、9 次模型、8 次工具及 2 个产物可查看。已部署 API SHA256 `fc5a14dca7bc0accd3ab7dbcb04824ef1325e4375d2baee0c32d69704fc55070`，worker `b84d1216845ca91e2d0c262abbb2e42f1766f4ac80cce526db0b271f3dc22734`，静态包 `e305540b50eed2f3e9eaad7a1c306293f5e4bccf25cf97be7d7e7cd69c18e089`。逐步正文与独立 OSS 后端继续推进；见 [当前观测边界和证据](agent-execution-observations.md)。下文旧摘要为对应增量的历史记录。
+当前「Agent 执行过程」已支持增量输入、模型实际 think、工具参数/结果及输出正文。「逐步观测 Skill 演示」任务 `e6eaaf2e` 的 58 步、6 次模型、4 次工具和 2 个文件可查看。API SHA256 `cc5cef4bf9418dcbf5eb9ae8ce31be91a3e693d940ddcf78e5e01920bd67ce5c`，worker `8c64a5475a783efd607f40d86f62e9f30967609309603497f561bd8358fbb7a0`，静态包 `d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad`。独立 OSS 后端继续推进；见 [当前观测边界和证据](agent-execution-observations.md)。下文旧摘要为对应增量的历史记录。
 
 浏览器通过 Casdoor 的标准 OIDC code + PKCE S256 登录。issuer 使用 `/identity` 前缀，避免 Casdoor 将同源工作台回调识别为自己的管理页。迁移保留签名密钥、账号和密码；前端令牌只保存在内存，短期 PKCE 状态使用 sessionStorage。模型密钥由已有服务端加密保存。
 

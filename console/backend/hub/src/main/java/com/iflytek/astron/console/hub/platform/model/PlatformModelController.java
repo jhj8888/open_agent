@@ -17,7 +17,8 @@ public class PlatformModelController {
             @Min(1) @Max(60) int connectTimeoutSeconds, @Min(1) @Max(1800) int readTimeoutSeconds,
             @Min(1) @Max(3600) int totalTimeoutSeconds, @Size(max=128) String caRef,
             @JsonProperty(access=JsonProperty.Access.WRITE_ONLY) @Size(max=4096) String apiKey,
-            @Min(0) long expectedVersion, boolean revokePrevious) {
+            @Min(0) long expectedVersion, boolean revokePrevious,
+            @Pattern(regexp="openai|deepseek") String adapter, boolean thinkingEnabled) {
         @Override public String toString() { return "ModelInput[credential=REDACTED]"; }
     }
 

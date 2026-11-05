@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql", "V1.59__add_model_reasoning_adapter.sql", "V1.60__bound_observation_content.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -111,7 +111,35 @@ class RunLedgerMySqlTest {
     private TaskObservationService.Step observation(String id,String kind,java.time.Instant start,boolean done) {
         return new TaskObservationService.Step(id,null,kind,"contract_step",start,done?start.plusMillis(5):null,done?5L:null,done?"succeeded":"running",
                 kind.equals("model")?(done?"provider":"unknown"):"not_applicable",kind.equals("model")&&done?12L:null,kind.equals("model")&&done?3L:null,
-                kind.equals("model")&&done?7L:null,null,json.createObjectNode().put("input","synthetic metadata"));
+                kind.equals("model")&&done?7L:null,null,json.createObjectNode().put("input","synthetic metadata"),null);
+    }
+    @Test void observationContentIsBoundedWithoutLosingUsageOrDeduplication() throws Exception {
+        var json=this.json.copy().findAndRegisterModules();
+        actors();var service=observations();var lease=claim(submit("content-contract").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        var legacy=observation("rich","model",start,false);
+        assertFalse(json.valueToTree(legacy).has("content")); // Preserve existing retransmission hashes.
+        var node=json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(legacy);
+        var content=json.createObjectNode().put("inputMode","initial");
+        content.set("input",json.createObjectNode().put("text","synthetic 输入").put("source","model_messages")
+                .put("availability","provided").put("truncated",false).put("originalBytes",16));
+        node.set("content",content);
+        var rich=json.treeToValue(node,TaskObservationService.Step.class);
+        service.record(lease,"start",rich);service.record(lease,"start",rich);
+        long size=jdbc.queryForObject("SELECT observation_content_bytes FROM oa_run_attempt WHERE run_id=?",Long.class,lease.runId());
+        assertEquals(RunJson.encode(json,content,65536).getBytes(java.nio.charset.StandardCharsets.UTF_8).length,size);
+        var bad=node.deepCopy();((com.fasterxml.jackson.databind.node.ObjectNode)bad.path("content").path("input")).put("text","界".repeat(2049));
+        code("invalid_observation",()->service.record(lease,"start",json.treeToValue(bad,TaskObservationService.Step.class)));
+        jdbc.update("UPDATE oa_run_attempt SET observation_content_bytes=4194304 WHERE run_id=?",lease.runId());
+        var end=json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(observation("rich","model",start,true));
+        var output=json.createObjectNode();output.set("output",content.get("input"));end.set("content",output);
+        var finish=json.treeToValue(end,TaskObservationService.Step.class);
+        service.record(lease,"finish",finish);service.record(lease,"finish",finish);
+        var stored=jdbc.queryForMap("SELECT * FROM oa_run_step WHERE run_id=?",lease.runId());
+        assertEquals("run_limit",json.readTree(stored.get("finish_json").toString()).path("content").path("availability").asText());
+        assertEquals(12L,((Number)stored.get("input_tokens")).longValue());
+        assertEquals("succeeded",stored.get("status"));
+        assertEquals(4194304L,jdbc.queryForObject("SELECT observation_content_bytes FROM oa_run_attempt WHERE run_id=?",Long.class,lease.runId()));
     }
     @Test void observationsDeduplicateConcurrentDeliveryAndCountOnlyModelLeaves() throws Exception {
         actors();var service=observations();var lease=claim(submit("observations").runId());
@@ -1197,7 +1225,7 @@ class RunLedgerMySqlTest {
         String connection=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,deployment);
         jdbc.update("UPDATE oa_model_connection SET current_version=2 WHERE connection_id=?",connection);
         var model=new com.iflytek.astron.console.hub.platform.model.ModelConnectionService.WorkerModel(
-                "https://model.invalid/v1","synthetic","synthetic-credential",1,true,true,5,60,120,null);
+                "https://model.invalid/v1","synthetic","synthetic-credential",1,true,true,5,60,120,null,null,null);
         org.mockito.Mockito.when(models.runtimeVersionForAuthorizedLease(A,"test",connection,1)).thenReturn(model);
         var runtime=new RunRuntimeService(ledger,jdbc,models,store,json);
         var bundle=runtime.bundle(lease);

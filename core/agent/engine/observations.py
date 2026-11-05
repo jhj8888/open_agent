@@ -1,8 +1,4 @@
-"""Official inherited LangChain callbacks, with bounded metadata-only platform projection.
-
-Never serialize model prompts, tool argument values, results, exception messages or
-framework metadata. Callback UUIDs identify actual calls, not delivery attempts.
-"""
+"""Official inherited callbacks with bounded, redacted task-visible projections."""
 
 from __future__ import annotations
 
@@ -17,6 +13,7 @@ from uuid import uuid4
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
+from agent.engine.observation_content import ObservationContent
 
 
 def label(value: Any, fallback: str = "step") -> str:
@@ -52,11 +49,17 @@ class ExecutionObservations(AsyncCallbackHandler):
     raise_error = True
     run_inline = True
 
-    def __init__(self, publish: Callable[[str, dict], Awaitable[None]]):
+    def __init__(
+        self,
+        publish: Callable[[str, dict], Awaitable[None]],
+        *,
+        secrets: tuple[str, ...] = (),
+    ):
         self.publish = publish
         self.open: dict[str, tuple[dict, float]] = {}
         self.parents: dict[str, str] = {}
         self.tool_steps: dict[str, str] = {}
+        self.content = ObservationContent(secrets)
 
     async def start(
         self,
@@ -65,6 +68,7 @@ class ExecutionObservations(AsyncCallbackHandler):
         name: str,
         parent: str | None = "attempt",
         summary: dict | None = None,
+        content: dict | None = None,
     ):
         key = str(key)
         if key in self.open:
@@ -91,11 +95,15 @@ class ExecutionObservations(AsyncCallbackHandler):
             "cacheWriteTokens": None,
             "summary": summary or {},
         }
+        if content is not None:
+            row["content"] = content
         await self.publish("start", row)
         self.open[key] = (row, began)
         return key
 
-    async def finish(self, key, status="succeeded", *, summary=None, counts=None):
+    async def finish(
+        self, key, status="succeeded", *, summary=None, counts=None, content=None
+    ):
         key = str(key)
         if key not in self.open:
             return
@@ -107,6 +115,10 @@ class ExecutionObservations(AsyncCallbackHandler):
             "endedAt": max(start["startedAt"], timestamp()),
             "durationMs": max(0, int((time.monotonic() - began) * 1000)),
         }
+        # Finish contains only new output fields, not a second copy of input.
+        row.pop("content", None)
+        if content is not None:
+            row["content"] = content
         if start["kind"] == "model" and counts:
             row.update(counts)
         await self.publish("finish", row)
@@ -156,6 +168,7 @@ class ExecutionObservations(AsyncCallbackHandler):
             name,
             str(parent_run_id) if parent_run_id else "attempt",
             {"input": description[:2048]},
+            self.content.inputs(messages[0] if messages else [], str(run_id)),
         )
 
     async def on_llm_start(
@@ -167,6 +180,10 @@ class ExecutionObservations(AsyncCallbackHandler):
             "completion_model",
             str(parent_run_id) if parent_run_id else "attempt",
             {"input": shape(prompts)},
+            {
+                "inputMode": "initial",
+                "input": self.content.block(prompts, "model_messages"),
+            },
         )
 
     @staticmethod
@@ -210,6 +227,7 @@ class ExecutionObservations(AsyncCallbackHandler):
             run_id,
             counts=self.usage(response),
             summary={"output": "model response received"},
+            content=self.content.model_output(response),
         )
 
     async def on_llm_error(self, error, *, run_id, **kwargs):
@@ -220,6 +238,7 @@ class ExecutionObservations(AsyncCallbackHandler):
             "interrupted" if isinstance(error, asyncio.CancelledError) else "failed",
             counts=counts,
             summary={"errorType": label(type(error).__name__)},
+            content=self.content.model_output(kwargs.get("response"), partial=True),
         )
 
     async def on_tool_start(
@@ -238,6 +257,21 @@ class ExecutionObservations(AsyncCallbackHandler):
             (serialized or {}).get("name", "tool"),
             str(parent_run_id) if parent_run_id else "attempt",
             summary,
+            {
+                "inputMode": "tool_arguments",
+                "input": self.content.block(
+                    (
+                        {
+                            key: value
+                            for key, value in kwargs["inputs"].items()
+                            if key not in {"runtime", "state", "config", "store"}
+                        }
+                        if isinstance(kwargs.get("inputs"), dict)
+                        else input_str
+                    ),
+                    "tool_arguments",
+                ),
+            },
         )
 
     async def on_tool_end(self, output, *, run_id, **kwargs):
@@ -247,6 +281,16 @@ class ExecutionObservations(AsyncCallbackHandler):
             run_id,
             "failed" if failed else "succeeded",
             summary={"output": shape(getattr(output, "content", output))},
+            content={
+                "toolResult": self.content.block(
+                    (
+                        self.content.text_content(output.content)
+                        if hasattr(output, "content")
+                        else output
+                    ),
+                    "tool_message",
+                )
+            },
         )
 
     async def on_tool_error(self, error, *, run_id, **kwargs):

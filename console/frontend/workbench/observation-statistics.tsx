@@ -94,7 +94,7 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = `agent-${period}-${data.start.slice(0, 10)}.csv`;
+    link.download = `agent-${period}-${data.daily[0]?.date ?? data.start.slice(0, 10)}.csv`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
