@@ -2,7 +2,7 @@
 
 ## 2026-11-05 当前状态
 
-逐步正文已部署：真实 Skill 任务 `e6eaaf2e` 的 58 步、6 次模型、4 次工具，展示增量输入、实际 think、工具参数/结果与输出；2 个文件可预览下载。模型连接可选择 DeepSeek 思考模式，旧不可变版本保持原行为。自然周/月、每日趋势、P95 与 CSV 已接入。私有观测后端/exporter 尚未接通，不能将当前步骤投影当作完整 OSS 观测部署。见 [逐步观测说明](agent-execution-observations.md)。
+逐步正文已部署：真实 Skill 任务 `e6eaaf2e` 的 58 步、6 次模型、4 次工具，展示增量输入、实际 think、工具参数/结果与输出；2 个文件可预览下载。模型连接可选择 DeepSeek 思考模式，旧不可变版本保持原行为。自然周/月、每日趋势、P95 与 CSV 已接入。私有 MLflow 3.18.0 与持久 exporter 已接通；97 个依赖 wheel 离线安装、实际网络隔离和重启保留通过。停服期间真实任务 `423ee867` 成功，52 步 / 5 次模型 / 17,432 Token，恢复补发不重复计量或执行业务。见 [逐步观测](agent-execution-observations.md) 和 [MLflow 后端](mlflow-observability.md)。
 
 新增任务产物持久化已部署：逐工具归档 StateBackend/沙盒交付文件、任务详情列表、文本预览与受权下载。真实成功/取消/失败任务及 2 MiB 浏览器下载已验证；物理沙盒回收和 API 重启后摘要保持一致。当前边界及证据见 [任务产物](task-outputs.md) 与 [验收记录](task-output-verification-20261105.json)。
 

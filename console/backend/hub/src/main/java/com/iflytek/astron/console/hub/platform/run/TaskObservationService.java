@@ -52,6 +52,7 @@ public class TaskObservationService {
                             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
                             """,lease.scope().tenant(),lease.scope().environment(),lease.runId(),lease.attempt(),step.stepId(),step.parentStepId(),
                             step.kind(),step.name(),Timestamp.from(step.startedAt()),step.usageSource(),boundedContent(lease,step,body),hash);
+                    ObservationOutbox.changed(jdbc,lease);
                     return Map.of("accepted",true);
                 });
             }
@@ -66,6 +67,7 @@ public class TaskObservationService {
             jdbc.update("""
                     UPDATE oa_run_step SET ended_at=?,duration_ms=?,status=?,usage_source=?,input_tokens=?,output_tokens=?,cache_read_tokens=?,cache_write_tokens=?,finish_json=?,finish_hash=? WHERE id=?
                     """,Timestamp.from(step.endedAt()),step.durationMs(),step.status(),step.usageSource(),step.inputTokens(),step.outputTokens(),step.cacheReadTokens(),step.cacheWriteTokens(),boundedContent(lease,step,body),hash,row.get("id"));
+            ObservationOutbox.changed(jdbc,lease);
             return Map.of("accepted",true);
         });
     }
@@ -143,9 +145,11 @@ public class TaskObservationService {
             authorization.require(caller,deployment,DeploymentAuthorization.Action.READ,runId);
             var run=ledger.get(deployment.scope(),runId);
             var rows=jdbc.queryForList("""
-                    SELECT id,attempt_no,step_id,parent_step_id,kind,name,started_at,ended_at,duration_ms,status,usage_source,
-                        input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,start_json,finish_json,export_state
-                    FROM oa_run_step WHERE run_id=? AND id>? ORDER BY id LIMIT ?
+                    SELECT s.id,s.attempt_no,step_id,parent_step_id,kind,name,started_at,ended_at,duration_ms,status,usage_source,
+                        input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,start_json,finish_json,
+                        CASE WHEN o.acked_revision=o.revision THEN 'delivered' ELSE 'pending' END AS export_state
+                    FROM oa_run_step s LEFT JOIN oa_observation_outbox o ON o.run_id=s.run_id AND o.attempt_no=s.attempt_no
+                    WHERE s.run_id=? AND s.id>? ORDER BY s.id LIMIT ?
                     """,runId,after,limit+1);
             boolean more=rows.size()>limit;
             if(more)rows.removeLast();

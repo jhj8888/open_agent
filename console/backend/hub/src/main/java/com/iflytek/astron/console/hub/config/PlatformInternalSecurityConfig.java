@@ -44,7 +44,7 @@ public class PlatformInternalSecurityConfig {
             for (var entry : keys.entrySet()) {
                 var key = entry.getValue();
                 if (!entry.getKey().matches("[A-Za-z0-9_.:-]{1,128}") || key == null || key.role() == null
-                        || !Set.of("worker", "dispatcher", "reconciler", "observer").contains(key.role()) || key.secret() == null
+                        || !Set.of("worker", "dispatcher", "reconciler", "observer", "trace_exporter").contains(key.role()) || key.secret() == null
                         || !key.secret().matches("[!-~]{32,256}") || !secrets.add(key.secret())) throw new IllegalArgumentException();
             }
             keys = Map.copyOf(keys);
@@ -53,6 +53,7 @@ public class PlatformInternalSecurityConfig {
         return http.securityMatcher("/internal/platform/**")
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.GET,"/internal/platform/metrics").hasAuthority("PLATFORM_OBSERVER")
+                        .requestMatchers("/internal/platform/trace-export/**").hasAuthority("PLATFORM_TRACE_EXPORTER")
                         .requestMatchers("/internal/platform/dispatch/**").hasAuthority("PLATFORM_DISPATCHER")
                         .requestMatchers("/internal/platform/worker/**").hasAuthority("PLATFORM_WORKER")
                         .requestMatchers("/internal/platform/reconcile/**").hasAuthority("PLATFORM_RECONCILER")

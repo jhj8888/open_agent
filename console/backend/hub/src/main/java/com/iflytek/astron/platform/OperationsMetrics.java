@@ -34,7 +34,7 @@ public class OperationsMetrics implements AutoCloseable {
                 gauge("open.agent.runs.finished.five.minutes",env,"state",state,"finished."+env+"."+state);
             for (String phase:List.of("reserved","creating","created","cleanup_pending"))
                 gauge("open.agent.sandboxes.current",env,"phase",phase,"sandbox."+env+"."+phase);
-            for (String metric:List.of("execution.slots.occupied","execution.leases.expired","queue.oldest.seconds","cleanup.oldest.seconds"))
+            for (String metric:List.of("execution.slots.occupied","execution.leases.expired","queue.oldest.seconds","cleanup.oldest.seconds","observations.pending","observations.failed"))
                 Gauge.builder("open.agent."+metric,this,m->m.value(metric+"."+env)).tag("environment",env).register(registry);
         }
     }
@@ -58,6 +58,8 @@ public class OperationsMetrics implements AutoCloseable {
                 values.put("execution.leases.expired."+env,number("SELECT COUNT(*) FROM oa_run_attempt WHERE environment=? AND lease_state<>'released' AND heartbeat_until<CURRENT_TIMESTAMP(3)",env));
                 values.put("queue.oldest.seconds."+env,number("SELECT COALESCE(MAX(TIMESTAMPDIFF(SECOND,created_at,CURRENT_TIMESTAMP(3))),0) FROM oa_agent_run WHERE environment=? AND state='queued'",env));
                 values.put("cleanup.oldest.seconds."+env,number("SELECT COALESCE(MAX(TIMESTAMPDIFF(SECOND,reserved_at,CURRENT_TIMESTAMP(3))),0) FROM oa_run_sandbox WHERE environment=? AND phase IN ('creating','cleanup_pending')",env));
+                values.put("observations.pending."+env,number("SELECT COUNT(*) FROM oa_observation_outbox WHERE environment=? AND revision>acked_revision",env));
+                values.put("observations.failed."+env,number("SELECT COUNT(*) FROM oa_observation_outbox WHERE environment=? AND revision>acked_revision AND last_error IS NOT NULL",env));
             }
             sample.set(new Sample(Instant.now().getEpochSecond(),Map.copyOf(values)));
             lastCollectionSucceeded=true;

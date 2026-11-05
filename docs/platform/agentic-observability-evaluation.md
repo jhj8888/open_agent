@@ -4,12 +4,14 @@
 
 ## 选型结论
 
-首选 **Langfuse OSS 的执行观测能力 + 现有平台的任务权限、持久事件和统计页面**；MLflow 为 Apache-2.0 的完整替代方案。保留现有 Prometheus 主机/执行健康监控。文件归档复用平台 S3 对象存储，独立于观测后端的 trace 保留策略。以下是研究和实现决策，尚未宣称新增组件已部署或逐步观测、月报、附件已验收。
+当前选定 **MLflow 3.18.0 + 官方 OpenTelemetry SDK 1.45.1 + 现有平台的任务权限、持久事件和统计页面**。MLflow 主项目为 Apache-2.0；Langfuse OSS 保留为其他资源条件下的可选后端。共享展示机只有 4 CPU / 7.3 GiB，实测剩余内存约 2 GiB，采用受限内存的独立 MLflow 进程，避免直接部署 Langfuse 推荐的完整多服务拓扑。保留 Prometheus 主机/执行健康监控。文件归档复用平台 S3，独立于 trace 保留策略。
+
+步骤正文、周/月统计和任务文件已在平台交付，证据分别见 `step-content-verification-20261105.json`、`agent-observability-verification-20261105.json` 和文件验收记录。独立后端的实际部署/补发结果另行记录，不用选型或单元测试代替上线验收。
 
 | 项目 | Stars | 许可范围 | 能力与适用性 |
 |---|---:|---|---|
-| [Langfuse](https://github.com/langfuse/langfuse) | 37k | 核心 MIT；`ee` 等目录另有企业许可 | LLM/Agent/工具/检索 observation，Token、耗时、层级 trace、指标 API 和仪表盘；具有官方 DeepAgents 集成，首选 |
-| [MLflow](https://github.com/mlflow/mlflow) | 28.7k | Apache-2.0 | 自托管 tracing、每步输入输出/Token/耗时，Usage 与 Tool Calls 仪表盘；完整备选，只用 tracing，不引入其模型服务/网关 |
+| [Langfuse](https://github.com/langfuse/langfuse) | 37k | 核心 MIT；`ee` 等目录另有企业许可 | LLM/Agent/工具/检索 observation，Token、耗时、层级 trace、指标 API 和仪表盘；具有官方 DeepAgents 集成，保留为可选后端 |
+| [MLflow](https://github.com/mlflow/mlflow) | 28.7k | Apache-2.0 | 当前选用；自托管 tracing、每步输入输出/Token/耗时，Usage 与 Tool Calls 仪表盘；只用 tracing，不引入其模型服务/网关 |
 | [SigNoz](https://github.com/SigNoz/signoz) | 32.5k | 核心 MIT；`ee`、`cmd/enterprise` 另有许可 | 统一 logs/metrics/traces，现有 AI Observability 支持模型/工具 Token、时延和聚合；企业已有此平台时可作为统一后端 |
 | [OpenLLMetry](https://github.com/traceloop/openllmetry) | 7.5k | Apache-2.0 | OpenTelemetry 插桩 SDK，支持模型、LangChain/LangGraph 等；必须配存储/查询界面，不能独立当作完整观测产品 |
 
@@ -35,7 +37,7 @@ MLflow 的[Tracing 概览](https://mlflow.org/docs/latest/genai/tracing/)明确�
 
 ## 与当前代码的衔接
 
-现状：`durable/executor.py` 调用 `DeepAgentsRunner`，后者已有官方 LangChain usage callback、模型 middleware 和 OTel span。当前持久事件仅保留工具完成名称及任务级 usage；摘要/压缩模型调用会汇总成额外节点，尚未形成完整逐调用事件视图。`platform_runtime/backend.py` 的文件下载用于 Skill/模型工具读取，最多 32 KiB，不能直接当作报表/PDF/表格归档能力。
+当前：`durable/executor.py` 调用 `DeepAgentsRunner`，官方 LangChain 回调持久化逐模型/工具步骤、usage 及有界正文；平台已提供权限时间线和自然周期统计。独立 exporter 从控制面领取已结束且执行资源已释放的 attempt，使用稳定 trace/span ID 通过 MLflow 官方 OTLP/HTTP 接口导出。进行中的步骤仍在平台实时查看；外部后端在结束后异步补齐。文件归档已有单独 S3 通道，不使用工具的 32 KiB 文本输出窗口保存资料。
 
 目标路径：
 
@@ -43,8 +45,9 @@ MLflow 的[Tracing 概览](https://mlflow.org/docs/latest/genai/tracing/)明确�
 flowchart LR
   D[DeepAgents / 模型与工具回调] --> R[统一步骤 ID / 脱敏 / 用量归一]
   R --> E[任务持久事件与步骤投影]
-  R --> O[官方 SDK / OpenTelemetry]
-  O --> L[私有 Langfuse OSS]
+  E --> Q[持久观测 outbox / 独立导出器]
+  Q --> O[官方 SDK / OpenTelemetry]
+  O --> L[私有 MLflow]
   E --> A[Java 任务权限与统计 API]
   A --> U[现有工作台 / 任务执行时间线]
   S[沙盒产出文件] --> X[可信收集与校验]
@@ -52,7 +55,7 @@ flowchart LR
   F --> A
 ```
 
-主任务、attempt、父子步骤和调用 ID 由可信运行时绑定；API 校验任务成员权限和环境，不信任浏览器传入的 trace ID/对象 key。Langfuse 控制台作为内部运维界面；不向普通租户提供共享项目 API key 或可绕过平台权限的直连链接。使用官方 SDK/回调，保留 OTel 兼容性；避免同时启用多套自动插桩导致重复 Token。
+主任务、attempt、父子步骤和调用 ID 由可信运行时绑定；API 校验任务成员权限和环境，不信任浏览器传入的 trace ID/对象 key。独立观测控制台作为内部运维界面；不向普通租户提供共享项目 API key 或可绕过平台权限的直连链接。使用官方 SDK/回调，保留 OTel 兼容性；避免同时启用多套自动插桩导致重复 Token。
 
 计量以模型叶子调用为基准，输入/输出/缓存字段保留原始口径。父步骤汇总是派生展示，不能再次计入任务/周期总量。失败重试实际发生的模型调用仍计费；仅事件投递重试按稳定键去重。旧任务未采到的逐步数据标记“未记录”，不从任务总量平均摊分。任务数量按创建时间统计，用量按调用结束时间归属周期，界面说明跨周期任务的差异。
 

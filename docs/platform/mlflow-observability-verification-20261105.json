@@ -1,0 +1,67 @@
+{
+  "backend": {
+    "mlflow": "3.18.0",
+    "requirements_sha256": "184506f85898c6bff773340fe2041a243f11a19b4f3d0af12ac4fac49a04483f",
+    "endpoint": "http://127.0.0.1:18750",
+    "public": false,
+    "auth": true,
+    "outbound_policy": "localhost_only",
+    "memory_max_bytes": 805306368,
+    "database": "dedicated_sqlite_demo",
+    "job_execution": false,
+    "telemetry": false
+  },
+  "exporter": {
+    "source_sha256": "e92b39ca9903008eefb62b67ee696c0621b55eae3442d10f3648481ed8977852",
+    "runtime_requirements_sha256": "184506f85898c6bff773340fe2041a243f11a19b4f3d0af12ac4fac49a04483f",
+    "experiment_id": "1",
+    "service_identity": "demo-trace-exporter",
+    "memory_max_bytes": 268435456,
+    "public": false,
+    "outbound_policy": "localhost_only"
+  },
+  "delivery": {
+    "outage_run": "423ee867-ab18-4135-84c5-aef911dea25a",
+    "task_succeeded_during_backend_outage": true,
+    "trace_id": "tr-f0934624df495bbc7c1e4f27ae09def3",
+    "steps": 52,
+    "spans": 53,
+    "model_calls": 5,
+    "native_step_content_matches": true,
+    "usage": {
+      "input_tokens": 16534,
+      "output_tokens": 898,
+      "total_tokens": 17432
+    },
+    "duplicate_export_preserves_counts": true,
+    "delivery_attempts": 4,
+    "execution_attempts": 1,
+    "retained_files": 1,
+    "other_tenant_denied": true,
+    "export_identity_scope_verified": true,
+    "open-agent-mlflow.service_memory_bytes": 491859968,
+    "open-agent-trace-exporter.service_memory_bytes": 33980416
+  },
+  "isolation": {
+    "anonymous_denied": true,
+    "backend_loopback_only": true,
+    "outbound_denied_by_kernel": true,
+    "restart_without_external_network": true,
+    "trace_and_usage_survive_restart": true,
+    "backend_memory_bytes": 512122880,
+    "exporter_memory_bytes": 31645696
+  },
+  "api": {
+    "artifact_sha256": "842599b4451bf7b4a31babaf76ddea7a3513811f4cb0a4d1b871de066e2a1abf",
+    "jre_image": "m.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+    "database_ready": true,
+    "forged_identity_rejected": true,
+    "admission_enabled": true,
+    "public_port": false,
+    "loopback_endpoint": "http://127.0.0.1:18082"
+  },
+  "verified_at": "2026-11-05T02:50:09.319218+00:00",
+  "python_tests": 27,
+  "real_mysql_tests": 4,
+  "java_api_security_tests": 18
+}

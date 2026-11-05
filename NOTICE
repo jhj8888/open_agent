@@ -32,3 +32,10 @@ LangChain (https://github.com/langchain-ai/langchain), licensed under MIT.
 Its package license is retained in the frozen Python environment. The small
 platform subclass preserves reasoning_content in tool history; all provider
 HTTP, streaming and usage parsing remain in the official integration.
+
+The optional private observation service uses MLflow 3.18.0
+(https://github.com/mlflow/mlflow), licensed under Apache License 2.0,
+and the official OpenTelemetry Python SDK / OTLP HTTP exporter 1.45.1,
+also licensed under Apache License 2.0. They run outside the Agent execution
+process. The hash-locked deployment retains wheel license files; transitive
+dependencies retain their own licenses. See deploy/platform/observability.

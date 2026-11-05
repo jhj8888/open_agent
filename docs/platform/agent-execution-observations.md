@@ -36,8 +36,8 @@
 
 最初真实验收任务 `90084a43-210f-41e2-8c16-2e29586a5d84` 在模型调用前因 Skill UUID 观测字段不能 JSON 序列化而失败。已修复为显式字符串并增加执行器回归测试，失败记录保留。详见 [验收证据](agent-observability-verification-20261105.json)。
 
-## 尚未交付的部分
+## 独立观测后端
 
-当前是受任务授权的步骤投影；`export_state=pending` 仅预留外部投递标记，**没有启动 Langfuse/MLflow 后端或持久 exporter**，不声称已实现后端故障补发。官方观测后端离线部署、SDK 导出/恢复、强杀/真实压缩/并发故障矩阵继续推进。Langfuse 推荐拓扑超出当前共享机预算；[MLflow 官方支持 OTLP/HTTP 接收](https://mlflow.org/docs/latest/genai/tracing/opentelemetry/ingest/)，可作为后续轻量后端实测候选，未以文档支持替代实机验收。
+已部署 MLflow 3.18.0 和官方 OTel 1.45.1 exporter，V1.61 的独立持久队列按 revision、服务身份与有限租约补发。`export_state` 由当前 outbox 确认状态计算。任务结束且物理资源释放后导出；运行中仍通过平台查看。后台故障、重复导出、禁止外联重启和权限已实机验证，见 [部署边界与证据](mlflow-observability.md)。
 
-正文是步骤结束后展示已返回的内容；不是逐 Token 实时 think 推送。旧记录不补造。真实框架压缩及强杀/独立后端故障矩阵继续推进。
+正文是步骤结束后展示已返回的内容；不是逐 Token 实时 think 推送。旧记录不补造。真实框架压缩、进程强杀与并发故障完整矩阵，以及生产 K8S/HA 与整个平台离线验收继续推进。

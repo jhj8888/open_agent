@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql", "V1.59__add_model_reasoning_adapter.sql", "V1.60__bound_observation_content.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql", "V1.59__add_model_reasoning_adapter.sql", "V1.60__bound_observation_content.sql", "V1.61__add_observation_outbox.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -71,6 +71,50 @@ class RunLedgerMySqlTest {
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
     private TaskObservationService observations() {
         return new TaskObservationService(ledger,jdbc,new ObjectMapper().findAndRegisterModules(),authorization(),deployments(),new DataSourceTransactionManager(source));
+    }
+    private ObservationOutbox exports(){return new ObservationOutbox(jdbc,json,new DataSourceTransactionManager(source));}
+    @Test void observationDeliveryFencesRevisionOwnerAndExpiredClaimsWithoutReplayingExecution() {
+        actors();var service=observations();var export=exports();var lease=claim(submit("export-recovery").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        service.record(lease,"start",observation("late","model",start,false));
+        service.record(lease,"start",observation("late","model",start,false));
+        assertTrue(export.claim("exporter-a",300).isEmpty());
+        ledger.finish(lease,RunState.FAILED,"execution_failed");
+        assertTrue(export.claim("exporter-a",300).isEmpty());
+        ledger.resourcesReleased(lease);
+        var claim=export.claim("exporter-a",300).getFirst();assertEquals(1,claim.revision());
+        assertTrue(export.claim("exporter-b",300).isEmpty());
+        code("observation_claim_lost",()->export.page(claim.id(),"exporter-b",claim.claimId(),claim.revision(),0));
+        assertFalse(export.acknowledge(claim.id(),"exporter-b",claim.claimId(),claim.revision()));
+        var page=export.page(claim.id(),"exporter-a",claim.claimId(),claim.revision(),0);
+        assertNull(((Map<?,?>)((List<?>)page.get("items")).getFirst()).get("finish_json"));
+        service.record(lease,"finish",observation("late","model",start,true));
+        service.record(lease,"finish",observation("late","model",start,true));
+        assertFalse(export.acknowledge(claim.id(),"exporter-a",claim.claimId(),claim.revision()));
+        assertTrue(export.retry(claim.id(),"exporter-a",claim.claimId(),claim.revision(),1,"control_unavailable"));
+        jdbc.update("UPDATE oa_observation_outbox SET available_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3))");
+        var next=export.claim("exporter-b",30).getFirst();assertEquals(2,next.revision());
+        jdbc.update("UPDATE oa_observation_outbox SET claim_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3))");
+        assertFalse(export.acknowledge(next.id(),"exporter-b",next.claimId(),next.revision()));
+        var recovered=export.claim("exporter-a",300).getFirst();assertEquals(3,recovered.deliveryAttempt());
+        assertTrue(export.acknowledge(recovered.id(),"exporter-a",recovered.claimId(),recovered.revision()));
+        assertTrue(export.claim("exporter-b",300).isEmpty());
+        user("alice");var publicPage=service.list(caller("alice"),lease.runId(),0,100);
+        assertEquals("delivered",((Map<?,?>)((List<?>)publicPage.get("items")).getFirst()).get("export_state"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt",Integer.class));
+        assertEquals(12L,((Number)((Map<?,?>)publicPage.get("totals")).get("inputTokens")).longValue());
+    }
+    @Test void observationDeliveryPaginatesWithoutBusinessInputOrCredentials() {
+        actors();var service=observations();var export=exports();var lease=claim(submit("export-pages").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        for(int i=0;i<35;i++)service.record(lease,"start",observation("step-"+i,"tool",start,false));
+        ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+        var claim=export.claim("exporter",300).getFirst();
+        var first=export.page(claim.id(),"exporter",claim.claimId(),claim.revision(),0);
+        assertEquals(32,((List<?>)first.get("items")).size());assertEquals(true,first.get("hasMore"));
+        var second=export.page(claim.id(),"exporter",claim.claimId(),claim.revision(),((Number)first.get("next")).longValue());
+        assertEquals(3,((List<?>)second.get("items")).size());assertEquals(false,second.get("hasMore"));
+        assertEquals(java.util.Set.of("tenant_id","environment","run_id","deployment_id","state","attempt_no","created_at","released_at"),((Map<?,?>)first.get("run")).keySet());
     }
     @Test void observationPeriodsCountAllRowsByCallEndAcrossTaskAndCalendarBoundaries() {
         actors();String run=submit("period-source").runId();

@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = 'cc5cef4bf9418dcbf5eb9ae8ce31be91a3e693d940ddcf78e5e01920bd67ce5c'
+ARTIFACT_SHA256 = '842599b4451bf7b4a31babaf76ddea7a3513811f4cb0a4d1b871de066e2a1abf'
 API_NETWORK = 'open-agent-control-api'
 
 
@@ -67,6 +67,9 @@ def main():
     if 'observer_key' not in api_secrets:
         api_secrets['observer_key'] = secrets.token_urlsafe(40)
         private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
+    if 'trace_exporter_key' not in api_secrets:
+        api_secrets['trace_exporter_key'] = secrets.token_urlsafe(40)
+        private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
     admission = False
     admission_record = ROOT / 'execution-admission.json'
     if admission_record.exists():
@@ -98,6 +101,7 @@ def main():
             'demo-dispatcher': {'role': 'dispatcher', 'secret': api_secrets['dispatcher_key']},
             'demo-supervisor': {'role': 'reconciler', 'secret': api_secrets['reconciler_key']},
             'demo-observer': {'role': 'observer', 'secret': api_secrets['observer_key']},
+            'demo-trace-exporter': {'role': 'trace_exporter', 'secret': api_secrets['trace_exporter_key']},
         }),
         'PLATFORM_RECONCILER_WORKERS': json.dumps({'demo-supervisor': 'demo-worker'}),
     }
