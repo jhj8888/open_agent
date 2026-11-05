@@ -1,6 +1,8 @@
 # Kubernetes executor SDK 接入
 
-新增 `verify_sandbox_resources.py` 使用固定官方 OpenSandbox CRD/生成模板，在专用零节点 API fixture 检查沙盒独立核验器：实际资源 UID、重复凭据以及四种真实策略/标签/额外资源变更。先安装当前契约 overlay，再 provision fixture 并运行，结束后执行 `cleanup_api_fixture.py`；它不执行 controller、kubelet 或租户代码。详见[独立资源核验与验证边界](../../../docs/platform/cluster-sandbox-verification.md)。
+`run_controller_fixture.py` 已补充固定官方 controller 的实际创建、停止创建确认及重启验证，直接调用后端 `KubernetesSandboxes.quiesce`；它使用合成业务租约，不执行 kubelet 或租户代码，不释放业务配额。来源、复现输入和边界见[控制器收敛](../../../docs/platform/cluster-controller-quiescence.md)。
+
+`verify_sandbox_resources.py` 使用固定官方 OpenSandbox CRD/生成模板，在专用零节点 API fixture 检查沙盒独立核验器：实际资源 UID、重复凭据以及四种真实策略/标签/额外资源变更。直接运行时仍为手工创建 Pod 的旧 API 模式；通过上述包装脚本才使用实际 controller。先安装当前契约 overlay，再运行，结束后清理 fixture。详见[独立资源核验与验证边界](../../../docs/platform/cluster-sandbox-verification.md)。
 
 本目录包含在独立 Linux 目录验证 SDK/执行器入口的工具。运行镜像、Temporal 集群服务和 RBAC/NetworkPolicy chart 已有交付快照；OpenSandbox/Kata admission/独立回收、真实业务库共同联调及节点/CNI 验收仍需完成，尚不是完整的生产部署包。已有 Helm 保持集群任务准入关闭。
 

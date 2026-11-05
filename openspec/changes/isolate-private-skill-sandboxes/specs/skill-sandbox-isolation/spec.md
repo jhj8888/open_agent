@@ -120,6 +120,16 @@
 - **THEN** 使用官方 Kubernetes SDK 验证固定目标 namespace/RuntimeClass 身份、唯一受限网络策略、无 token 账号和已初始化配额，以及实际 CR/Pod 的完整租约标签、固定镜像、单 Pod ownerReference、finalizer 与批准的权限/挂载；存在额外资源、未知字段、分页未完整或身份变化时不得提交绑定
 - **AND** 重复观察不得覆盖首次资源身份或版本，execd token 不进入日志与持久凭据；绑定不等于执行准入或停止证明，取消后的观察不得恢复任务
 
+### Requirement: 回收前确认控制器收敛
+
+系统 SHALL 在修改已绑定沙盒的创建期望前核验持久 executor 终止记录，并将控制器收敛与物理停止证明分开处理。
+
+#### Scenario: 回收前停止控制器期望创建
+
+- **WHEN** 已绑定沙盒的任务已终止且独立 executor 终止记录已持久保存
+- **THEN** 核验器按固定 CR UID/resourceVersion 将普通模式副本数改为 0；仅同一 generation 的控制器确认可形成收敛观察，未确认或回复丢失保持待核验
+- **AND** 收敛观察不得删除已有 Pod 或释放配额；CR 已进入删除、身份替换、旧 generation、缺少 executor 终止记录时不得伪造完成
+
 ### Requirement: 制品与输出校验
 
 系统 SHALL 只装载经验证且固定摘要的 Skill 制品，并限制输出和产物路径、大小及类型。

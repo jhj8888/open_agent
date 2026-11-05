@@ -19,7 +19,7 @@ from agent.durable.cluster_process import ClusterProcessError, ClusterProgram, K
 from agent.durable.cluster_sandbox import API_VERSION, KataPolicy, KubernetesSandboxes, ClusterSandboxBinding, POD_OWNER, POD_INDEX
 from agent.durable.control import ControlPlaneClient, ControlPlaneError
 from agent.tests.kata_profile_fixture import UPSTREAM
-from agent.tests.test_cluster_control import sandbox_snapshot
+from agent.tests.test_cluster_control import sandbox_snapshot, terminated
 
 
 def stamp(value):
@@ -30,6 +30,7 @@ def stamp(value):
 class SyntheticKataAPI:
     def __init__(self, row):
         self.calls, self.status, self.error_body = [], 200, None
+        self.patch_failure = None
         self.objects = {}
         ns = row.sandboxTarget.namespace
         for name, uid in [('kube-system', row.target.clusterId), (row.target.namespace, row.target.namespaceUid),
@@ -54,6 +55,7 @@ class SyntheticKataAPI:
         self.objects[f'/apis/networking.k8s.io/v1/namespaces/{ns}/networkpolicies'] = self.policies
         self.workload = stamp(deepcopy(UPSTREAM['workload']))
         self.workload['metadata']['namespace'] = ns
+        self.workload['metadata']['generation'] = 1
         self.sandbox_id = self.workload['metadata']['name']
         self.workload['spec']['expireTime'] = row.deadlineAt.isoformat()
         self.workload['spec']['taskResourcePolicyWhenCompleted'] = 'Retain'  # Actual pinned CRD default.
@@ -85,7 +87,19 @@ class SyntheticKataAPI:
     def request(self, method, url, **kwargs):
         path = urlsplit(url).path
         self.calls.append((method, path, kwargs))
-        assert method == 'GET'
+        assert method in {'GET', 'PATCH'}
+        if method == 'PATCH':
+            assert self.objects[path] is self.workload
+            assert kwargs['headers']['Content-Type'] == 'application/merge-patch+json'
+            body = json.loads(kwargs['body'])
+            assert body == {'metadata': {k: self.workload['metadata'][k] for k in ('uid', 'resourceVersion')},
+                            'spec': {'replicas': 0}}
+            if self.patch_failure == 'conflict':
+                return HTTPResponse(body=BytesIO(b'{"reason":"Conflict"}'), status=409, preload_content=False)
+            self.workload['spec']['replicas'] = 0
+            self.workload['metadata'].update(generation=2, resourceVersion='2')
+            if self.patch_failure == 'lost_response':
+                raise OSError('private synthetic response loss')
         value = self.objects[path] if self.status == 200 else self.error_body
         return HTTPResponse(body=BytesIO(json.dumps(value).encode()), status=self.status,
                             preload_content=False, headers={'Content-Type': 'application/json'})
@@ -269,3 +283,97 @@ async def test_preparation_rechecks_database_permission_after_external_reads(sys
     with pytest.raises(ClusterProcessError):
         await ClusterSandboxBinding(control, driver).prepare(row.lease.leaseId, 'registry.invalid/skill@sha256:' + 'a' * 64)
     control.prepare_sandbox.assert_not_awaited()
+
+
+async def terminal_bound(system):
+    row, driver, server = system
+    receipt = await driver.observe(row, server.sandbox_id)
+    data = terminated(row.model_dump(mode='json'))
+    data.update(sandboxResource=receipt.model_dump(), sandboxId=receipt.sandboxId, sandboxPhase='cleanup_pending')
+    server.calls.clear()
+    return ClusterSnapshot.model_validate(data)
+
+
+@pytest.mark.asyncio
+async def test_quiescence_requires_current_generation_and_preserves_existing_pod_and_finalizers(system):
+    _, driver, server = system
+    row = await terminal_bound(system)
+    pod = deepcopy(server.pod)
+    server.workload['status'] = {'observedGeneration': 1, 'pauseObservedGeneration': 1}
+    assert await driver.quiesce(row) is None
+    assert server.workload['spec']['replicas'] == 0
+    server.workload['status'].update(observedGeneration=2, pauseObservedGeneration=2)
+    receipt = await driver.quiesce(row)
+    assert receipt.generation == 2 and receipt.workloadUid == row.sandboxResource.workloadUid
+    assert len(receipt.evidenceSha256) == 64 and 'synthetic_' not in receipt.model_dump_json()
+    assert await driver.quiesce(row) == receipt
+    assert sum(method == 'PATCH' for method, *_ in server.calls) == 1
+    assert server.pod == pod and server.workload['metadata']['finalizers'] == ['open-agent.io/sandbox-workload']
+    assert row.leaseState == 'cleanup_pending'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['active_task', 'held_lease', 'live_executor', 'no_termination',
+    'wrong_executor', 'no_binding', 'namespace_replaced', 'workload_replaced', 'deleting', 'missing_finalizer', 'pool'])
+async def test_quiescence_rejects_unbound_or_unstopped_execution_before_patch(system, change):
+    _, driver, server = system
+    row = await terminal_bound(system)
+    if change == 'active_task': row = row.model_copy(update={'state': 'running'})
+    elif change == 'held_lease': row = row.model_copy(update={'leaseState': 'held'})
+    elif change == 'live_executor': row = row.model_copy(update={'phase': 'observed'})
+    elif change == 'no_termination': row = row.model_copy(update={'termination': None})
+    elif change == 'wrong_executor': row = row.model_copy(update={'podUid': str(uuid4())})
+    elif change == 'no_binding': row = row.model_copy(update={'sandboxResource': None})
+    elif change == 'namespace_replaced': server.objects['/api/v1/namespaces/' + driver.target.namespace]['metadata']['uid'] = str(uuid4())
+    elif change == 'workload_replaced': server.workload['metadata']['uid'] = str(uuid4())
+    elif change == 'deleting': server.workload['metadata']['deletionTimestamp'] = datetime.now(timezone.utc).isoformat()
+    elif change == 'missing_finalizer': server.workload['metadata']['finalizers'] = []
+    elif change == 'pool': server.workload['spec']['poolRef'] = 'unexpected'
+    with pytest.raises(ClusterProcessError): await driver.quiesce(row)
+    assert all(method == 'GET' for method, *_ in server.calls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status', [{}, {'observedGeneration': 1, 'pauseObservedGeneration': 1},
+    {'observedGeneration': 2, 'pauseObservedGeneration': 1}, {'observedGeneration': 2, 'pauseObservedGeneration': '2'}])
+async def test_quiescence_never_treats_replica_zero_or_partial_ack_as_completion(system, status):
+    _, driver, server = system
+    row = await terminal_bound(system)
+    server.workload['spec']['replicas'] = 0
+    server.workload['metadata']['generation'] = 2
+    server.workload['status'] = status
+    assert await driver.quiesce(row) is None
+    assert all(method == 'GET' for method, *_ in server.calls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['lost_response', 'conflict'])
+async def test_quiescence_transport_failure_retains_quota_and_reconciles_without_blind_retry(system, failure):
+    _, driver, server = system
+    row = await terminal_bound(system)
+    server.patch_failure = failure
+    with pytest.raises(ClusterProcessError, match='^CLUSTER_OPERATION_UNCONFIRMED$'):
+        await driver.quiesce(row)
+    assert sum(method == 'PATCH' for method, *_ in server.calls) == 1
+    assert row.leaseState == 'cleanup_pending'
+    if failure == 'lost_response':
+        server.workload['status'] = {'observedGeneration': 2, 'pauseObservedGeneration': 2}
+        assert (await driver.quiesce(row)).generation == 2
+        assert sum(method == 'PATCH' for method, *_ in server.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_quiescence_coordinator_reads_current_control_snapshot_without_releasing(system):
+    _, driver, server = system
+    row = await terminal_bound(system)
+    calls = []
+    def respond(request):
+        calls.append(request.url.path.rsplit('/', 1)[-1])
+        return httpx.Response(200, json=row.model_dump(mode='json'))
+    transport = ControlPlaneClient('https://control.internal', 'supervisor', 's' * 32, transport=httpx.MockTransport(respond))
+    try:
+        control = ClusterSupervisorClient(transport, 'supervisor', row.target, row.sandboxTarget)
+        assert await ClusterSandboxBinding(control, driver).quiesce(row.lease.leaseId) is None
+        assert calls == ['inspect']
+    finally:
+        await transport.http.aclose()

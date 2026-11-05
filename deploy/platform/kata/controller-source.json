@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "umbrella_release": "1.1.0",
+  "license": "Apache-2.0",
+  "image": {
+    "upstream": "registry-1.docker.io/opensandbox/controller",
+    "manifest_digest": "sha256:7299b94ab1382be4adb4fd41209ea60e16f66fcd963af64345b1106ac434957e",
+    "linux_amd64_manifest_digest": "sha256:3e04bbf2a196862a820f640f000dd4b7b284d5ea32f0d447479457d7d93c4860",
+    "config_id": "sha256:ab51af7657c93f5a4a7445c8b41fa5e4a25ce86187c3e10bff8db8b9cc9caa35",
+    "image": "m.daocloud.io/docker.io/opensandbox/controller@sha256:7299b94ab1382be4adb4fd41209ea60e16f66fcd963af64345b1106ac434957e",
+    "image_size_bytes": 311208252,
+    "archive": "/opt/open-agent/kata-controller/ab51af7657c93f5a4a7445c8b41fa5e4a25ce86187c3e10bff8db8b9cc9caa35.docker.tar",
+    "archive_sha256": "0b95a73c15bdb5c984f7ca8aa7fe69dcede7c0cddf82c7fb5df219e530a9e2b4",
+    "archive_bytes": 323625984,
+    "help_verified": true,
+    "nonroot_uid": 65532
+  },
+  "image_source": {
+    "commit": "27bc1b7c87715fb35ec391b7a55658653dbbf611",
+    "source_url": "https://codeload.github.com/opensandbox-group/OpenSandbox/tar.gz/27bc1b7c87715fb35ec391b7a55658653dbbf611",
+    "archive_sha256": "f3b9b6bd279aaf315e6f57e32c406f2f863f72b4a533af0a61bfe004eb0e951a",
+    "archive_bytes": 68256621
+  },
+  "umbrella_source": {
+    "commit": "b00c96b0a89c07fc18409fcfe72d170b4c96c8a7",
+    "source_url": "https://codeload.github.com/opensandbox-group/OpenSandbox/tar.gz/b00c96b0a89c07fc18409fcfe72d170b4c96c8a7",
+    "archive_sha256": "423adeb75c925c852ceb817b52cdeba4f5c62447fea101f254d079721f5c8300",
+    "archive_bytes": 68247909
+  },
+  "source_comparison": {
+    "image_reported_commit": "27bc1b7",
+    "source_archive_sha256": "f3b9b6bd279aaf315e6f57e32c406f2f863f72b4a533af0a61bfe004eb0e951a",
+    "archive_bytes": 68256621,
+    "git_archive_metadata": {
+      "comment": "27bc1b7c87715fb35ec391b7a55658653dbbf611"
+    },
+    "kubernetes_files": 319,
+    "umbrella_kubernetes_files": 319,
+    "differing_files": []
+  },
+  "scope": "Official controller image source provenance; no proof of Kata/CNI or supported Kubernetes matrix."
+}

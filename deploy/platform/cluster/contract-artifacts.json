@@ -1,7 +1,7 @@
 {
   "scope": "Linux contract verification overlay only; not a complete worker image or Kubernetes deployment",
-  "sha256": "01c0ded9f3af3477a93e260fc2650e99fc19c4dd3ec8ea50bced8e9a32b7dd7f",
-  "bytes": 6578705,
+  "sha256": "72c4f3641ff3ca9107a60b51d73c32becb880d81af85e81d951a22da9a3f19e1",
+  "bytes": 6580426,
   "base": "Existing demo worker Python 3.11 frozen environment; unchanged",
   "files": [
     {
@@ -51,8 +51,8 @@
     },
     {
       "path": "source/agent/durable/cluster_sandbox.py",
-      "size": 20931,
-      "sha256": "316fae0e25e9180e0b19ba431005e143bdb19b5867d436216efd985d9796e489"
+      "size": 25402,
+      "sha256": "725de050ea4a5dfae2b592b6c4627ff358fbbfc540973cd2b36f5752fb995174"
     },
     {
       "path": "source/agent/durable/cluster_service.py",
@@ -136,8 +136,8 @@
     },
     {
       "path": "source/agent/tests/test_cluster_sandbox.py",
-      "size": 17792,
-      "sha256": "ca8c16dbc5b61b593815c6997aa0729692bdecd92db263d155f551ec266a2da8"
+      "size": 23870,
+      "sha256": "83f8319abc3614fe00c3742d0858a334c37f26acdb2d2d54f223b9b619784bb1"
     },
     {
       "path": "source/agent/tests/test_cluster_service.py",

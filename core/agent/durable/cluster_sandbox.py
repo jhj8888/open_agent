@@ -1,4 +1,4 @@
-"""Independent, read-only verification of the pinned OpenSandbox Kubernetes profile.
+"""Independent observations and stop intent for the pinned Kubernetes profile.
 
 Only a reconciler uses this module. Resource observations bind identities; they
 are neither permission to execute tenant code nor proof of physical termination.
@@ -21,6 +21,7 @@ from pydantic import Field
 
 from agent.durable.cluster_control import ClusterSandboxResource, ClusterSandboxTarget, ClusterSnapshot, ClusterSupervisorClient
 from agent.durable.cluster_process import ClusterProcessError, KubernetesProcesses, canonical
+from agent.durable.contracts import TERMINAL
 from agent.durable.supervision import Identifier, WireModel
 from agent.platform_runtime.sandbox import RunScope
 
@@ -43,6 +44,14 @@ class KataPolicy(WireModel):
     imagePullSecret: Name
     execdImage: Annotated[str, Field(max_length=512, pattern=r'^[a-z0-9][a-z0-9.:/_-]*@sha256:' + EXECD_DIGEST + '$')]
     maximumSandboxes: Annotated[int, Field(strict=True, ge=1, le=256)] = 16
+
+
+class SandboxQuiescence(WireModel):
+    """Observed desired-state convergence, NOT physical stop/creation settlement."""
+    workloadUid: Identifier
+    resourceVersion: Annotated[str, Field(pattern=r'^[A-Za-z0-9_.:-]{1,128}$')]
+    generation: Annotated[int, Field(strict=True, ge=1)]
+    evidenceSha256: Annotated[str, Field(pattern=r'^[a-f0-9]{64}$')]
 
 
 def require(condition):
@@ -286,6 +295,59 @@ class KubernetesSandboxes:
         except Exception:
             raise ClusterProcessError('CLUSTER_SANDBOX_MISMATCH') from None
 
+    async def quiesce(self, row: ClusterSnapshot) -> SandboxQuiescence | None:
+        """One bounded stop-intent pass. None retains the pending observation.
+
+        A lost PATCH response remains unconfirmed; a later pass reads replica
+        zero instead of repeating it. This does not remove CR/Pod finalizers.
+        """
+        try:
+            self._bound(row)
+            require(row.state in TERMINAL and row.leaseState == 'cleanup_pending' and row.phase == 'terminated'
+                    and row.termination is not None and row.termination.podUid == row.podUid and row.termination.consistent())
+            require(row.sandboxResource is not None and row.sandboxResource.sandboxId == row.sandboxId
+                    and row.sandboxPhase in {'created', 'cleanup_pending'})
+            await self.processes.verify_target()
+            namespace = await self._read(self.core.read_namespace, self.target.namespace)
+            identity(namespace, self.target.namespace)
+            require(namespace['metadata']['uid'] == self.target.namespaceUid and namespace['status']['phase'] == 'Active')
+            args = (GROUP, VERSION, self.target.namespace, PLURAL, row.sandboxId)
+            workload = await self._read(self.custom.get_namespaced_custom_object, *args)
+            def validate(value):
+                observed = identity(value, row.sandboxId, self.target.namespace)
+                meta, spec = value['metadata'], value['spec']
+                require(observed['uid'] == row.sandboxResource.workloadUid
+                        and meta.get('labels') == self._labels(row, row.sandboxId)
+                        and meta.get('finalizers') == [CR_FINALIZER] and not meta.get('ownerReferences'))
+                require(value.get('apiVersion') == API_VERSION and value.get('kind') == 'BatchSandbox')
+                require(set(spec) <= {'replicas', 'expireTime', 'template', 'taskResourcePolicyWhenCompleted'}
+                        and {'replicas', 'expireTime', 'template'} <= set(spec)
+                        and spec.get('taskResourcePolicyWhenCompleted', 'Retain') == 'Retain')
+                require(type(spec['replicas']) is int and spec['replicas'] in {0, 1}
+                        and type(meta.get('generation')) is int and meta['generation'] >= 1)
+                return observed
+            observed = validate(workload)
+            if workload['spec']['replicas'] == 1:
+                body = {'metadata': {'uid': observed['uid'], 'resourceVersion': observed['resourceVersion']}, 'spec': {'replicas': 0}}
+                # Official JSON merge patch includes the API's optimistic concurrency precondition.
+                workload = await self._read(self.custom.patch_namespaced_custom_object, *args, body)
+                observed = validate(workload)
+                require(workload['spec']['replicas'] == 0)
+            generation, status = workload['metadata']['generation'], workload.get('status', {})
+            if any(type(status.get(key)) is not int or status[key] != generation
+                   for key in ('observedGeneration', 'pauseObservedGeneration')):
+                return None
+            evidence = {'lease': row.lease.model_dump(), 'target': row.target.model_dump(),
+                'sandboxTarget': self.target.model_dump(), 'sandboxResource': row.sandboxResource.model_dump(),
+                'executorTermination': row.termination.model_dump(mode='json'), 'workload': observed, 'generation': generation,
+                'replicas': 0, 'observedGeneration': generation, 'pauseObservedGeneration': generation}
+            return SandboxQuiescence(workloadUid=observed['uid'], resourceVersion=observed['resourceVersion'],
+                generation=generation, evidenceSha256=sha256(canonical(evidence)).hexdigest())
+        except ClusterProcessError:
+            raise
+        except Exception:
+            raise ClusterProcessError('CLUSTER_SANDBOX_QUIESCENCE_UNCONFIRMED') from None
+
 
 class ClusterSandboxBinding:
     """Trusted coordinator; no create/delete/run methods and no execution permit."""
@@ -311,3 +373,6 @@ class ClusterSandboxBinding:
         # A late observation may be persisted after cancellation, but grants no
         # permission and cannot release quota. Never recreate on response loss.
         return await self.control.sandbox_resource(lease_id, resource)
+
+    async def quiesce(self, lease_id: str):
+        return await self.sandboxes.quiesce(await self.control.inspect(lease_id))

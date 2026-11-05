@@ -1,5 +1,9 @@
 # 实施记录
 
+## 2026-11-06 当前增量
+
+后端已加入已绑定沙盒的控制器停止创建确认：读取当前租约与 executor 终止凭据，按固定 CR UID/resourceVersion 条件将副本数设为 0，仅接受当前 generation 的完整确认，不删除 Pod 或释放配额。固定官方 controller 已实际创建 Pod，后端完成确认、重启后不重建、过期版本冲突和删除中 CR 拒绝验证；业务账本/终止凭据为合成输入，无 kubelet/Kata/CNI。70 项本地、222 项 Linux overlay、280 项最终镜像、16 项打包与 11 项规格检查通过（重叠用例不相加）。新镜像约 706 MB 已交付测试服务器，原 58 步/2 文件/缓存 Token/公网权限复查通过，活动展示 worker 保持原执行链。物理停止及持久回收、HTTPS admission、真实目标集群和离线容量验收仍在推进。见[控制器收敛](cluster-controller-quiescence.md)及[UTC 2026-11-05 验证记录](cluster-controller-verification-20261105.json)。
+
 ## 2026-11-05 当前状态
 
 沙盒独立资源核验适配器已接到 V1.66 准备/绑定事务：实际 namespace/RuntimeClass 身份、唯一网络策略、配额、CR/Pod 标签/ownerReference/权限和固定镜像均检查；重复观察保留首次 UID/版本，取消后不恢复执行。203 项 Linux overlay、261 项新离线镜像和 16 项打包检查通过。真实零节点 K3s 验证实际 UID 和四类资源变更拒绝，发现并显式兼容固定官方 CRD 的 Retain 默认值，临时集群已清理。镜像交付至测试服务器，旧 58 步/2 文件/Token 与公网授权复查通过。HTTPS admission、controller 收敛/物理停止、真实 Kata/CNI 和完整离线/容量验收仍待完成，活动展示执行链未切换。见[独立核验说明](cluster-sandbox-verification.md)和[本轮证据](cluster-sandbox-verification-20261105.json)。

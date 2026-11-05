@@ -23,7 +23,7 @@ from agent.durable.cluster_process import ClusterProcessError, ClusterProgram, K
 from agent.durable.cluster_sandbox import KubernetesSandboxes, KataPolicy, POD_OWNER, POD_INDEX
 
 
-async def verify():
+async def verify(controller=None):
     assert (ROOT / 'owner').read_text() == 'open-agent-k3s-api-fixture-v1'
     cfg = client.Configuration()
     config.load_kube_config(config_file=str(ROOT / 'admin.yaml'), client_configuration=cfg, persist_config=False)
@@ -87,12 +87,24 @@ async def verify():
         template['metadata']['labels'] = deepcopy(labels)
         template['spec']['containers'][0]['env'][0]['value'] = 'synthetic_' + 'x'*54
         workload['spec']['expireTime'] = deadline.isoformat()
+        if controller is not None:
+            await controller.start(api, 'open-agent-test', INPUTS)
         cr = custom.create_namespaced_custom_object('sandbox.opensandbox.io', 'v1alpha1', ns, 'batchsandboxes', workload, field_validation='Strict')
         pod = {'apiVersion': 'v1', 'kind': 'Pod', **deepcopy(template)}
         pod['metadata'].update(name=sandbox_id+'-0', namespace=ns, labels={**labels, POD_OWNER: sandbox_id, POD_INDEX: '0'},
             ownerReferences=[{'apiVersion': 'sandbox.opensandbox.io/v1alpha1', 'kind': 'BatchSandbox',
                 'name': sandbox_id, 'uid': cr['metadata']['uid'], 'controller': True, 'blockOwnerDeletion': True}])
-        created = core.create_namespaced_pod(ns, pod, field_validation='Strict')
+        if controller is None:
+            created = core.create_namespaced_pod(ns, pod, field_validation='Strict')
+        else:
+            for _ in range(120):
+                pods = core.list_namespaced_pod(ns).items
+                cr = custom.get_namespaced_custom_object('sandbox.opensandbox.io', 'v1alpha1', ns, 'batchsandboxes', sandbox_id)
+                if len(pods) == 1 and cr.get('status', {}).get('observedGeneration') == cr['metadata']['generation']:
+                    created = pods[0]
+                    break
+                await asyncio.sleep(.5)
+            else: raise RuntimeError('actual_controller_did_not_create_pod')
         assert not created.spec.node_name
         # Save only fixture data (synthetic execd value), privately for diagnosing defaults.
         (ROOT / 'sandbox-resource-fixture.json').write_text(json.dumps({'workload': cr,
@@ -127,13 +139,15 @@ async def verify():
             await asyncio.sleep(.5)
         else: raise RuntimeError('fixture_duplicate_pod_not_removed')
         assert await driver.observe(bound, sandbox_id) == first
+        settlement = await controller.settlement(api, driver, bound) if controller is not None else None
         report = {'checked_at': datetime.now(timezone.utc).isoformat(), 'kubernetes_version': version,
             'source_archive_sha256': manifest['sha256'], 'actual_api_resource_validation': True,
             'actual_uid_resource_version_receipt': first.model_dump(), 'repeated_receipt_preserved': True,
             'rejected_mutations': rejected, 'quota_initialization_seconds': round(time.monotonic()-started, 2),
             'agentless': True, 'executor_lease': 'synthetic; no business DB or executor process',
-            'pod_creation': 'fixture manually mirrors pinned controller labels and ownerReference',
-            'controller_executed': False, 'tenant_code_executed': False, 'kata_and_cni_verified': False,
+            'pod_creation': 'fixed official controller' if controller is not None else 'fixture manually mirrors pinned controller labels and ownerReference',
+            'controller_executed': controller is not None, 'controller': controller.evidence if controller is not None else None,
+            'controller_settlement': settlement, 'tenant_code_executed': False, 'kata_and_cni_verified': False,
             'task_admission_enabled': False, 'supported_upstream_kubernetes_matrix_verified': False}
         (ROOT / 'sandbox-resource-verification.json').write_text(json.dumps(report, indent=2)+'\n')
         print(json.dumps(report), flush=True)

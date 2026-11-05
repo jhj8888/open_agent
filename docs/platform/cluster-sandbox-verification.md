@@ -1,5 +1,7 @@
 # Kubernetes 沙盒独立核验
 
+后续已加入实际官方 controller 与后端停止创建确认，见[控制器收敛](cluster-controller-quiescence.md)。下文记录最初独立核验增量，其手工 Pod/API 验证边界和证据保持不变。
+
 本增量实现 `KubernetesSandboxes` 与 `ClusterSandboxBinding`，接到 V1.66 的持久准备/绑定接口。独立核验器从 Kubernetes 实际资源读取身份和配置，不能采用 worker 自报的镜像、安全选项或资源 UID。它是生产准入/回收服务的组件，尚未开放租户执行入口，也不构成物理停止证明。
 
 ## 调用与配置
