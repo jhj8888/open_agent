@@ -78,6 +78,7 @@ def test_chart_renders_hardened_workloads_and_private_dependencies(tmp_path, env
                         assert peer.get('podSelector', {}).get('matchLabels'), 'Namespace and pod selectors must be ANDed'
     config = next(d['data'] for d in documents if d['kind'] == 'ConfigMap')
     assert config['PLATFORM_RUN_ADMISSION_ENABLED'] == 'false'
+    assert config['PLATFORM_RUN_ADMISSION_ENVIRONMENTS'] == environment
     assert config['MODEL_PUBLIC_DEMO_ORIGINS'] == '[]'
     assert 'header_up -X-Platform-*' in config['Caddyfile']
     assert 'respond "Not found" 404' in config['Caddyfile']

@@ -29,14 +29,19 @@ public class RunOutbox {
             String operation, String claimId, Instant claimUntil, int deliveryAttempt) {}
 
     public List<Delivery> claim(int limit, int leaseSeconds) {
+        return claim("test", limit, leaseSeconds); // Legacy dispatcher is test-only, never all environments.
+    }
+
+    public List<Delivery> claim(String environment, int limit, int leaseSeconds) {
+        if (!"test".equals(environment) && !"prod".equals(environment)) throw new RunFailure("invalid_scope");
         if (limit < 1 || limit > 100 || leaseSeconds < 1 || leaseSeconds > 60) throw new RunFailure("invalid_dispatch_limit");
         return transaction.execute(status -> {
             var rows = jdbc.queryForList("""
                     SELECT * FROM oa_run_outbox
-                    WHERE (state='pending' AND available_at<=CURRENT_TIMESTAMP(3))
-                       OR (state='claimed' AND claim_until<=CURRENT_TIMESTAMP(3))
+                    WHERE environment=? AND ((state='pending' AND available_at<=CURRENT_TIMESTAMP(3))
+                       OR (state='claimed' AND claim_until<=CURRENT_TIMESTAMP(3)))
                     ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED
-                    """, limit);
+                    """, environment, limit);
             Instant until = jdbc.queryForObject("SELECT CURRENT_TIMESTAMP(3)", Timestamp.class).toInstant().plusSeconds(leaseSeconds);
             List<Delivery> result = new ArrayList<>();
             for (var row : rows) {

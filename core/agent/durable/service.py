@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import contextmanager
+from contextlib import AsyncExitStack, contextmanager
 from datetime import timedelta
 import json
 import logging
@@ -12,18 +12,21 @@ from pathlib import Path
 import signal
 import socket
 import sys
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from temporalio import activity
 from temporalio.client import Client
+from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
 from agent.durable.control import ControlPlaneClient
+from agent.durable.contracts import ReconcileRequest, RunRef, RunResult
 from agent.durable.dispatcher import OutboxDispatcher
 from agent.durable.host_process import SystemdProcesses
 from agent.durable.supervision import SupervisorClient
 from agent.durable.supervisor import AttemptFiles, HostSupervisor
-from agent.durable.workflow import AgentRunWorkflow
+from agent.durable.workflow import AgentRunWorkflow, EXECUTE_ACTIVITY, RECONCILE_ACTIVITY
 
 LOG = logging.getLogger(__name__)
 READY = Path('/opt/open-agent/supervisor/ready.json')
@@ -47,9 +50,43 @@ class ServiceSettings(BaseModel):
     temporal_address: Annotated[str, Field(pattern=r'^127\.0\.0\.1:[1-9][0-9]{0,4}$')] = '127.0.0.1:17233'
     temporal_namespace: Annotated[str, Field(pattern=r'^[A-Za-z0-9_.-]{1,128}$')] = 'default'
     task_queue: Annotated[str, Field(pattern=r'^open-agent-[A-Za-z0-9_.-]{1,100}$')] = 'open-agent-demo-v1'
+    # The optional production queue preserves model-only production API demos.
+    # It does not enable production gVisor Skills or replace Kubernetes/Kata.
+    environment: Literal['test'] = 'test'
+    production_task_queue: Annotated[str, Field(pattern=r'^open-agent-[A-Za-z0-9_.-]{1,100}$')] | None = None
     maximum: Annotated[int, Field(strict=True, ge=1, le=16)] = 2
     sandbox_image: str | None = None
     sandbox_server_image: str | None = None
+
+    @model_validator(mode='after')
+    def separate_queues(self):
+        if self.production_task_queue == self.task_queue:
+            raise ValueError('Environment task queues must be different')
+        return self
+
+    def routes(self):
+        routes={'test':self.task_queue}
+        if self.production_task_queue is not None:routes['prod']=self.production_task_queue
+        return routes
+
+
+class ScopedActivities:
+    """A queue cannot invoke or reconcile a task from a different environment."""
+    def __init__(self, host, environment: str):
+        if environment not in {'test','prod'}:raise ValueError('Invalid activity environment')
+        self.host,self.environment=host,environment
+
+    @activity.defn(name=EXECUTE_ACTIVITY)
+    async def execute(self, run: RunRef) -> RunResult:
+        if run.environment!=self.environment:
+            raise ApplicationError('activity_environment_mismatch',non_retryable=True)
+        return await self.host.execute(run)
+
+    @activity.defn(name=RECONCILE_ACTIVITY)
+    async def reconcile(self, request: ReconcileRequest) -> RunResult:
+        if request.run.environment!=self.environment:
+            raise ApplicationError('activity_environment_mismatch',non_retryable=True)
+        return await self.host.reconcile(request)
 
 
 async def start_admission(app):
@@ -128,7 +165,9 @@ async def serve(settings: ServiceSettings):
             admission = await start_admission(admission_app(api, verifier_control, sandbox_host, AttemptFiles.STATE))
             admission[1].add_done_callback(lambda task: stop.set())
         temporal = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
-        dispatcher = OutboxDispatcher(dispatcher_control, temporal, settings.task_queue)
+        routes=settings.routes()
+        dispatchers={environment:OutboxDispatcher(dispatcher_control,temporal,queue,environment=environment)
+                     for environment,queue in routes.items()}
         # A supervisor restart never replays an already admitted effect. Fence inherited attempts first.
         await host.scan_once(startup=True)
 
@@ -143,14 +182,18 @@ async def serve(settings: ServiceSettings):
                 except TimeoutError:
                     pass
 
-        async with Worker(temporal, task_queue=settings.task_queue, workflows=[AgentRunWorkflow],
-                          activities=[host.execute, host.reconcile], max_concurrent_activities=8,
-                          max_concurrent_workflow_tasks=8, graceful_shutdown_timeout=timedelta(seconds=20)):
-            tasks = [asyncio.create_task(loop('dispatch', dispatcher.once, 1)),
-                     asyncio.create_task(loop('cleanup', host.scan_once, 5))]
+        async with AsyncExitStack() as workers:
+            for environment,queue in routes.items():
+                scoped=ScopedActivities(host,environment)
+                await workers.enter_async_context(Worker(temporal,task_queue=queue,workflows=[AgentRunWorkflow],
+                    activities=[scoped.execute,scoped.reconcile],max_concurrent_activities=8,
+                    max_concurrent_workflow_tasks=8,graceful_shutdown_timeout=timedelta(seconds=20)))
+            tasks = [asyncio.create_task(loop('dispatch_'+environment,dispatcher.once,1))
+                     for environment,dispatcher in dispatchers.items()]
+            tasks.append(asyncio.create_task(loop('cleanup',host.scan_once,5)))
             LOG.info('Supervisor ready identity=%s task_queue=%s', settings.supervisor.id, settings.task_queue)
             READY.write_text(json.dumps({'pid': os.getpid(), 'task_queue': settings.task_queue,
-                                         'source': str(settings.source), 'sandbox_enabled': sandbox_enabled}) + '\n')
+                                         'task_queues':routes,'source': str(settings.source), 'sandbox_enabled': sandbox_enabled}) + '\n')
             READY.chmod(0o600)
             await stop.wait()
     finally:

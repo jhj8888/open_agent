@@ -2,7 +2,11 @@
 
 ## 2026-11-05 当前状态
 
-集群执行 SDK 适配继续推进：官方 Kubernetes Python 36.0.3、Pod 调度门禁、UID/配置核验、终止证据先提交与 finalizer 恢复、受信集群 executor 入口已加入。298 项兼容回归通过，最终 Linux SDK/入口检查 65 项通过；7 个增量 wheel 离线安装在展示机专用目录，活动 worker 环境未更改。完整集群 Temporal 服务、未启动/未知创建回收协议、OpenSandbox/Kata 物理核验和真实 K8S/CNI 验收尚未完成，集群任务准入仍关闭。见[SDK 验证记录](cluster-sdk-verification-20261105.json)。
+环境路由增量已部署到展示 API V1.64：SQL 领取、分派器和 activity 校验 test/prod，未配置执行路由的环境拒绝提交且不创建排队任务。两个实际 Temporal 队列共用主机容量，真实测试 Skill 与生产模型任务均成功并释放资源，工作流重叠 22.667 秒。43 项 Java、冻结 Linux 63 项与 Helm/交付 29 项检查通过；维护 80.14 秒，旧任务 58 步和 2 个下载文件保留。仅证明同主机逻辑队列分离，生产 Kata/K8S 及集群总准入保持未验收；详见[环境路由与证据](environment-dispatch.md)。
+
+未启动 Pod 的正向删除屏障已在 V1.63 完成账本与真实无节点 K3s API 检查，见[未启动回收证据](cluster-unstarted-pods.md)。未知创建、已绑定节点缺少真实终止记录、完整集群执行服务及 Kata/CNI 仍待交付。
+
+集群执行 SDK 适配继续推进：官方 Kubernetes Python 36.0.3、Pod 调度门禁、UID/配置核验、终止证据先提交与 finalizer 恢复、受信集群 executor 入口已加入。298 项兼容回归通过，最终 Linux SDK/入口检查 65 项通过；7 个增量 wheel 离线安装在展示机专用目录，活动 worker 环境未更改。完整集群 Temporal 服务、未知创建回收协议、OpenSandbox/Kata 物理核验和真实 K8S/CNI 验收尚未完成，集群任务准入仍关闭。见[SDK 验证记录](cluster-sdk-verification-20261105.json)。
 
 集群执行控制协议已加入并部署到展示 API V1.62：目标/namespace UID/Pod UID 与租约绑定、单次启动、不可替换的终止证据及原子回收事务通过 104 项 Java 检查，含隔离数据库强制重启；Python 传输与单机兼容 27 项通过。更新后真实 Skill 任务成功并释放沙盒/执行配额，旧任务步骤和文件仍可访问。集群执行身份未启用，实际 Pod/finalizer、OpenSandbox/Kata 核验与 K8S 故障矩阵仍在推进；详见[集群执行接入](cluster-execution.md)。
 

@@ -20,10 +20,15 @@ def workflow_id(run_id: str) -> str:
 
 
 class OutboxDispatcher:
-    def __init__(self, control: ControlPlaneClient, temporal: Client, task_queue: str):
+    def __init__(self, control: ControlPlaneClient, temporal: Client, task_queue: str, *, environment: str = "test"):
+        if environment not in {"test", "prod"}:
+            raise ValueError("Invalid dispatcher environment")
         self.control, self.temporal, self.task_queue = control, temporal, task_queue
+        self.environment = environment
 
     async def deliver(self, delivery: Delivery) -> bool:
+        if delivery.run.environment != self.environment:
+            raise ValueError("Dispatcher environment mismatch")
         state = await self.control.state(delivery.run, dispatcher=True)
         if state["state"] not in TERMINAL:
             if delivery.operation == "start":
@@ -52,7 +57,7 @@ class OutboxDispatcher:
     async def once(self) -> int:
         # Each delivery has at most three bounded 10-second RPCs. Process a small
         # batch concurrently so queued items do not outlive the 60-second claim.
-        deliveries = await self.control.deliveries(limit=4)
+        deliveries = await self.control.deliveries(limit=4, environment=self.environment)
 
         async def process(delivery: Delivery) -> int:
             try:

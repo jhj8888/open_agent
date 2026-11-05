@@ -48,9 +48,11 @@ class Activities:
         self.stopped = asyncio.Event()
         self.unblock = asyncio.Event()
         self.terminal = None
+        self.seen_runs = []
 
     @activity.defn(name=EXECUTE_ACTIVITY)
     async def execute(self, run: RunRef) -> RunResult:
+        self.seen_runs.append(run)
         self.calls += 1
         assert activity.info().attempt == 1
         activity.heartbeat()
@@ -86,12 +88,14 @@ class Activities:
             or ("cancelled" if request.reason == "cancel_requested" else "failed")
         )
 
-    def worker(self, client, queue):
+    def worker(self, client, queue, environment=None):
+        from agent.durable.service import ScopedActivities
+        activities=self if environment is None else ScopedActivities(self,environment)
         return Worker(
             client,
             task_queue=queue,
             workflows=[AgentRunWorkflow],
-            activities=[self.execute, self.reconcile],
+            activities=[activities.execute, activities.reconcile],
             max_concurrent_activities=4,
             graceful_shutdown_timeout=timedelta(seconds=1),
             max_heartbeat_throttle_interval=timedelta(seconds=1),
@@ -213,8 +217,8 @@ class Control:
         self.retries += 1
         return True
 
-    async def deliveries(self, limit=10):
-        return self.pending
+    async def deliveries(self, limit=10, *, environment="test"):
+        return [row for row in self.pending if row.run.environment == environment][:limit]
 
 
 @pytest.mark.asyncio
@@ -236,6 +240,33 @@ async def test_lost_ack_and_duplicate_delivery_use_one_temporal_execution(tempor
         # REJECT_DUPLICATE also prevents replay after workflow completion.
         assert await dispatcher.deliver(delivery)
         assert activities.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_test_and_production_dispatch_use_separate_real_queues_and_cancel_only_the_target(temporal):
+    test_run=ref();prod_run=RunRef(test_run.tenant,'prod',str(uuid4()))
+    test_activities,prod_activities=Activities('wait'),Activities('wait')
+    test_control,prod_control=Control(),Control()
+    test_control.fail_ack=prod_control.fail_ack=False
+    deliveries=[Delivery(1,test_run,'start',str(uuid4())),Delivery(2,prod_run,'start',str(uuid4()))]
+    test_control.pending=prod_control.pending=deliveries
+    test_queue,prod_queue='test-'+uuid4().hex,'prod-'+uuid4().hex
+    test_dispatch=OutboxDispatcher(test_control,temporal.client,test_queue,environment='test')
+    prod_dispatch=OutboxDispatcher(prod_control,temporal.client,prod_queue,environment='prod')
+    async with test_activities.worker(temporal.client,test_queue,'test'),prod_activities.worker(temporal.client,prod_queue,'prod'):
+        assert await asyncio.gather(test_dispatch.once(),prod_dispatch.once())==[1,1]
+        await asyncio.wait_for(asyncio.gather(test_activities.started.wait(),prod_activities.started.wait()),10)
+        assert test_activities.seen_runs==[test_run] and prod_activities.seen_runs==[prod_run]
+        test_handle=temporal.client.get_workflow_handle(workflow_id(test_run.run_id),result_type=RunResult)
+        prod_handle=temporal.client.get_workflow_handle(workflow_id(prod_run.run_id),result_type=RunResult)
+        prod_control.current_state='cancel_requested'
+        assert await prod_dispatch.deliver(Delivery(3,prod_run,'cancel',str(uuid4())))
+        assert (await asyncio.wait_for(prod_handle.result(),15)).state=='cancelled'
+        assert (await test_handle.describe()).status.name=='RUNNING'
+        test_activities.unblock.set()
+        assert (await asyncio.wait_for(test_handle.result(),15)).state=='succeeded'
+        assert await test_dispatch.deliver(deliveries[0])
+        assert test_activities.calls==prod_activities.calls==1
 
 
 @pytest.mark.asyncio

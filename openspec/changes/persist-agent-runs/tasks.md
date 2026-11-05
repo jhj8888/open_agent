@@ -70,3 +70,13 @@ V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑
 - [x] 展示 API 更新到 V1.63，维护前私有 SQL 备份已保存；真实 Skill 任务成功、200 条事件和资源回收核验通过。原任务 58 步、2 个文件及下载摘要保留，公网 TLS/权限/20 项列表详情 usage 一致性通过。验证脚本环境问题从原任务恢复，未重新执行模型或工具。
 
 详见 `docs/platform/cluster-unstarted-pods.md` 与 `docs/platform/cluster-unstarted-verification-20261105.json`。未知创建、已绑定节点但缺少实际终止记录、完整 Temporal 集群服务、Kata/CNI 与生产故障验收保持未完成，原有大项不据此勾选。
+
+
+## 2026-11-05 环境队列与准入增量
+
+- [x] V1.64 增加环境索引，SQL 在领取前过滤 test/prod；过期领取、取消消息、默认 test 和无效输入检查通过，避免出队后才过滤导致跨环境消息被占用。
+- [x] 官方 Temporal 双队列、分派器/传输/活动环境核验接通，共用展示主机最大并发；Linux 63 项检查通过，包含真实服务双队列、定向取消与重投不重复。
+- [x] 按环境开放准入和元数据提示；默认 test，错误配置或未开放环境不产生 run/outbox。Java 两轮共 43 项定向检查、Helm/交付 29 项通过。
+- [x] 展示 API/worker 已更新，私有 SQL/配置备份与维护记录保留；真实 test Skill 与 prod 模型任务在不同队列完成，有 22.667 秒工作流重叠，资源均释放。旧 58 步、2 文件、Token 汇总及公网 HTTPS 检查通过。
+
+见 `docs/platform/environment-dispatch.md` 与 `environment-dispatch-verification-20261105.json`。展示机两个队列属于同一主机/namespace，不能代替生产基础设施隔离；完整集群服务、未知创建关闭、Kata/CNI/HA、离线冷启动及容量验收继续推进，原有整项任务保持未勾选。

@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = '9150b8159361c30a90f4995e50918dc89adc53b4d883519dc841c225a997a354'
+ARTIFACT_SHA256 = '32845a863efb0b1e71baf72aeb1fa2dba246832ff13f80ec96ad707d5bc03522'
 API_NETWORK = 'open-agent-control-api'
 
 
@@ -71,6 +71,7 @@ def main():
         api_secrets['trace_exporter_key'] = secrets.token_urlsafe(40)
         private_file(key_path, json.dumps(api_secrets, indent=2) + '\n', replace=True)
     admission = False
+    admission_environments = 'test'
     admission_record = ROOT / 'execution-admission.json'
     if admission_record.exists():
         if admission_record.is_symlink() or admission_record.stat().st_uid != 0 or admission_record.stat().st_mode & 0o077:
@@ -82,6 +83,11 @@ def main():
         pid = command('systemctl', 'show', 'open-agent-supervisor.service', '-p', 'MainPID', '--value').stdout.strip()
         if str(ready['pid']) != pid or pid == '0':
             raise RuntimeError('Execution supervisor is not ready')
+        routes = ready.get('task_queues', {'test': ready['task_queue']})
+        if (set(routes) not in ({'test'}, {'test','prod'}) or len(set(routes.values())) != len(routes)
+                or any(not isinstance(queue,str) or not queue.startswith('open-agent-') for queue in routes.values())):
+            raise RuntimeError('Execution environment routes are invalid')
+        admission_environments = ','.join(scope for scope in ('test','prod') if scope in routes)
         admission = True
     environment = {
         'PLATFORM_BIND_ADDRESS': '0.0.0.0', 'PLATFORM_PORT': '18082',
@@ -92,7 +98,8 @@ def main():
         'PLATFORM_S3_ENDPOINT': storage['s3_endpoint'], 'PLATFORM_S3_BUCKET': storage['s3_bucket'],
         'PLATFORM_S3_ACCESS_KEY': values['s3_app_key'], 'PLATFORM_S3_SECRET_KEY': values['s3_app_secret'],
         'MODEL_CREDENTIAL_ACTIVE_KEY': 'v1', 'MODEL_CREDENTIAL_KEYS': json.dumps({'v1': api_secrets['model_encryption_key']}),
-        'PLATFORM_RUN_ADMISSION_ENABLED': str(admission).lower(), 'LANGSMITH_TRACING': 'false',
+        'PLATFORM_RUN_ADMISSION_ENABLED': str(admission).lower(), 'PLATFORM_RUN_ADMISSION_ENVIRONMENTS': admission_environments,
+        'LANGSMITH_TRACING': 'false',
         'MODEL_ALLOWED_ORIGINS': json.dumps(['https://api.deepseek.com']),
         'MODEL_PUBLIC_DEMO_ORIGINS': json.dumps(['https://api.deepseek.com']),
         'PLATFORM_PROMETHEUS_URL': 'http://' + json.loads(command('docker','network','inspect',API_NETWORK).stdout)[0]['IPAM']['Config'][0]['Gateway'] + ':19090',

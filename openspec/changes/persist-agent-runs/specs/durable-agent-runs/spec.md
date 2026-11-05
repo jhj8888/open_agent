@@ -6,6 +6,30 @@
 
 ## ADDED Requirements
 
+### Requirement: 调度环境隔离
+
+系统 SHALL 在 SQL outbox 领取阶段限定 test 或 prod，并由调度器验证返回环境后投递到该环境明确配置的 Temporal namespace 与任务队列；缺少旧客户端环境字段时仅兼容 test，不得解释为全部环境。
+
+#### Scenario: 两环境并发出队
+
+- **WHEN** 测试和生产调度器同时领取待投递或过期领取的消息
+- **THEN** 各自仅领取本环境的 start/cancel 消息，不锁占另一环境的消息，任务不会进入另一环境队列
+
+#### Scenario: 返回消息与调度器环境不符
+
+- **WHEN** 控制面返回了另一环境的消息或调度器收到不匹配的直接投递请求
+- **THEN** 在读取任务状态、启动工作流、发送取消或确认消息之前拒绝该消息，不把外部响应中的环境当作路由配置
+
+#### Scenario: 旧调度器兼容
+
+- **WHEN** 旧调度器未发送 environment 字段
+- **THEN** 只领取 test 消息，prod 消息留给显式配置的生产调度器；空字符串和非法环境明确拒绝
+
+#### Scenario: 未配置执行环境的部署
+
+- **WHEN** 调用部署的环境尚未显式开启任务准入
+- **THEN** 部署元数据返回 admission_enabled=false，提交返回 executor_unavailable，且不创建任务或 outbox；默认仅允许 test，生产开启须与生产调度器及执行后端就绪配套
+
 ### Requirement: 集群执行资源绑定与终止证明
 
 系统 SHALL 将 Kubernetes 执行资源绑定到同一任务租约，持久记录环境、集群、namespace UID、Pod 名及唯一 UID，且仅接受独立受信监督器的回收证明。

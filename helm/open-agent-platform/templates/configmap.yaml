@@ -12,6 +12,7 @@ data:
   PLATFORM_OIDC_JWKS: {{ printf "%s/.well-known/jwks" .Values.identity.upstream | quote }}
   PLATFORM_OIDC_AUDIENCE: {{ .Values.identity.clientId | quote }}
   PLATFORM_RUN_ADMISSION_ENABLED: "false"
+  PLATFORM_RUN_ADMISSION_ENVIRONMENTS: {{ .Values.environment | quote }}
   MODEL_ALLOWED_ORIGINS: {{ .Values.modelOrigins | toJson | quote }}
   MODEL_PUBLIC_DEMO_ORIGINS: "[]"
   SKILL_RUNTIME_IMAGES: {{ .Values.runtimeImages | toJson | quote }}

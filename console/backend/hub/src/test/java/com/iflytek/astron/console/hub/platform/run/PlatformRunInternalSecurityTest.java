@@ -152,6 +152,29 @@ class PlatformRunInternalSecurityTest {
                 .contentType("application/json").content(SCOPE)).andExpect(status().isUnauthorized());
         verifyNoInteractions(ledger, outbox);
     }
+    @Test void dispatcherMustSelectOneEnvironmentAndLegacyRequestsAreTestOnly() throws Exception {
+        String path="/internal/platform/dispatch/claim";
+        for(String environment:java.util.List.of("test","prod")) {
+            mvc.perform(post(path).header("X-Platform-Key-Id","dispatcher-one").header("X-Platform-Service-Key","d".repeat(32))
+                    .contentType("application/json").content("{\"limit\":4,\"leaseSeconds\":60,\"environment\":\""+environment+"\"}"))
+                    .andExpect(status().isOk());
+            verify(outbox).claim(environment,4,60);
+        }
+        mvc.perform(post(path).header("X-Platform-Key-Id","dispatcher-one").header("X-Platform-Service-Key","d".repeat(32))
+                .contentType("application/json").content("{\"limit\":2,\"leaseSeconds\":30}")).andExpect(status().isOk());
+        verify(outbox).claim("test",2,30);
+    }
+
+    @Test void malformedDispatcherEnvironmentCannotReachStorage() throws Exception {
+        for(String environment:java.util.List.of("","all","TEST","../prod")) {
+            mvc.perform(post("/internal/platform/dispatch/claim").header("X-Platform-Key-Id","dispatcher-one")
+                    .header("X-Platform-Service-Key","d".repeat(32)).contentType("application/json")
+                    .content("{\"limit\":4,\"leaseSeconds\":60,\"environment\":\""+environment+"\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(outbox);
+    }
+
     @Test void dispatcherAndWorkerRolesAreNotInterchangeable() throws Exception {
         mvc.perform(post(CLAIM).header("X-Platform-Key-Id","dispatcher-one").header("X-Platform-Service-Key","d".repeat(32))
                 .contentType("application/json").content(SCOPE)).andExpect(status().isForbidden());

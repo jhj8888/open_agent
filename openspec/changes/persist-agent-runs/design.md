@@ -28,6 +28,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+### 出队环境绑定
+
+调用链为环境专属调度器 → `ControlPlaneClient.deliveries(environment=...)` → `PlatformRunInternalController` → `RunOutbox.claim`（SQL 在行锁前过滤 environment）→ 官方 Temporal `start_workflow`/signal → 对应环境 worker。API 不从消息响应推断目标队列；调度器的环境、Temporal namespace 和任务队列由运维固定配置。旧请求缺少环境时只兼容 test。迁移新增 environment 前缀的待投递/过期领取索引，保留现有行和 claim token；模型、工具、Skill 与最终回收接口不变。共用控制数据库时也必须隔离两环境出队；正式交付 chart 仍要求不同环境独立数据库与网络 namespace。
+
 ### Kubernetes SDK 执行实体适配
 
 未启动 Pod 的回收采用独立正向证据：监督器先 fencing、核对同 UID 的 Pod 尚未绑定节点且无任何容器状态，再用 UID/resourceVersion 条件请求删除；重新读取未绑定节点、无容器状态、无 nominatedNodeName 且已设置 deletionTimestamp 的资源（gate 可以尚在或已移除），持久登记 `not_started` 记录，最后移除自身 finalizer。删除请求构成资源版本屏障，旧版本的在途激活不能通过 CAS；Kubernetes 不允许已绑定节点被清空，也拒绝对删除中的 Pod 进行绑定，故此组合证明它没有进入节点执行；恢复读取持久证据，不能仅凭 Pending/404/空列表或时间推断从未执行。账本对 `not_started` 和实际容器 termination 使用互斥记录，但复用同一最终释放事务。没有观察到任何 Pod 的未知创建仍保留配额；本增量不把这类未知状态改为已释放。
@@ -47,3 +51,6 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 ## Migration Plan
 
 新增表及独立 worker，测试租户先启用持久模式；只读展示旧运行但不伪造历史事件。回滚先停止接新任务并排空新 workflow，保留查询服务和数据库；禁止删除进行中的持久记录。
+
+
+展示环境的兼容落地：可选 production_task_queue 与 test task_queue 必须不同；两个官方 Worker 注册带环境检查的 execute/reconcile activity，但共用同一个 HostSupervisor 的容量、准入锁和补偿扫描。ready 文件记录实际路由，API provisioning 只在监督器就绪后据此开放环境准入。已有生产模型 HTTP 演示继续可用；生产不可信 Skill 的 Kata 门槛不变。同主机双队列不能作为生产物理隔离的验收依据。

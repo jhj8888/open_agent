@@ -1,0 +1,49 @@
+{
+  "base_source_sha256": "8c64a5475a783efd607f40d86f62e9f30967609309603497f561bd8358fbb7a0",
+  "sha256": "f99f73cd97113231fbdd72806be52e47ac469eb153553b32af3eb27100faffb7",
+  "files": [
+    {
+      "path": "core/agent/durable/control.py",
+      "sha256": "146d4d1f3c9c08264db8a21680c96eb6157e165dfeb80eb90162c1d0538aed81",
+      "bytes": 14230
+    },
+    {
+      "path": "core/agent/durable/dispatcher.py",
+      "sha256": "48b3cceb5092a539c183f047582a21b1b49b5ffab062b31cb728cc19ca831f4e",
+      "bytes": 3473
+    },
+    {
+      "path": "core/agent/durable/service.py",
+      "sha256": "b4826f28126e861fb1563f1e254c0d242c6028a630d2d24642a69aa7343a28e4",
+      "bytes": 11688
+    },
+    {
+      "path": "core/agent/tests/test_dispatch_environment.py",
+      "sha256": "7bd68673b10545e5f2379a536141e127418db209bc85c24b599ecac0094d017d",
+      "bytes": 5848
+    },
+    {
+      "path": "core/agent/tests/test_durable_control.py",
+      "sha256": "65935971ee8230c2c01bb98662f5496a94d25780a24a425f8741e573561c0452",
+      "bytes": 10197
+    },
+    {
+      "path": "core/agent/tests/test_durable_workflow.py",
+      "sha256": "d2bebb5776e533853165bd17d7feb9c1c59c9f8731c85960bcbd2edf044babe7",
+      "bytes": 14088
+    }
+  ],
+  "dependency_changes": false,
+  "scope": "Frozen demo runtime source patch; independent from the current cluster SDK dependency graph",
+  "full_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+  "full_source_files": 229,
+  "api_artifact_sha256": "32845a863efb0b1e71baf72aeb1fa2dba246832ff13f80ec96ad707d5bc03522",
+  "migration": "1.64",
+  "frozen_runtime_versions": {
+    "temporalio": "1.35.0",
+    "deepagents": "0.7.29",
+    "httpx": "0.28.1",
+    "aiohttp": "3.11.14",
+    "langchain-openai": "1.7.2"
+  }
+}

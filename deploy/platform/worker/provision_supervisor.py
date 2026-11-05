@@ -96,6 +96,16 @@ def install():
             }
         body = json.dumps(configuration, sort_keys=True, indent=2) + '\n'
         config = ROOT / 'service.json'
+        # Preserve explicitly installed environment routes during a subsequent
+        # provisioning run. Fresh installations remain test-only by default.
+        if config.is_symlink():
+            raise RuntimeError('Linked supervisor configuration')
+        if config.exists():
+            previous = json.loads(config.read_text())
+            for field in ('environment', 'task_queue', 'production_task_queue'):
+                if field in previous:
+                    configuration[field] = previous[field]
+            body = json.dumps(configuration, sort_keys=True, indent=2) + '\n'
         unit = f'''# {OWNER}
 [Unit]
 Description=Open Agent private execution supervisor
@@ -148,6 +158,7 @@ WantedBy=multi-user.target
         result = {'source': str(source), 'source_sha256': deployment['source_sha256'],
                   'configuration_sha256': hashlib.sha256(body.encode()).hexdigest(),
                   'ready': True, 'sandbox_enabled': sandbox_enabled, 'maximum': 2,
+                  'task_queues': state.get('task_queues', {'test': state['task_queue']}),
                   'control_endpoint': api['loopback_endpoint']}
         write(ROOT / 'deployment.json', json.dumps(result, indent=2) + '\n')
         print(json.dumps(result), flush=True)

@@ -177,19 +177,22 @@ class ControlPlaneClient:
                 category = "response_format"
             raise ControlPlaneError("CONTROL_UNAVAILABLE", category) from None
 
-    async def deliveries(self, limit: int = 10) -> list[Delivery]:
+    async def deliveries(self, limit: int = 10, *, environment: str = "test") -> list[Delivery]:
+        if environment not in {"test", "prod"} or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Invalid dispatcher scope or limit")
         data = await self.request(
-            "/internal/platform/dispatch/claim", {"limit": limit, "leaseSeconds": 60}
+            "/internal/platform/dispatch/claim", {"limit": limit, "leaseSeconds": 60, "environment": environment}
         )
-        return [
-            Delivery(
-                row["id"],
-                RunRef(row["tenant"], row["environment"], row["runId"]),
-                row["operation"],
-                row["claimId"],
-            )
-            for row in data
-        ]
+        try:
+            if not isinstance(data, list) or len(data) > limit:
+                raise ValueError()
+            rows = [Delivery(row["id"], RunRef(row["tenant"], row["environment"], row["runId"]),
+                             row["operation"], row["claimId"]) for row in data]
+            if any(row.run.environment != environment for row in rows) or len({row.id for row in rows}) != len(rows):
+                raise ValueError()
+            return rows
+        except (ValueError, TypeError, KeyError, AttributeError):
+            raise ControlPlaneError("CONTROL_RESPONSE_INVALID") from None
 
     async def output(self, lease: AttemptLease, descriptor: dict, content: AsyncIterator[bytes]) -> dict:
         """Reserve metadata then stream bytes; model/tenant code never gets this credential."""

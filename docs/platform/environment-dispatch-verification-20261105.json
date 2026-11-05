@@ -1,0 +1,469 @@
+{
+  "recorded_at": "2026-11-05T08:26:48.762810+00:00",
+  "scope": "Environment-scoped outbox, activity queues and admission; two logical routes on the existing demo host",
+  "java": {
+    "tests_passed": 43,
+    "separate_runs": [
+      [
+        {
+          "suite": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "outboxEnvironmentFilterCoversCancellationAndRejectsInvalidScope",
+            "outboxExpiredProductionClaimIsInvisibleToTestDispatcher",
+            "outboxFailureRollsBackRunEventAuditAndIdempotencyKey",
+            "outboxConcurrentEnvironmentClaimsNeverBorrowOtherEnvironmentMessages",
+            "concurrentDuplicateSubmissionsCreateOneRunAndOutbox",
+            "outboxConcurrentPublishersDoNotClaimTheSameDelivery",
+            "deliveryRetryIsBoundedAndDoesNotChangeRunState",
+            "publisherCrashIsRedeliveredWithNewClaimAndStaleAckCannotWin"
+          ]
+        },
+        {
+          "suite": "com.iflytek.astron.console.hub.platform.run.PlatformRunInternalSecurityTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "missingWrongAndUserBearerCredentialsCannotEnterWorkerApi",
+            "runtimeCredentialAccessRequiresWorkerRoleAndAuthenticatedLeaseOwner",
+            "clusterRoutesRejectUserWorkerDispatcherAndObserverIdentities",
+            "metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes",
+            "clusterControllerUsesVerifiedServicePrincipalAndRejectsInvalidScope",
+            "malformedDispatcherEnvironmentCannotReachStorage",
+            "dispatcherMustSelectOneEnvironmentAndLegacyRequestsAreTestOnly",
+            "dispatcherAndWorkerRolesAreNotInterchangeable",
+            "sandboxJournalRequiresServiceIdentityAndNeverAcceptsQuotaReleaseFromWorker",
+            "sandboxQuotaAndCreationConflictHaveExplicitHttpStatuses",
+            "authenticatedIdentityBindsClaimAndResponseIsNotCached",
+            "perOperationPermitUsesAuthenticatedOwnerAndNeverFallsBackToUserJwt",
+            "malformedScopeFailsBeforeStorageAndTrailingSlashCannotBypassServiceAuth",
+            "workerDispatcherAndUserCannotEnterAnyReconcilerOperation",
+            "reconcilerIdentityComesFromAuthenticationAndCannotReadWorkerSecrets"
+          ]
+        },
+        {
+          "suite": "com.iflytek.astron.platform.PlatformApplicationTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "readinessChecksRequiredSchemaAndDoesNotExposeDatabaseErrors",
+            "managementUsesVerifiedSubjectAndRejectsForgedIdentityHeaders",
+            "profileUsesVerifiedSubjectOnlyAndDoesNotAcceptForgedGrants",
+            "dedicatedContextLoadsRealRunServiceWithoutLegacyApplication",
+            "realServletErrorDispatchPreservesUnauthorizedStatus"
+          ]
+        }
+      ],
+      [
+        {
+          "suite": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "runAdmissionEnvironmentMalformedConfigurationCreatesNoQueuedTask",
+            "runAdmissionEnvironmentDefaultsToTestAndProductionRequiresExplicitConfiguration"
+          ]
+        },
+        {
+          "suite": "com.iflytek.astron.console.hub.platform.run.AgentRunHttpTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "cases": [
+            "opaqueKeyUsesSeparateIdentityAndNeverFallsBackToJwt",
+            "missingOrInvalidCredentialsNeverReachAdmission",
+            "userIdentityIsDecodedAndAcceptedResponseIncludesStableLocations",
+            "oversizedAndUnknownRunFieldsAreRejectedBeforeAdmission",
+            "credentialStorageFailureIsUnavailableWithoutExceptionDetails",
+            "streamResumesFromHeaderAndJsonHistoryUsesSameService",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[1]",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[2]",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[3]",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[4]",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[5]",
+            "admissionErrorsUseHttpStatusAndStableCode(String, int)[6]",
+            "runStorageFailureIsUnavailableWithoutSqlOrPrivateInput"
+          ]
+        }
+      ]
+    ],
+    "scope": "Targeted checks, not full Java suite"
+  },
+  "python_windows": {
+    "initial": {
+      "tests": 47,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "final_targeted": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scope": "Overlapping test selections; counts are not added"
+  },
+  "python_frozen_linux": {
+    "checked_at": "2026-11-05T08:09:56.479600+00:00",
+    "source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+    "tests_passed": 63,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "real_temporal_server": true,
+    "two_environment_queues_verified": true,
+    "versions": {
+      "temporalio": "1.35.0",
+      "deepagents": "0.7.29",
+      "httpx": "0.28.1",
+      "aiohttp": "3.11.14",
+      "langchain-openai": "1.7.2"
+    },
+    "dependencies_unchanged": true,
+    "active_service_changed": false,
+    "cases": [
+      "test_control_sends_explicit_environment_and_legacy_default_is_test_only",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[foreign]",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[duplicate]",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[oversized]",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[invalid_operation]",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[object]",
+      "test_control_rejects_foreign_or_ambiguous_delivery_batches[null]",
+      "test_foreign_delivery_never_reads_state_signals_starts_or_acknowledges[start-queued]",
+      "test_foreign_delivery_never_reads_state_signals_starts_or_acknowledges[cancel-cancel_requested]",
+      "test_foreign_delivery_never_reads_state_signals_starts_or_acknowledges[start-succeeded]",
+      "test_invalid_environment_never_contacts_control_or_temporal[]",
+      "test_invalid_environment_never_contacts_control_or_temporal[all]",
+      "test_invalid_environment_never_contacts_control_or_temporal[TEST]",
+      "test_invalid_environment_never_contacts_control_or_temporal[../prod]",
+      "test_queue_scope_cannot_execute_or_reconcile_foreign_task[execute]",
+      "test_queue_scope_cannot_execute_or_reconcile_foreign_task[reconcile]",
+      "test_scoped_activity_keeps_shared_host_capacity_and_recovery_implementation",
+      "test_demo_routes_preserve_explicit_production_queue_and_reject_collisions",
+      "test_observation_transport_retries_identical_body_and_does_not_replay_execution",
+      "test_control_service_credentials_require_tls_or_literal_loopback[http://control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://user:pass@control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal/base]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal?token=x]",
+      "test_client_sends_service_identity_but_never_accepts_worker_identity_from_body",
+      "test_errors_never_echo_private_response_or_follow_redirects[302]",
+      "test_errors_never_echo_private_response_or_follow_redirects[401]",
+      "test_errors_never_echo_private_response_or_follow_redirects[403]",
+      "test_errors_never_echo_private_response_or_follow_redirects[409]",
+      "test_errors_never_echo_private_response_or_follow_redirects[503]",
+      "test_client_bounds_response_and_rejects_paths_outside_internal_namespace",
+      "test_slow_stream_cannot_extend_outbox_claim_indefinitely",
+      "test_runtime_secret_is_masked_and_invalid_runtime_errors_do_not_echo_it",
+      "test_artifact_transport_preserves_exact_bytes_and_bounds_download",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[recovered]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[twice]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[fenced]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[http_denied]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[bad_json]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[cancelled]",
+      "test_mutation_transport_failure_is_never_retried",
+      "test_real_sdk_workflow_completes_and_history_contains_only_reference",
+      "test_returned_terminal_failure_also_reconciles_resources[failed]",
+      "test_returned_terminal_failure_also_reconciles_resources[timed_out]",
+      "test_unknown_effect_is_not_automatically_reexecuted",
+      "test_busy_admission_waits_and_retries_only_the_nonexecuting_case",
+      "test_cancel_waits_for_execution_activity_to_stop_before_reconciliation",
+      "test_lost_ack_and_duplicate_delivery_use_one_temporal_execution",
+      "test_test_and_production_dispatch_use_separate_real_queues_and_cancel_only_the_target",
+      "test_cancel_before_start_is_retried_and_terminal_run_needs_no_workflow",
+      "test_missing_activity_heartbeats_fail_without_a_second_execution",
+      "test_server_and_worker_restart_resume_persisted_workflow_without_resubmission",
+      "test_unknown_launch_steps_are_never_retried_or_treated_as_released[begin]",
+      "test_unknown_launch_steps_are_never_retried_or_treated_as_released[launch]",
+      "test_unknown_launch_steps_are_never_retried_or_treated_as_released[observed]",
+      "test_host_capacity_counts_durable_reservations_before_claiming",
+      "test_execution_observes_existing_database_success_without_releasing_resources",
+      "test_cleanup_fences_stops_then_reads_late_sandbox_before_persisting_proof_and_releasing",
+      "test_incomplete_cleanup_never_releases_quota[fence]",
+      "test_incomplete_cleanup_never_releases_quota[stop]",
+      "test_incomplete_cleanup_never_releases_quota[sandbox]",
+      "test_incomplete_cleanup_never_releases_quota[proof]",
+      "test_missing_sandbox_adapter_never_assumes_an_existing_reservation_was_removed",
+      "test_compensation_scanner_continues_after_one_unknown_cleanup"
+    ]
+  },
+  "deployment_and_helm": {
+    "tests": 29,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "deployment": {
+    "phase": "complete",
+    "old_artifact": "9150b8159361c30a90f4995e50918dc89adc53b4d883519dc841c225a997a354",
+    "new_artifact": "32845a863efb0b1e71baf72aeb1fa2dba246832ff13f80ec96ad707d5bc03522",
+    "worker_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+    "started_at": "2026-11-05T08:17:38.562916+00:00",
+    "finished_at": "2026-11-05T08:18:58.707279+00:00",
+    "elapsed_seconds": 80.14,
+    "dispatcher_environments": [
+      "test",
+      "prod"
+    ],
+    "dependencies_changed": false
+  },
+  "private_sql_and_configuration_backup": true,
+  "live_queue_routing": {
+    "checked_at": "2026-11-05T08:22:04.609144+00:00",
+    "migration": "1.64",
+    "worker_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+    "task_queues": {
+      "test": "open-agent-demo-v1",
+      "prod": "open-agent-demo-prod-v1"
+    },
+    "runs": {
+      "test": {
+        "run_id": "47101b03-b689-49d7-a75a-b877d65fb874",
+        "state": "succeeded",
+        "task_queue": "open-agent-demo-v1",
+        "workflow_completed": true,
+        "started_at": "2026-11-05T08:19:45.273735+00:00",
+        "closed_at": "2026-11-05T08:20:40.475010+00:00",
+        "usage": {
+          "total_tokens": 20055,
+          "prompt_tokens": 19234,
+          "completion_tokens": 821
+        }
+      },
+      "prod": {
+        "run_id": "79d1c39f-fe6b-49ee-979e-e55604a3cec3",
+        "state": "succeeded",
+        "task_queue": "open-agent-demo-prod-v1",
+        "workflow_completed": true,
+        "started_at": "2026-11-05T08:19:57.559750+00:00",
+        "closed_at": "2026-11-05T08:20:20.226819+00:00",
+        "usage": {
+          "total_tokens": 2981,
+          "prompt_tokens": 2682,
+          "completion_tokens": 299
+        }
+      }
+    },
+    "overlap_seconds": 22.667,
+    "both_environments_admitted": true,
+    "no_active_tasks_or_unreleased_attempts": true,
+    "scope": "Two queues in one demo namespace and host; not Kubernetes/Kata physical isolation"
+  },
+  "test_skill": {
+    "checked_at": "2026-11-05T08:20:41.517188+00:00",
+    "run_id": "47101b03-b689-49d7-a75a-b877d65fb874",
+    "state": "succeeded",
+    "error_code": null,
+    "idempotency_verified": true,
+    "duration_seconds": 57.09,
+    "event_count": 200,
+    "event_types": [
+      "execution.notice",
+      "message.delta",
+      "run.state",
+      "tool.finished",
+      "usage"
+    ],
+    "answer_characters": 419,
+    "answer_sha256": "67cd2c50b1fe7fdf7d9bd06f7ed89c1c68388449ae9c02264689a44f646fb715",
+    "supervision_phase": "released",
+    "attempt_lease_state": "released",
+    "real_model_configured": true,
+    "model_answer_received": true,
+    "sandbox_used": true,
+    "public_endpoint": false,
+    "script_output_verified": true,
+    "tools": [
+      "read_file",
+      "read_file",
+      "ls",
+      "execute",
+      "execute"
+    ],
+    "sandbox_phase": "released",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-611ab5e554204a7b901255ef7874d89e.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-611ab5e554204a7b901255ef7874d89e.service",
+            "InvocationID": "e93851a1116a428d9ef036457ad5cdfb",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "2686362",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-611ab5e554204a7b901255ef7874d89e.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "e93851a1116a428d9ef036457ad5cdfb",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-05T08:20:40.223997+00:00",
+          "unitName": "oa-exec-611ab5e554204a7b901255ef7874d89e.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "observedAt": "2026-11-05T08:20:40.366093+00:00",
+          "reason": "acknowledged_creation_entity_absent",
+          "removedContainerId": null,
+          "sandboxAbsent": true,
+          "sandboxId": "45fad32e-74bf-4f9e-9931-644f9fef15df",
+          "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "c42568eb70f840fdfb4d894861cc234e3fc56a6fbd00d6cbb66d9e5b5d5bc40b",
+        "invocationId": "e93851a1116a428d9ef036457ad5cdfb",
+        "kind": "stopped_unit",
+        "proofId": "39f8986d-ae9d-4e7a-8ce0-ba033e9a1861",
+        "sandboxAbsent": true,
+        "sandboxId": "45fad32e-74bf-4f9e-9931-644f9fef15df",
+        "unitName": "oa-exec-611ab5e554204a7b901255ef7874d89e.service",
+        "workerStopped": true
+      }
+    },
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "succeeded"
+      }
+    }
+  },
+  "production_model": {
+    "checked_at": "2026-11-05T08:20:20.925304+00:00",
+    "model_connection_id": "86bd5d52-1364-45dc-ab57-ddb70e201320",
+    "model_version": 1,
+    "model_deployment_id": "88191031-307d-4d2b-865a-66c5c39fa2d8",
+    "model_verification_run_id": "e2b816c2-313e-49d9-9960-d92efa42f4b3",
+    "skill_deployment_id": "a82d9831-dff6-4a27-a88a-27b210cd02a5",
+    "skill_verification_run_id": "be3ab48d-5c8a-4032-a882-e8fb940f8c1d",
+    "production_model_run_id": "79d1c39f-fe6b-49ee-979e-e55604a3cec3",
+    "state": "succeeded",
+    "usage": {
+      "total_tokens": 2981,
+      "prompt_tokens": 2682,
+      "completion_tokens": 299
+    },
+    "supervision_phase": "released",
+    "lease_state": "released",
+    "admin_cannot_publish": true,
+    "publisher_cannot_manage_credentials": true,
+    "skill_exact_evidence_promoted": true,
+    "http_idempotency": true,
+    "rotated_key_retains_run_access": true,
+    "old_and_revoked_keys_rejected": true,
+    "production_skill_execution": "not tested: production requires Kata; demo is gVisor test only"
+  },
+  "retained_steps_and_files": {
+    "model_version": 2,
+    "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "verified_at": "2026-11-05T08:22:23.199365+00:00",
+    "steps": 58,
+    "model_calls": 6,
+    "tool_calls": 4,
+    "steps_with_think": 2,
+    "input_modes": [
+      "initial",
+      "append",
+      "append",
+      "append",
+      "append",
+      "context_changed"
+    ],
+    "totals": {
+      "steps": 58,
+      "modelCalls": 6,
+      "toolCalls": 4,
+      "unknownModelCalls": 0,
+      "inputTokens": 21274,
+      "outputTokens": 968
+    },
+    "actual_tool_results": true,
+    "output_text": true,
+    "synthetic_secret_redacted": true,
+    "other_tenant_denied": true,
+    "token_sum_matches_task": true,
+    "retained_files": 2,
+    "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+    "download_digests_verified": true,
+    "thinking_steps": [
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input_tokens": 3609,
+        "duration_ms": 1850
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input_tokens": 3865,
+        "duration_ms": 1928
+      }
+    ]
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T08:22:55.333807+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "corrections": [
+    "Initial Java test compilation required an explicit generic batch type; corrected before passing base checks.",
+    "Production admission fixture initially used a user JWT, which correctly lacks create permission; changed to deployment service identity and reran.",
+    "Release metadata helper used an older Python without write_text newline; rerun with project interpreter, hash rechecked before installation.",
+    "Concurrent verifier package uploads collided before public console check ran; sequential upload and check succeeded."
+  ],
+  "limitations": [
+    "Same demo host and Temporal namespace, separate queues; not physical test/prod infrastructure isolation.",
+    "Production untrusted Skill execution requires Kata and was not tested on this gVisor demo.",
+    "Cluster execution service, unknown creation recovery, K8s/CNI/Kata physical checks, HA, complete offline installation and capacity acceptance remain incomplete.",
+    "No frontend source change; current HTTPS asset integrity and retained API content checked; existing browser acceptance remains separate."
+  ],
+  "openspec": {
+    "strict": true,
+    "passed": 11,
+    "failed": 0
+  }
+}

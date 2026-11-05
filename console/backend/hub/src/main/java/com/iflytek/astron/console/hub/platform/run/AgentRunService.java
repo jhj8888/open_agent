@@ -47,7 +47,7 @@ public class AgentRunService {
 
     public Accepted submit(DeploymentAuthorization.Caller caller,String id,String key,Submit input) {
         var deployment=authorization.resolve(id);authorization.require(caller,deployment,CREATE,null);
-        if(!environment.getProperty("PLATFORM_RUN_ADMISSION_ENABLED",Boolean.class,false)) throw new RunFailure("executor_unavailable");
+        if(!admissionEnabled(deployment.scope().environment())) throw new RunFailure("executor_unavailable");
         if(!"deepagents".equals(deployment.metadata().get("executor_kind"))) throw new RunFailure("executor_unavailable");
         var accepted=ledger.submit(deployment.scope(),id,caller.actor(),key,json.valueToTree(input.input()),input.timeoutSeconds(),
                 ()->authorization.require(caller,deployment,CREATE,null));
@@ -57,10 +57,17 @@ public class AgentRunService {
         var deployment=authorization.resolve(id);
         return tx.execute(status->{deployments.lock(deployment.scope());authorization.require(caller,deployment,METADATA,null);
             var result=new LinkedHashMap<>(deployments.metadata(deployment.scope(),id));
-            result.put("admission_enabled",environment.getProperty("PLATFORM_RUN_ADMISSION_ENABLED",Boolean.class,false));
+            result.put("admission_enabled",admissionEnabled(deployment.scope().environment()));
             result.put("allowed_actions",Map.of("create",allows(caller,deployment,CREATE),
                     "read",allows(caller,deployment,READ),"cancel",allows(caller,deployment,CANCEL)));
             return result;});
+    }
+    private boolean admissionEnabled(String target) {
+        if(!environment.getProperty("PLATFORM_RUN_ADMISSION_ENABLED",Boolean.class,false)) return false;
+        String configured=environment.getProperty("PLATFORM_RUN_ADMISSION_ENVIRONMENTS","test");
+        // Omitted legacy configuration enables test only. Malformed values fail closed.
+        return Set.of("test","prod","test,prod","prod,test").contains(configured)
+                && Arrays.asList(configured.split(",")).contains(target);
     }
     private boolean allows(DeploymentAuthorization.Caller caller,DeploymentAuthorization.Deployment deployment,DeploymentAuthorization.Action action) {
         try { authorization.require(caller,deployment,action,null);return true; }

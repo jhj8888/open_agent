@@ -130,7 +130,7 @@ jobs:
       - name: Exercise durable delivery, cancellation and server restart through the official SDK
         run: |
           export TEMPORAL_TEST_BINARY="$PWD/.temporal-test/temporal"
-          core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py \
+          core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py core/agent/tests/test_dispatch_environment.py \
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
             core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py \
             core/agent/tests/test_durable_supervision.py core/agent/tests/test_cluster_control.py \

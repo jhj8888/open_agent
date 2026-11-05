@@ -54,6 +54,7 @@ class RunLedgerMySqlTest {
         scripts.execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.62__bind_cluster_execution.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.63__record_unstarted_cluster_pods.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.64__scope_outbox_dispatch_by_environment.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -664,8 +665,36 @@ class RunLedgerMySqlTest {
     }
     private AgentRunService api(DeploymentAuthorization authorization) {
         return new AgentRunService(ledger,authorization,deployments(),jdbc,json,new org.springframework.mock.env.MockEnvironment()
-                .withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true"),new DataSourceTransactionManager(source));
+                .withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true").withProperty("PLATFORM_RUN_ADMISSION_ENVIRONMENTS","test,prod"),new DataSourceTransactionManager(source));
     }
+    @Test void runAdmissionEnvironmentDefaultsToTestAndProductionRequiresExplicitConfiguration() {
+        actors();user("alice");var prod=new RunLedger.Scope(A,"prod");String prodDeployment=seedDeployment(prod);
+        var productionCaller=caller(keys().issue(prod,prodDeployment,new DeploymentKeys.KeyInput("production admission",true,true,true,1)));
+        var settings=new org.springframework.mock.env.MockEnvironment().withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true");
+        var service=new AgentRunService(ledger,authorization(),deployments(),jdbc,json,settings,new DataSourceTransactionManager(source));
+        assertEquals(true,service.deployment(caller("alice"),deployment).get("admission_enabled"));
+        assertEquals(false,service.deployment(caller("alice"),prodDeployment).get("admission_enabled"));
+        code("executor_unavailable",()->service.submit(productionCaller,prodDeployment,"prod-disabled",input()));
+        assertEquals(0,count("oa_agent_run"));assertEquals(0,count("oa_run_outbox"));
+        settings.withProperty("PLATFORM_RUN_ADMISSION_ENVIRONMENTS","prod");
+        assertEquals(false,service.deployment(caller("alice"),deployment).get("admission_enabled"));
+        assertEquals(true,service.deployment(caller("alice"),prodDeployment).get("admission_enabled"));
+        code("executor_unavailable",()->service.submit(caller("alice"),deployment,"test-disabled",input()));
+        var accepted=service.submit(productionCaller,prodDeployment,"prod-enabled",input());
+        assertEquals("prod",jdbc.queryForObject("SELECT environment FROM oa_agent_run WHERE run_id=?",String.class,accepted.run_id()));
+        assertEquals(1,count("oa_run_outbox"));assertTrue(outbox().claim(10,60).isEmpty());
+    }
+
+    @Test void runAdmissionEnvironmentMalformedConfigurationCreatesNoQueuedTask() {
+        actors();user("alice");
+        var settings=new org.springframework.mock.env.MockEnvironment().withProperty("PLATFORM_RUN_ADMISSION_ENABLED","true")
+                .withProperty("PLATFORM_RUN_ADMISSION_ENVIRONMENTS","test,,prod");
+        var service=new AgentRunService(ledger,authorization(),deployments(),jdbc,json,settings,new DataSourceTransactionManager(source));
+        assertEquals(false,service.deployment(caller("alice"),deployment).get("admission_enabled"));
+        code("executor_unavailable",()->service.submit(caller("alice"),deployment,"invalid-routing",input()));
+        assertEquals(0,count("oa_agent_run"));assertEquals(0,count("oa_run_outbox"));
+    }
+
     private AgentRunService api() { return api(authorization()); }
     private AgentRunService.Submit input() { return new AgentRunService.Submit(new AgentRunService.Input("synthetic user input",List.of()),300); }
     private DeploymentAuthorization.Caller caller(String uid) { return new DeploymentAuthorization.Caller(uid,null); }
@@ -903,6 +932,47 @@ class RunLedgerMySqlTest {
                 """, target.tenant(), target.environment(), id, model, snapshot, RunJson.hash(snapshot), target.environment().equals("test") ? "test" : "published");
         return id;
     }
+    @Test void outboxConcurrentEnvironmentClaimsNeverBorrowOtherEnvironmentMessages() throws Exception {
+        var prod = new RunLedger.Scope(A,"prod");var prodDeployment = seedDeployment(prod);
+        for(int i=0;i<6;i++) {
+            submit("test-"+i);
+            ledger.submit(prod,prodDeployment,"alice","prod-"+i,json.createObjectNode().put("message","production"),3600,()->{});
+        }
+        List<List<RunOutbox.Delivery>> batches = concurrent(List.of(() -> outbox().claim("test",4,60), () -> outbox().claim("prod",4,60)));
+        assertEquals(8,batches.stream().mapToInt(List::size).sum());
+        assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_outbox WHERE environment='test' AND state='claimed'",Integer.class));
+        assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_outbox WHERE environment='prod' AND state='claimed'",Integer.class));
+        assertTrue(batches.stream().allMatch(batch -> batch.stream().map(RunOutbox.Delivery::environment).distinct().count()==1));
+        var legacy = outbox().claim(100,60);
+        assertEquals(2,legacy.size());assertTrue(legacy.stream().allMatch(row -> row.environment().equals("test")));
+        var remaining = outbox().claim("prod",100,60);
+        assertEquals(2,remaining.size());assertTrue(remaining.stream().allMatch(row -> row.environment().equals("prod")));
+    }
+
+    @Test void outboxExpiredProductionClaimIsInvisibleToTestDispatcher() {
+        var prod = new RunLedger.Scope(A,"prod");var prodDeployment = seedDeployment(prod);
+        var production = ledger.submit(prod,prodDeployment,"alice","prod-expired",json.createObjectNode().put("message","production"),3600,()->{});
+        var original = outbox().claim("prod",1,60).getFirst();
+        jdbc.update("UPDATE oa_run_outbox SET claim_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE id=?",original.id());
+        String testRun = submit("test-pending").runId();
+        assertEquals(testRun,outbox().claim("test",1,60).getFirst().runId());
+        assertEquals(1,jdbc.queryForObject("SELECT delivery_attempts FROM oa_run_outbox WHERE id=?",Integer.class,original.id()));
+        var recovered = outbox().claim("prod",1,60).getFirst();
+        assertEquals(production.runId(),recovered.runId());assertNotEquals(original.claimId(),recovered.claimId());
+        assertFalse(outbox().delivered(original));assertTrue(outbox().delivered(recovered));
+    }
+
+    @Test void outboxEnvironmentFilterCoversCancellationAndRejectsInvalidScope() {
+        var prod = new RunLedger.Scope(A,"prod");var prodDeployment = seedDeployment(prod);
+        var run = ledger.submit(prod,prodDeployment,"alice","prod-cancel",json.createObjectNode().put("message","production"),3600,()->{});
+        ledger.claim(prod,run.runId(),"worker-prod").orElseThrow();ledger.cancel(prod,run.runId(),"alice",()->{});
+        code("invalid_scope",()->outbox().claim("all",10,60));code("invalid_scope",()->outbox().claim(null,10,60));
+        assertTrue(outbox().claim(10,60).isEmpty());
+        var deliveries = outbox().claim("prod",10,60);
+        assertEquals(java.util.Set.of("start","cancel"),deliveries.stream().map(RunOutbox.Delivery::operation).collect(java.util.stream.Collectors.toSet()));
+        assertTrue(deliveries.stream().allMatch(row -> row.environment().equals("prod")));
+    }
+
     private RunLedger.Accepted submit(String key) {
         return ledger.submit(scope, deployment, "alice", key, json.createObjectNode().put("message", "hello"), 3600, () -> {});
     }

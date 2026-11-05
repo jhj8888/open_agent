@@ -30,7 +30,8 @@ public class PlatformRunInternalController {
                     leaseId.toString(), fencingToken, principal.getName());
         }
     }
-    public record ClaimInput(@Min(1) @Max(100) int limit, @Min(1) @Max(60) int leaseSeconds) {}
+    public record ClaimInput(@Min(1) @Max(100) int limit, @Min(1) @Max(60) int leaseSeconds,
+            @Pattern(regexp="test|prod") String environment) {}
     public record AckInput(@NotNull UUID claimId, @Min(0) @Max(300) int delaySeconds) {}
     public record EventInput(@NotNull @Valid LeaseInput lease, @NotBlank @Size(max=120) String eventKey,
             @NotBlank @Size(max=32) String eventType, @NotNull JsonNode payload) {
@@ -40,7 +41,9 @@ public class PlatformRunInternalController {
             @NotBlank @Pattern(regexp="succeeded|failed|timed_out") String state, @Size(max=64) String errorCode) {}
 
     @PostMapping("/dispatch/claim")
-    public List<RunOutbox.Delivery> deliveries(@RequestBody @Valid ClaimInput input) { return outbox.claim(input.limit(), input.leaseSeconds()); }
+    public List<RunOutbox.Delivery> deliveries(@RequestBody @Valid ClaimInput input) {
+        return outbox.claim(input.environment() == null ? "test" : input.environment(), input.limit(), input.leaseSeconds());
+    }
     @PostMapping("/dispatch/{id}/ack")
     public Map<String, Boolean> ack(@PathVariable long id, @RequestBody @Valid AckInput input) {
         return Map.of("accepted", outbox.delivered(delivery(id, input)));
