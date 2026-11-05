@@ -17,7 +17,7 @@ from agent.durable.cluster_lifecycle import ClusterLifecycle
 from agent.durable.cluster_supervisor import ClusterSupervisor
 from agent.durable.contracts import ReconcileRequest, RunResult, TERMINAL
 from agent.durable.workflow import AgentRunWorkflow
-from agent.tests.test_cluster_process import system
+from agent.tests.test_cluster_process import system, reject_create
 from agent.tests.test_durable_workflow import binary
 
 
@@ -72,6 +72,16 @@ class Ledger:
         self.row = self.row.model_copy(update={'phase':'not_started','notStarted':receipt})
         return self.row
 
+    async def creation_rejected(self, lease, receipt):
+        self.events.append('creation_rejected')
+        if self.lose == 'rejection_before_commit':
+            raise OSError('synthetic lost write')
+        state = 'cancelled' if self.row.state == 'cancel_requested' else 'failed'
+        self.row = self.row.model_copy(update={'phase':'rejected','state':state,'leaseState':'cleanup_pending','creationRejection':receipt})
+        if self.lose == 'rejection_after_commit':
+            raise OSError('synthetic lost receipt reply')
+        return self.row
+
     async def terminated(self, lease, receipt):
         self.events.append('terminated')
         self.row = self.row.model_copy(update={'phase':'terminated','termination':receipt})
@@ -95,6 +105,31 @@ def harness(system):
     ledger = Ledger(row)
     supervisor = ClusterSupervisor(ledger, ClusterLifecycle(ledger,driver))
     return ledger, supervisor, server
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('loss',[None,'rejection_before_commit','rejection_after_commit'])
+async def test_create_rejection_recovery_does_not_repeat_create_or_invent_a_receipt(system,loss):
+    ledger, supervisor, server = harness(system)
+    reject_create(server,ledger.row)
+    ledger.lose = loss
+    run = ledger.row.lease.attempt_lease().run
+    if loss:
+        with pytest.raises(ApplicationError,match='execution_unconfirmed'):
+            await ActivityEnvironment().run(supervisor.execute,run)
+    else:
+        assert await supervisor._execute(run) == RunResult('failed')
+    if loss == 'rejection_before_commit':
+        with pytest.raises(Exception,match='CLUSTER_LAUNCH_UNCONFIRMED'):
+            await supervisor.cleanup(ledger.row)
+        assert not ledger.proofs and ledger.row.phase == 'launching'
+    else:
+        results = await asyncio.gather(supervisor.cleanup(ledger.row),supervisor.cleanup(ledger.row))
+        assert all(r.phase == 'released' for r in results)
+        assert len(ledger.proofs) == 1 and ledger.proofs[0].kind == 'create_rejected'
+        assert ledger.proofs[0].terminationId == ledger.row.creationRejection.id
+    assert ledger.events.count('begin') == 1 and sum(c[0]=='POST' for c in server.calls) == 1
+    assert not any(c[0] in {'PATCH','DELETE'} for c in server.calls)
 
 
 @pytest.mark.asyncio

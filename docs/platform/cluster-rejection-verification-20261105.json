@@ -1,0 +1,335 @@
+{
+  "date": "2026-11-05",
+  "feature": "durable evidence for definitive pre-storage Pod creation rejections",
+  "demo_url": "https://120.26.81.83/open-agent/",
+  "schema": "1.65",
+  "api": {
+    "path": "console\\backend\\hub\\target\\hub-server.jar",
+    "bytes": 193450533,
+    "sha256": "c5a7bf7f1748954bdb6796709c9fa4fb38d1525adc4fadddfc6d438870e95d95",
+    "start_class": "com.iflytek.astron.platform.PlatformApplication",
+    "migration": "1.65"
+  },
+  "upgrade": {
+    "seconds": 40.676,
+    "private_sql_backup_saved": true,
+    "cluster_bindings_enabled": false,
+    "active_execution_backend": "systemd-gvisor-demo"
+  },
+  "java": [
+    {
+      "name": "RunLedgerMySqlTest",
+      "tests": "19",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "254.197"
+    },
+    {
+      "name": "PlatformRunInternalSecurityTest",
+      "tests": "15",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "57.634"
+    },
+    {
+      "name": "RunClusterConfigurationTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.216"
+    },
+    {
+      "name": "PlatformApplicationTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "36.471"
+    }
+  ],
+  "windows_python": {
+    "passed": 116,
+    "skipped": 1,
+    "scope": "cluster process/control/supervisor; skip is Linux-only Secret projection"
+  },
+  "linux_overlay": {
+    "checked_at": "2026-11-05T12:09:23.892614+00:00",
+    "archive_sha256": "4918c5529458c458036c20fa92b10a2b52bd722a3605156a00c225df9e08435f",
+    "tests_passed": 138,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "dependencies": {
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "durationpy": "0.11",
+      "kubernetes": "36.0.3",
+      "oauthlib": "4.0.1",
+      "requests-oauthlib": "2.0.0",
+      "yarl": "1.25.1"
+    },
+    "offline_overlay_install": true,
+    "live_worker_environment_modified": false,
+    "live_worker_dependencies_before_and_after": {
+      "aiohttp": "3.11.14",
+      "aiosignal": "1.3.2",
+      "yarl": "1.18.3"
+    },
+    "https_loopback_verified": true,
+    "projected_secret_symlinks_verified": true,
+    "real_temporal_cluster_activities_and_service_verified": true,
+    "kubernetes_api_and_kubelet_verified": false,
+    "kata_and_cni_verified": false
+  },
+  "real_kubernetes_api": {
+    "overlay_sha256": "4918c5529458c458036c20fa92b10a2b52bd722a3605156a00c225df9e08435f",
+    "version": "v1.36.6+k3s1",
+    "business_database_used": false,
+    "model_or_tool_executed": false,
+    "kubelet_or_cni_or_kata_verified": false,
+    "forbidden_lifecycle": {
+      "audit_id": "92b979a5-5d96-4c8e-8362-1eb950aac61c",
+      "receipt_id": "5966cf97-4ead-5503-a8fd-4979c3a2ceb6",
+      "state": "failed",
+      "phase": "released",
+      "one_begin": true,
+      "one_release_proof": true
+    },
+    "invalid_spec": {
+      "http_status": 422,
+      "audit_id": "ed57b052-aaf2-41c6-9594-b98c06e154bb"
+    },
+    "unauthorized_create": {
+      "http_status": 401,
+      "audit_id": "fef31d23-676d-40f9-8064-7c34a7010cab"
+    },
+    "checked_at": "2026-11-05T12:21:07.131403+00:00",
+    "pods_remaining": 0
+  },
+  "fixture_cleanup": {
+    "container_removed": true,
+    "volume_removed": true,
+    "network_removed": true,
+    "admin_credentials_removed": true,
+    "checked_at": "2026-11-05T12:22:50.483898+00:00"
+  },
+  "image": {
+    "input_archive_sha256": "cea0b5a75a9b0a1da66d548608f4d44881242ee499af263596cb2cb724cb2f5a",
+    "build_network": "none",
+    "pull": false,
+    "identity": {
+      "tag": "open-agent/cluster-worker:cea0b5a75a9b0a1d",
+      "local_image_id": "sha256:ebd6c9f37c764dd87b679fad6ed319e85410883cbdd0fc40d6b2111ee4a65c1a",
+      "size_bytes": 671956396,
+      "registry_manifest_digest": null
+    },
+    "archive": {
+      "path": "/opt/open-agent/worker-image-build/cea0b5a75a9b0a1da66d548608f4d44881242ee499af263596cb2cb724cb2f5a.docker.tar",
+      "sha256": "8078b7a534e6c3abef5263d944c363a65b51e3e93cbe76af2c85601334d03644",
+      "bytes": 706424832
+    },
+    "base_archive": {
+      "path": "/opt/open-agent/worker-image-build/65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c.base.docker.tar",
+      "sha256": "c24495d7eeb4e90a9c675edcf7ba5302537de10c894c19e396ec3c3c0f272293",
+      "bytes": 134603264
+    },
+    "runtime": {
+      "python": "3.11.18",
+      "uid": 10001,
+      "gid": 10001,
+      "locked_packages": 155,
+      "pip_check": "No broken requirements found."
+    },
+    "read_only": true,
+    "contracts": {
+      "image_id": "sha256:ebd6c9f37c764dd87b679fad6ed319e85410883cbdd0fc40d6b2111ee4a65c1a",
+      "test_archive_sha256": "bfd862b876b0d0548a611a1ca7b5baced8a81dd161ce1c28a6a6c9ecbc02c801",
+      "temporal_binary_sha256": "6968c86c97d91d4b49e19c0c9b0842bfb5eb2d356f22b989006d1e09164eab5b",
+      "network": "none",
+      "uid": 10001,
+      "read_only": true,
+      "results": {
+        "suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "0",
+            "tests": "163",
+            "time": "84.126",
+            "timestamp": "2026-11-05T12:26:37.541322+00:00",
+            "hostname": "29fd14c41342"
+          }
+        ]
+      },
+      "scope": "Official SDKs with synthetic model/control/Kubernetes responses and real local Temporal; not a Kubelet/Kata end-to-end test."
+    },
+    "active_demo_worker_changed": false
+  },
+  "retained_task": {
+    "model_version": 2,
+    "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "verified_at": "2026-11-05T12:29:57.217614+00:00",
+    "steps": 58,
+    "model_calls": 6,
+    "tool_calls": 4,
+    "steps_with_think": 2,
+    "input_modes": [
+      "initial",
+      "append",
+      "append",
+      "append",
+      "append",
+      "context_changed"
+    ],
+    "totals": {
+      "steps": 58,
+      "modelCalls": 6,
+      "toolCalls": 4,
+      "unknownModelCalls": 0,
+      "inputTokens": 21274,
+      "outputTokens": 968,
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "actual_tool_results": true,
+    "output_text": true,
+    "synthetic_secret_redacted": true,
+    "other_tenant_denied": true,
+    "token_sum_matches_task": true,
+    "retained_files": 2,
+    "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+    "download_digests_verified": true,
+    "thinking_steps": [
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input_tokens": 3609,
+        "duration_ms": 1850
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input_tokens": 3865,
+        "duration_ms": 1928
+      }
+    ]
+  },
+  "cache_tokens": {
+    "checked_at": "2026-11-05T12:29:59.022013+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T12:30:01.314891+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "openspec": {
+    "passed": 11,
+    "failed": 0
+  },
+  "build": "offline Maven package passed; V1.65 and PlatformApplication manifest verified",
+  "commands": {
+    "python": "PYTHONPATH=core python -m pytest core/agent/tests/test_cluster_process.py core/agent/tests/test_cluster_control.py core/agent/tests/test_cluster_supervisor.py -q -p no:cacheprovider",
+    "java_test_selection": "RunLedgerMySqlTest#cluster*+databaseCrashAndRestartPreserveRunOutboxAndIdempotency,PlatformRunInternalSecurityTest,RunClusterConfigurationTest,PlatformApplicationTest",
+    "spec": "npm run spec:validate"
+  },
+  "limits": [
+    "Rejection fixtures use actual agentless Kubernetes API with a synthetic business ledger, separately from real MySQL tests.",
+    "Python Windows/overlay/image suites overlap; do not sum them as independent tests.",
+    "No Kubernetes execution node, Kata, CNI or real business database/Temporal/Kubernetes/model joint acceptance.",
+    "Uncertain creates still retain quota; no unsafe automatic create replay or 404-based release.",
+    "Cluster admission remains disabled; active single-host demo worker was not switched.",
+    "Image save/load validation uses the same Docker daemon; not offline empty-node acceptance.",
+    "Current verification is API/asset based; browser layout was already verified for the preceding cache-token change."
+  ]
+}

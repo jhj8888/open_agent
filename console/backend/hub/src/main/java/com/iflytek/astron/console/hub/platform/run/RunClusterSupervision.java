@@ -46,7 +46,7 @@ public class RunClusterSupervision {
     public record Snapshot(RunLedger.Lease lease, String supervisorId, Target target, String podName,
             String podUid, String observedResourceVersion, String phase, String state, String leaseState,
             Instant heartbeatUntil, Instant deadlineAt, String sandboxPhase, String sandboxId,
-            String isolationProfile, String runtimeImage, Termination termination, NotStarted notStarted) {}
+            String isolationProfile, String runtimeImage, Termination termination, NotStarted notStarted, CreationRejection creationRejection) {}
     public record Claim(RunLedger.Lease lease, String state, Snapshot execution) {}
     public record Lookup(String state, Snapshot execution) {}
     public record Observation(String podUid, String resourceVersion) {}
@@ -56,6 +56,8 @@ public class RunClusterSupervision {
             Instant startedAt, Instant finishedAt, String evidenceSha256) {}
     public record NotStarted(String id, String podUid, String resourceVersion, Instant deletionTimestamp,
             String schedulingGate, boolean nodeUnbound, boolean containerStatusesEmpty, String evidenceSha256) {}
+    public record CreationRejection(String id, String auditId, String podName, String namespaceUid,
+            Integer httpStatus, String reason, String requestSha256, String responseSha256) {}
     // terminationId references the kind-specific durable stop receipt, including never_started_pod.
     public record Proof(String proofId, String kind, String clusterId, String namespaceUid, String podName,
             String podUid, String terminationId, String sandboxId, String evidenceSha256,
@@ -171,6 +173,27 @@ public class RunClusterSupervision {
 
     public Snapshot inspect(String leaseId, String supervisor) { return locked(leaseId, supervisor, () -> snapshot(row(leaseId, supervisor))); }
 
+    /** A completed pre-storage API denial, not a timeout/404 or a guessed absence. */
+    public Snapshot creationRejected(String leaseId, String supervisor, CreationRejection receipt) {
+        validate(receipt);
+        return locked(leaseId, supervisor, () -> {
+            var row = row(leaseId, supervisor); var value = snapshot(row);
+            if (value.creationRejection() != null) {
+                if (same(receipt, (String) row.get("creation_rejection_json"))) return value;
+                throw new RunFailure("cluster_creation_receipt_conflict");
+            }
+            if (!"launching".equals(value.phase()) || value.podUid() != null
+                    || !receipt.podName().equals(value.podName()) || !receipt.namespaceUid().equals(value.target().namespaceUid())
+                    || value.sandboxId() != null || (value.sandboxPhase() != null && !"reserved".equals(value.sandboxPhase())))
+                throw new RunFailure("cluster_creation_rejection_unverified");
+            ledger.finish(value.lease(), RunState.FAILED, "configuration_unavailable");
+            jdbc.update("UPDATE oa_run_cluster_execution SET phase='rejected',creation_rejected_at=CURRENT_TIMESTAMP(3),creation_rejection_id=?,creation_rejection_json=? WHERE lease_id=?",
+                    receipt.id(), RunJson.encode(json, json.valueToTree(receipt), 4096), leaseId);
+            LOG.info("Cluster creation rejection recorded lease_id={} supervisor={} receipt_id={} status={}", leaseId, supervisor, receipt.id(), receipt.httpStatus());
+            return snapshot(row(leaseId, supervisor));
+        });
+    }
+
     /** Positive API deletion barrier: never bound to a node; late binding is rejected by Kubernetes. */
     public Snapshot notStarted(String leaseId, String supervisor, NotStarted receipt) {
         validate(receipt);
@@ -235,6 +258,8 @@ public class RunClusterSupervision {
                         && value.termination().id().equals(proof.terminationId());
                 case "never_started_pod" -> "not_started".equals(value.phase()) && value.notStarted() != null
                         && value.notStarted().id().equals(proof.terminationId());
+                case "create_rejected" -> "rejected".equals(value.phase()) && value.creationRejection() != null
+                        && value.podUid() == null && value.creationRejection().id().equals(proof.terminationId());
                 default -> false;
             };
             if (!valid || !Objects.equals(value.sandboxId(), proof.sandboxId())
@@ -266,6 +291,7 @@ public class RunClusterSupervision {
                 (String) row.get("namespace_uid"), (String) row.get("executor_image"));
         Termination termination = null;
         NotStarted notStarted = null;
+        CreationRejection rejection = null;
         if (row.get("termination_json") != null) {
             try { termination = json.readValue((String) row.get("termination_json"), Termination.class); }
             catch (Exception invalid) { throw new RunFailure("cluster_termination_unverified"); }
@@ -274,11 +300,15 @@ public class RunClusterSupervision {
             try { notStarted = json.readValue((String) row.get("not_started_json"), NotStarted.class); }
             catch (Exception invalid) { throw new RunFailure("cluster_not_started_unverified"); }
         }
+        if (row.get("creation_rejection_json") != null) {
+            try { rejection = json.readValue((String) row.get("creation_rejection_json"), CreationRejection.class); }
+            catch (Exception invalid) { throw new RunFailure("cluster_creation_rejection_unverified"); }
+        }
         return new Snapshot(lease, (String) row.get("supervisor_id"), target, (String) row.get("pod_name"),
                 (String) row.get("pod_uid"), (String) row.get("observed_resource_version"), (String) row.get("phase"),
                 (String) row.get("run_state"), (String) row.get("lease_state"),
                 ((Timestamp) row.get("heartbeat_until")).toInstant(), ((Timestamp) row.get("deadline_at")).toInstant(),
-                (String) row.get("sandbox_phase"), (String) row.get("sandbox_id"), (String) row.get("isolation_profile"), (String) row.get("runtime_image"), termination, notStarted);
+                (String) row.get("sandbox_phase"), (String) row.get("sandbox_id"), (String) row.get("isolation_profile"), (String) row.get("runtime_image"), termination, notStarted, rejection);
     }
     private Target target(String supervisor) {
         var value = targets.get(supervisor); if (value == null) throw new RunFailure("action_forbidden"); return value;
@@ -322,7 +352,7 @@ public class RunClusterSupervision {
         if (value.podUid() != null) uuid(value.podUid());
         if (value.terminationId() != null) uuid(value.terminationId());
         if (value.sandboxId() != null) uuid(value.sandboxId());
-        if (!("never_launched".equals(value.kind()) || "terminated_pod".equals(value.kind()) || "never_started_pod".equals(value.kind()))
+        if (!("never_launched".equals(value.kind()) || "terminated_pod".equals(value.kind()) || "never_started_pod".equals(value.kind()) || "create_rejected".equals(value.kind()))
                 || value.podName() == null || !value.podName().matches("oa-exec-[a-f0-9]{32}") || !hash(value.evidenceSha256())
                 || !value.podAbsent() || !value.sandboxAbsent() || !value.creationSettled()) throw new RunFailure("invalid_cleanup_proof");
     }
@@ -333,5 +363,14 @@ public class RunClusterSupervision {
         if (value.deletionTimestamp() == null || (value.schedulingGate() != null && !"open-agent.io/execution-authorized".equals(value.schedulingGate()))
                 || !value.nodeUnbound() || !value.containerStatusesEmpty() || !hash(value.evidenceSha256()))
             throw new RunFailure("invalid_cluster_not_started");
+    }
+
+    private static void validate(CreationRejection value) {
+        if (value == null) throw new RunFailure("invalid_cluster_creation_rejection");
+        uuid(value.id()); uuid(value.auditId()); uuid(value.namespaceUid());
+        if (value.httpStatus() == null || !Objects.equals(Map.of(401,"Unauthorized",403,"Forbidden",422,"Invalid").get(value.httpStatus()), value.reason())
+                || value.reason() == null || value.podName() == null || !value.podName().matches("oa-exec-[a-f0-9]{32}")
+                || !hash(value.requestSha256()) || !hash(value.responseSha256()))
+            throw new RunFailure("invalid_cluster_creation_rejection");
     }
 }

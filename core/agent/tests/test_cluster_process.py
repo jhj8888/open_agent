@@ -14,7 +14,7 @@ from urllib3.util.retry import Retry
 
 from agent.durable.cluster_control import ClusterSnapshot
 from agent.durable.cluster_lifecycle import ClusterLifecycle
-from agent.durable.cluster_process import ClusterProcessError, ClusterProgram, FINALIZER, SCHEDULING_GATE, KubernetesProcesses
+from agent.durable.cluster_process import ClusterProcessError, ClusterCreateRejected, ClusterProgram, FINALIZER, SCHEDULING_GATE, KubernetesProcesses
 from agent.tests.test_cluster_control import snapshot
 
 
@@ -26,6 +26,7 @@ class SyntheticAPI:
         self.node_ready = True
         self.namespace_uid = target.namespaceUid
         self.fail_create = False
+        self.create_failure = None
         self.conflict_patch = False
         self.version = 1
 
@@ -42,6 +43,9 @@ class SyntheticAPI:
             result = {'metadata': {'name': 'cpu-node-1', 'uid': self.node_uid},
                       'status': {'conditions': [{'type': 'Ready', 'status': 'True' if self.node_ready else 'Unknown'}]}}
         elif method == 'POST':
+            if self.create_failure is not None:
+                status, result, headers = self.create_failure
+                return HTTPResponse(body=result.encode(), status=status, headers={'Content-Type':'application/json', **headers})
             self.pod = deepcopy(body)
             self.pod['metadata'].update(uid=str(uuid4()), resourceVersion='1')
             self.pod['spec'].update(priority=0, preemptionPolicy='PreemptLowerPriority', serviceAccount=body['spec']['serviceAccountName'])
@@ -138,6 +142,50 @@ async def test_sdk_manifest_has_no_token_host_resources_or_credentials(system):
     assert json.loads(spec['containers'][0]['env'][0]['value']) == row.lease.model_dump()
     assert not {'hostPath', 'projected', 'persistentVolumeClaim'} & set(spec['volumes'][0])
     assert len([call for call in server.calls if call[0] == 'POST']) == 1
+
+
+def reject_create(server, row, status=403, reason='Forbidden'):
+    body = json.dumps({'apiVersion':'v1','kind':'Status','status':'Failure','code':status,'reason':reason,
+                       'message':'private synthetic API detail', 'details':{'name':row.podName,'kind':'pods'}})
+    server.create_failure = (status, body, {'Audit-Id':str(uuid4())})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,reason', [(401,'Unauthorized'),(403,'Forbidden'),(422,'Invalid')])
+async def test_completed_create_denial_has_stable_bounded_receipt(system, status, reason):
+    row, driver, server = system
+    reject_create(server, row, status, reason)
+    with pytest.raises(ClusterCreateRejected) as caught:
+        await driver.launch(row)
+    receipt = caught.value.receipt
+    assert receipt.httpStatus == status and receipt.reason == reason
+    assert receipt.namespaceUid == row.target.namespaceUid and receipt.podName == row.podName
+    assert len(receipt.requestSha256) == len(receipt.responseSha256) == 64
+    assert 'private' not in str(caught.value) and 'private' not in receipt.model_dump_json()
+    assert server.pod is None and sum(c[0]=='POST' for c in server.calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['conflict','throttle','server','missing_audit','bad_audit','wrong_code','wrong_reason','wrong_name','not_status','oversized'])
+async def test_ambiguous_create_errors_never_become_rejection_receipts(system, change):
+    row, driver, server = system
+    reject_create(server, row)
+    status, text, headers = server.create_failure
+    body = json.loads(text)
+    if change == 'conflict': status, body['code'], body['reason'] = 409,409,'Conflict'
+    if change == 'throttle': status, body['code'], body['reason'] = 429,429,'TooManyRequests'
+    if change == 'server': status, body['code'], body['reason'] = 500,500,'InternalError'
+    if change == 'missing_audit': headers = {}
+    if change == 'bad_audit': headers = {'Audit-Id':'invalid'}
+    if change == 'wrong_code': body['code'] = 422
+    if change == 'wrong_reason': body['reason'] = 'Invalid'
+    if change == 'wrong_name': body['details']['name'] = 'other-pod'
+    if change == 'not_status': body['kind'] = 'Pod'
+    if change == 'oversized': body['message'] = 'x' * 131073
+    server.create_failure = (status,json.dumps(body),headers)
+    with pytest.raises(ClusterProcessError, match='^CLUSTER_OPERATION_UNCONFIRMED$'):
+        await driver.launch(row)
+    assert server.pod is None and sum(c[0]=='POST' for c in server.calls) == 1
 
 
 @pytest.mark.asyncio

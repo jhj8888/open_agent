@@ -6,7 +6,7 @@ independently reconcile the separate untrusted Skill sandbox before release.
 from __future__ import annotations
 
 from agent.durable.cluster_control import ClusterSnapshot, ClusterSupervisorClient
-from agent.durable.cluster_process import ClusterProcessError, KubernetesProcesses
+from agent.durable.cluster_process import ClusterProcessError, ClusterCreateRejected, KubernetesProcesses
 
 
 class ClusterLifecycle:
@@ -19,7 +19,12 @@ class ClusterLifecycle:
         # A begin response loss leaves launching in the DB. Never retry begin or
         # create; recovery only inspects the recorded deterministic Pod name.
         current = await self.control.begin(initial.lease.leaseId)
-        pod = await self.processes.launch(current)
+        try:
+            pod = await self.processes.launch(current)
+        except ClusterCreateRejected as rejection:
+            # This transaction fences the lease and stores the immutable receipt.
+            # A failed/lost receipt write remains unresolved; never retry create.
+            return await self.control.creation_rejected(current.lease.leaseId, rejection.receipt)
         current = await self.control.observed(current.lease.leaseId, pod.metadata.uid, pod.metadata.resource_version)
         await self.processes.activate(current)
         return current
@@ -35,6 +40,10 @@ class ClusterLifecycle:
             await self.processes.finalize(current)
             return current, await self.processes.absent_after_receipt(current)
         pod = await self.processes.inspect(current)
+        if current.phase == "rejected":
+            if current.creationRejection is None or pod is not None:
+                raise ClusterProcessError("CLUSTER_REJECTION_CONFLICT")
+            return current, True
         if current.phase == "prepared":
             if pod is not None:
                 raise ClusterProcessError("CLUSTER_LAUNCH_CONFLICT")

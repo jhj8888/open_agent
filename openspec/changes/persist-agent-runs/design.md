@@ -34,6 +34,8 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ### Kubernetes SDK 执行实体适配
 
+明确创建拒绝的调用链为 `KubernetesProcesses.launch` 的官方 SDK 单次创建 → `ClusterLifecycle` → 专属 `creation-rejected` 控制接口 → `RunClusterSupervision` 与 `RunLedger.finish` 的同一事务 → 独立清理/既有资源释放事务。仅完整 401/403/422 Status 与 Audit-Id、目标绑定及有界响应摘要允许该分支；它不是一般错误或空列表推断。V1.65 增加互斥的拒绝凭据，原终止/未启动记录保持原语义。复用既有 `configuration_unavailable` 失败分类，不扩展普通 worker 的完成权限；不改变模型、Skill、身份、Kafka 或 Redis 路径。证据写入失败不重试创建，回复丢失依赖持久查询恢复，未知创建仍是独立未完成项。拒绝的 reserved 沙盒随最终事务变为 released，传输层校验同时覆盖该恢复快照。
+
 未启动 Pod 的回收采用独立正向证据：监督器先 fencing、核对同 UID 的 Pod 尚未绑定节点且无任何容器状态，再用 UID/resourceVersion 条件请求删除；重新读取未绑定节点、无容器状态、无 nominatedNodeName 且已设置 deletionTimestamp 的资源（gate 可以尚在或已移除），持久登记 `not_started` 记录，最后移除自身 finalizer。删除请求构成资源版本屏障，旧版本的在途激活不能通过 CAS；Kubernetes 不允许已绑定节点被清空，也拒绝对删除中的 Pod 进行绑定，故此组合证明它没有进入节点执行；恢复读取持久证据，不能仅凭 Pending/404/空列表或时间推断从未执行。账本对 `not_started` 和实际容器 termination 使用互斥记录，但复用同一最终释放事务。没有观察到任何 Pod 的未知创建仍保留配额；本增量不把这类未知状态改为已释放。
 
 集群监督器通过官方 Kubernetes Python SDK 操作 executor Pod，控制面 API 仍是任务与资源绑定的唯一账本。SDK 使用独立 TLS 配置、有限请求超时、禁止自动重试创建；不读取用户上传的 kubeconfig。每次操作验证 kube-system UID 与执行 namespace UID，Pod 以完整租约摘要、唯一名称、固定镜像和专用无 token ServiceAccount 绑定。受信 executor 与不可信 Skill 沙盒分离。

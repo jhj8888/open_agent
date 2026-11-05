@@ -16,7 +16,7 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from urllib3.util.retry import Retry
 
-from agent.durable.cluster_control import ClusterSnapshot, ClusterTarget, PodTermination, PodNotStarted
+from agent.durable.cluster_control import ClusterSnapshot, ClusterTarget, PodTermination, PodNotStarted, PodCreationRejection
 
 FINALIZER = "open-agent.io/executor-termination"
 SCHEDULING_GATE = "open-agent.io/execution-authorized"
@@ -25,6 +25,12 @@ PREFIX = "open-agent.io/"
 
 class ClusterProcessError(RuntimeError):
     """Fixed error codes only; SDK exceptions can contain credentials or bodies."""
+
+
+class ClusterCreateRejected(ClusterProcessError):
+    def __init__(self, receipt: PodCreationRejection):
+        super().__init__("CLUSTER_CREATE_REJECTED")
+        self.receipt = receipt
 
 
 def canonical(value) -> bytes:
@@ -86,12 +92,16 @@ class KubernetesProcesses:
     async def close(self):
         await asyncio.to_thread(self.api_client.close)
 
-    async def _call(self, method, *args, missing=False, **kwargs):
+    async def _call(self, method, *args, missing=False, creation=None, **kwargs):
         try:
             # No automatic SDK retries. A cancelled thread can still finish an
             # in-flight request; the durable launching state retains its quota.
             return await asyncio.to_thread(method, *args, **kwargs, _request_timeout=(5, 15))
         except ApiException as error:
+            if creation is not None:
+                receipt = self.creation_rejection(creation, error)
+                if receipt is not None:
+                    raise ClusterCreateRejected(receipt) from None
             if missing and error.status == 404:
                 return None
             raise ClusterProcessError("CLUSTER_OPERATION_UNCONFIRMED") from None
@@ -99,6 +109,35 @@ class KubernetesProcesses:
             raise
         except Exception:
             raise ClusterProcessError("CLUSTER_OPERATION_UNCONFIRMED") from None
+
+    def creation_rejection(self, row: ClusterSnapshot, error: ApiException) -> PodCreationRejection | None:
+        """Only completed pre-storage rejections of this one create call qualify.
+
+        Not a general exception/status heuristic: missing audit identity, 409,
+        429, 5xx, redirects, timeouts and malformed Status remain unknown.
+        The raw response may contain sensitive text; retain only its digest.
+        """
+        try:
+            reasons = {401: "Unauthorized", 403: "Forbidden", 422: "Invalid"}
+            if error.status not in reasons or not isinstance(error.body, str) or len(error.body.encode()) > 131072:
+                return None
+            value = json.loads(error.body)
+            if (value.get("kind") != "Status" or value.get("apiVersion") != "v1" or value.get("status") != "Failure"
+                    or type(value.get("code")) is not int or value["code"] != error.status or value.get("reason") != reasons[error.status]):
+                return None
+            details = value.get("details") or {}
+            if not isinstance(details, dict) or details.get("name", row.podName) != row.podName:
+                return None
+            audit = (error.headers or {}).get("Audit-Id") or (error.headers or {}).get("audit-id")
+            if not isinstance(audit, str) or str(UUID(audit)) != audit:
+                return None
+            fields = {"auditId": audit, "podName": row.podName, "namespaceUid": row.target.namespaceUid,
+                      "httpStatus": error.status, "reason": value["reason"],
+                      "requestSha256": sha256(canonical(self.manifest(row))).hexdigest(),
+                      "responseSha256": sha256(error.body.encode()).hexdigest()}
+            return PodCreationRejection(id=str(uuid5(UUID(row.lease.leaseId), "creation-rejected:" + sha256(canonical(fields)).hexdigest())), **fields)
+        except (ValueError, TypeError, AttributeError):
+            return None
 
     async def verify_target(self):
         for name, uid in (("kube-system", self.target.clusterId), (self.target.namespace, self.target.namespaceUid)):
@@ -210,7 +249,7 @@ class KubernetesProcesses:
             raise ClusterProcessError("CLUSTER_LAUNCH_CONFLICT")
         if await self.inspect(row) is not None:
             raise ClusterProcessError("CLUSTER_LAUNCH_CONFLICT")
-        pod = await self._call(self.api.create_namespaced_pod, self.target.namespace, self.manifest(row), field_validation="Strict")
+        pod = await self._call(self.api.create_namespaced_pod, self.target.namespace, self.manifest(row), field_validation="Strict", creation=row)
         return self.validate_pod(row, pod)
 
     async def activate(self, row: ClusterSnapshot):

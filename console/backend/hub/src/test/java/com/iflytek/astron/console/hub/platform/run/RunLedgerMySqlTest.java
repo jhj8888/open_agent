@@ -55,6 +55,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.62__bind_cluster_execution.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.63__record_unstarted_cluster_pods.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.64__scope_outbox_dispatch_by_environment.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.65__record_rejected_cluster_creations.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -379,12 +380,80 @@ class RunLedgerMySqlTest {
     }
     private RunClusterSupervision.Proof clusterProof(RunClusterSupervision.Snapshot value, String kind) {
         return new RunClusterSupervision.Proof(UUID.randomUUID().toString(),kind,value.target().clusterId(),value.target().namespaceUid(),
-                value.podName(),value.podUid(),value.termination()!=null?value.termination().id():value.notStarted()!=null?value.notStarted().id():null,
+                value.podName(),value.podUid(),value.termination()!=null?value.termination().id():value.notStarted()!=null?value.notStarted().id():value.creationRejection()!=null?value.creationRejection().id():null,
                 value.sandboxId(),"f".repeat(64),true,true,true);
     }
     private RunClusterSupervision.NotStarted notStarted(RunClusterSupervision.Snapshot value) {
         return new RunClusterSupervision.NotStarted(UUID.randomUUID().toString(),value.podUid(),"201",
                 java.time.Instant.parse("2026-11-05T01:00:02Z"),"open-agent.io/execution-authorized",true,true,"e".repeat(64));
+    }
+
+    private RunClusterSupervision.CreationRejection creationRejection(RunClusterSupervision.Snapshot value, int status, String reason) {
+        return new RunClusterSupervision.CreationRejection(UUID.randomUUID().toString(),UUID.randomUUID().toString(),value.podName(),
+                value.target().namespaceUid(),status,reason,"a".repeat(64),"b".repeat(64));
+    }
+
+    @Test void clusterDefinitiveRejectionFencesPersistsAndReleasesExactlyOnce() {
+        var value=clustered("rejected-create");String id=value.lease().leaseId();
+        var receipt=creationRejection(value,403,"Forbidden");
+        code("cluster_creation_rejection_unverified",()->cluster().creationRejected(id,CLUSTER_OWNER,receipt));
+        cluster().begin(id,CLUSTER_OWNER);
+        code("resource_unavailable",()->cluster().creationRejected(id,"cluster-2",receipt));
+        var stopped=cluster().creationRejected(id,CLUSTER_OWNER,receipt);
+        assertEquals("rejected",stopped.phase());assertEquals("failed",stopped.state());
+        assertEquals("cleanup_pending",stopped.leaseState());assertNull(stopped.podUid());
+        assertEquals(receipt,cluster().inspect(id,CLUSTER_OWNER).creationRejection());
+        assertEquals(receipt,cluster().creationRejected(id,CLUSTER_OWNER,receipt).creationRejection());
+        code("cluster_creation_receipt_conflict",()->cluster().creationRejected(id,CLUSTER_OWNER,creationRejection(value,403,"Forbidden")));
+        code("cluster_execution_conflict",()->cluster().observed(id,CLUSTER_OWNER,new RunClusterSupervision.Observation(UUID.randomUUID().toString(),"1")));
+        code("lease_fenced",()->cluster().begin(id,CLUSTER_OWNER));
+        code("cleanup_unverified",()->cluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"never_launched")));
+        var proof=clusterProof(stopped,"create_rejected");
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).phase());
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).phase());
+        assertEquals(receipt,cluster().creationRejected(id,CLUSTER_OWNER,receipt).creationRejection());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE lease_state<>'released'",Integer.class));
+    }
+
+    @Test void clusterRejectionRejectsAmbiguousStatusWrongBindingAndObservedPod() {
+        var value=clustered("reject-invalid");String id=value.lease().leaseId();cluster().begin(id,CLUSTER_OWNER);
+        for(int status:List.of(200,400,404,409,429,500,503,504))
+            code("invalid_cluster_creation_rejection",()->cluster().creationRejected(id,CLUSTER_OWNER,creationRejection(value,status,"Forbidden")));
+        code("invalid_cluster_creation_rejection",()->cluster().creationRejected(id,CLUSTER_OWNER,creationRejection(value,422,"Forbidden")));
+        var other=creationRejection(value,422,"Invalid");
+        var wrong=new RunClusterSupervision.CreationRejection(other.id(),other.auditId(),other.podName(),UUID.randomUUID().toString(),422,"Invalid",other.requestSha256(),other.responseSha256());
+        code("cluster_creation_rejection_unverified",()->cluster().creationRejected(id,CLUSTER_OWNER,wrong));
+        assertEquals("launching",cluster().inspect(id,CLUSTER_OWNER).phase());assertEquals("running",state(value.lease().runId()));
+        cluster().observed(id,CLUSTER_OWNER,new RunClusterSupervision.Observation(UUID.randomUUID().toString(),"1"));
+        code("cluster_creation_rejection_unverified",()->cluster().creationRejected(id,CLUSTER_OWNER,other));
+    }
+
+    @Test void clusterRejectionAndFailureRollbackTogetherWhenReceiptWriteFails() {
+        var value=clustered("reject-rollback");String id=value.lease().leaseId();cluster().begin(id,CLUSTER_OWNER);
+        jdbc.execute("CREATE TRIGGER fail_rejection BEFORE UPDATE ON oa_run_cluster_execution FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic rejection write failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->cluster().creationRejected(id,CLUSTER_OWNER,creationRejection(value,422,"Invalid")));
+        jdbc.execute("DROP TRIGGER fail_rejection");
+        var restored=cluster().inspect(id,CLUSTER_OWNER);
+        assertEquals("launching",restored.phase());assertEquals("running",restored.state());assertEquals("held",restored.leaseState());
+        assertNull(restored.creationRejection());
+    }
+
+    @Test void clusterRejectionPreservesCancellationAndRejectsAuthorizedSandboxCreation() {
+        var value=clustered("reject-cancel");String id=value.lease().leaseId();cluster().begin(id,CLUSTER_OWNER);
+        ledger.cancel(scope,value.lease().runId(),"alice",()->{});
+        var stopped=cluster().creationRejected(id,CLUSTER_OWNER,creationRejection(value,401,"Unauthorized"));
+        assertEquals("cancelled",stopped.state());
+        cluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"create_rejected"));
+        bindSkill(scope,deployment);
+        var reserved=clustered("reject-reserved");String rid=reserved.lease().leaseId();cluster().begin(rid,CLUSTER_OWNER);
+        journal().reserve(reserved.lease(),"gvisor-demo",IMAGE);
+        var denied=cluster().creationRejected(rid,CLUSTER_OWNER,creationRejection(reserved,403,"Forbidden"));
+        assertEquals("reserved",denied.sandboxPhase());
+        var released=cluster().release(rid,CLUSTER_OWNER,clusterProof(denied,"create_rejected"));
+        assertEquals("released",released.sandboxPhase());assertNull(released.sandboxId());
+        var skill=clustered("reject-sandbox");String sid=skill.lease().leaseId();cluster().begin(sid,CLUSTER_OWNER);
+        journal().reserve(skill.lease(),"gvisor-demo",IMAGE);journal().creating(skill.lease());
+        code("cluster_creation_rejection_unverified",()->cluster().creationRejected(sid,CLUSTER_OWNER,creationRejection(skill,403,"Forbidden")));
     }
 
     @Test void clusterUnstartedReceiptRequiresFenceAndIsReplayable() {
@@ -1515,7 +1584,7 @@ class RunLedgerMySqlTest {
 
     @Test @EnabledIfEnvironmentVariable(named = "OA_RUN_TEST_RESTART_SIGNAL", matches = ".+")
     void databaseCrashAndRestartPreserveRunOutboxAndIdempotency() throws Exception {
-        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=3 WHERE tenant_id=? AND environment='test'",A);
+        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=4 WHERE tenant_id=? AND environment='test'",A);
         String id = submit("restart").runId();
         var clusterExecution = observedCluster("restart-cluster");
         ledger.finish(clusterExecution.lease(),RunState.SUCCEEDED,null);
@@ -1524,6 +1593,9 @@ class RunLedgerMySqlTest {
         var gated = observedCluster("restart-gated");cluster().fence(gated.lease().leaseId(),CLUSTER_OWNER);
         var neverStarted = notStarted(gated);
         var gatedStopped = cluster().notStarted(gated.lease().leaseId(),CLUSTER_OWNER,neverStarted);
+        var denied = clustered("restart-rejected");cluster().begin(denied.lease().leaseId(),CLUSTER_OWNER);
+        var deniedReceipt = creationRejection(denied,403,"Forbidden");
+        var deniedStopped = cluster().creationRejected(denied.lease().leaseId(),CLUSTER_OWNER,deniedReceipt);
         bindSkill(scope, deployment);
         var execution = supervised("restart-sandbox");
         var sandboxLease = execution.lease();
@@ -1538,7 +1610,7 @@ class RunLedgerMySqlTest {
         assertEquals("ready", java.nio.file.Files.readString(signal), "Isolated database restart did not complete");
         assertEquals("queued", instance().get(scope, id).get("state"));
         assertEquals(1, instance().events(scope, id, 0, 20).events().size());
-        assertEquals(4, count("oa_run_outbox"));
+        assertEquals(5, count("oa_run_outbox"));
         var clusterRestored = cluster().inspect(clusterExecution.lease().leaseId(),CLUSTER_OWNER);
         assertEquals("terminated",clusterRestored.phase());assertEquals(clusterTermination,clusterRestored.termination());
         assertEquals(clusterExecution.target(),clusterRestored.target());assertEquals(clusterExecution.podUid(),clusterRestored.podUid());
@@ -1547,6 +1619,10 @@ class RunLedgerMySqlTest {
         assertEquals("not_started",gatedRestored.phase());assertEquals(neverStarted,gatedRestored.notStarted());
         assertNull(gatedRestored.termination());
         cluster().release(gated.lease().leaseId(),CLUSTER_OWNER,clusterProof(gatedStopped,"never_started_pod"));
+        var deniedRestored=cluster().inspect(denied.lease().leaseId(),CLUSTER_OWNER);
+        assertEquals("rejected",deniedRestored.phase());assertEquals(deniedReceipt,deniedRestored.creationRejection());
+        code("lease_fenced",()->ledger.withPermit(deniedRestored.lease(),()->true));
+        cluster().release(denied.lease().leaseId(),CLUSTER_OWNER,clusterProof(deniedStopped,"create_rejected"));
         assertEquals(id, submit("restart").runId());
         assertTrue(ledger.claim(scope, id, "after-restart").isPresent());
         assertEquals("creating", sandboxPhase(sandboxLease));

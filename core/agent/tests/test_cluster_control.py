@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination, PodNotStarted
+from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination, PodNotStarted, PodCreationRejection
 from agent.durable.contracts import RunRef
 from agent.durable.control import ControlPlaneClient, ControlPlaneError
 
@@ -46,6 +46,57 @@ def client(row, respond):
     control = ControlPlaneClient('https://control.internal', 'supervisor', 's' * 32,
                                  transport=httpx.MockTransport(respond))
     return control, ClusterSupervisorClient(control, 'supervisor', ClusterTarget.model_validate(row['target']))
+
+
+def rejected():
+    row = snapshot()
+    row.update(phase='rejected', state='failed', leaseState='cleanup_pending')
+    row['creationRejection'] = dict(id=str(uuid4()),auditId=str(uuid4()),podName=row['podName'],
+        namespaceUid=row['target']['namespaceUid'],httpStatus=403,reason='Forbidden',requestSha256='a'*64,responseSha256='b'*64)
+    return row
+
+
+@pytest.mark.asyncio
+async def test_rejected_creation_receipt_and_reserved_sandbox_release_are_recoverable():
+    row = rejected()
+    row['sandboxPhase'] = 'reserved'
+    paths = []
+    def respond(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith('/release'):
+            row.update(phase='released', leaseState='released',sandboxPhase='released')
+        return httpx.Response(200,json=row)
+    control, api = client(row,respond)
+    try:
+        receipt = PodCreationRejection.model_validate(row['creationRejection'])
+        assert (await api.creation_rejected(row['lease']['leaseId'],receipt)).creationRejection == receipt
+        body = proof(row).model_copy(update={'kind':'create_rejected','terminationId':receipt.id})
+        assert (await api.release(row['lease']['leaseId'],body)).phase == 'released'
+        assert (await api.inspect(row['lease']['leaseId'])).creationRejection == receipt
+        assert paths[0].endswith('/creation-rejected')
+    finally:
+        await control.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change',['missing','status','namespace','pod_name','pod_uid','running','held','sandbox_creating','wrong_phase'])
+async def test_creation_rejection_snapshots_reject_conflicting_or_ambiguous_state(change):
+    row = rejected()
+    if change == 'missing': row['creationRejection'] = None
+    if change == 'status': row['creationRejection']['httpStatus'] = 409
+    if change == 'namespace': row['creationRejection']['namespaceUid'] = str(uuid4())
+    if change == 'pod_name': row['creationRejection']['podName'] = 'oa-exec-' + '1'*32
+    if change == 'pod_uid': row.update(podUid=str(uuid4()),observedResourceVersion='1')
+    if change == 'running': row['state'] = 'running'
+    if change == 'held': row['leaseState'] = 'held'
+    if change == 'sandbox_creating': row['sandboxPhase'] = 'creating'
+    if change == 'wrong_phase': row['phase'] = 'launching'
+    control, api = client(row,lambda _: httpx.Response(200,json=row))
+    try:
+        with pytest.raises(ControlPlaneError,match='CONTROL_CLUSTER_INVALID'):
+            await api.inspect(row['lease']['leaseId'])
+    finally:
+        await control.aclose()
 
 
 def unstarted():

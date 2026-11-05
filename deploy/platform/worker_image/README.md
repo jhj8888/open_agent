@@ -32,7 +32,7 @@ python verify_image.py --report /private/worker-image-build/build-report.json --
 
 `verify_image.py` 验证归档与导入身份、默认命令、UID/GID 10001、网络关闭、只读文件系统、移除 capabilities、实际模块加载、安装版本、缺配置失败及 OS 包清单。导入检查使用同一 Docker daemon，不能据此宣称空节点冷启动已验收。`verify_contracts.py` 另外挂载显式测试包和预核验 Temporal CLI，运行合成模型/账本/Kubernetes 响应与真实本地 Temporal 的回归；测试包不进入发布镜像。
 
-镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定，137 项镜像内检查通过；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
+镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定和创建拒绝恢复，163 项镜像内检查通过；拒绝恢复要求控制面 V1.65 或更新版本；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
 
 ## 清单与许可范围
 

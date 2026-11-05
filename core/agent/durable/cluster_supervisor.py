@@ -117,8 +117,8 @@ class ClusterSupervisor:
         # Kata admission/independent verification is a separate required adapter.
         if row.sandboxId is not None or row.sandboxPhase not in {None, 'reserved'}:
             raise RuntimeError('cluster_sandbox_cleanup_unavailable')
-        receipt = row.termination or row.notStarted
-        kinds = {'prepared': 'never_launched', 'terminated': 'terminated_pod', 'not_started': 'never_started_pod'}
+        receipt = row.termination or row.notStarted or row.creationRejection
+        kinds = {'prepared': 'never_launched', 'terminated': 'terminated_pod', 'not_started': 'never_started_pod', 'rejected': 'create_rejected'}
         if row.state not in TERMINAL or row.phase not in kinds:
             raise RuntimeError('cluster_stop_unconfirmed')
         evidence = {'lease': row.lease.model_dump(mode='json'), 'target': row.target.model_dump(mode='json'),

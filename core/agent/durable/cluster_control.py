@@ -57,6 +57,20 @@ class PodNotStarted(WireModel):
     evidenceSha256: Hash
 
 
+class PodCreationRejection(WireModel):
+    id: Identifier
+    auditId: Identifier
+    podName: PodName
+    namespaceUid: Identifier
+    httpStatus: Annotated[int, Field(strict=True)]
+    reason: Literal["Unauthorized", "Forbidden", "Invalid"]
+    requestSha256: Hash
+    responseSha256: Hash
+
+    def consistent(self):
+        return {401: "Unauthorized", 403: "Forbidden", 422: "Invalid"}.get(self.httpStatus) == self.reason
+
+
 class ClusterSnapshot(WireModel):
     lease: SupervisedLease
     supervisorId: Identity
@@ -64,7 +78,7 @@ class ClusterSnapshot(WireModel):
     podName: PodName
     podUid: Identifier | None
     observedResourceVersion: Version | None
-    phase: Literal["prepared", "launching", "observed", "terminated", "not_started", "released"]
+    phase: Literal["prepared", "launching", "observed", "terminated", "not_started", "rejected", "released"]
     state: RunState
     leaseState: Literal["held", "cleanup_pending", "released"]
     heartbeatUntil: AwareDatetime
@@ -75,6 +89,7 @@ class ClusterSnapshot(WireModel):
     runtimeImage: Annotated[str, Field(max_length=512)] | None
     termination: PodTermination | None
     notStarted: PodNotStarted | None = None
+    creationRejection: PodCreationRejection | None = None
 
 
 class ClusterClaim(WireModel):
@@ -90,7 +105,7 @@ class ClusterLookup(WireModel):
 
 class ClusterCleanupProof(WireModel):
     proofId: Identifier
-    kind: Literal["never_launched", "terminated_pod", "never_started_pod"]
+    kind: Literal["never_launched", "terminated_pod", "never_started_pod", "create_rejected"]
     clusterId: Identifier
     namespaceUid: Identifier
     podName: PodName
@@ -135,6 +150,16 @@ class ClusterSupervisorClient:
             if row.notStarted is not None and (row.phase not in {"not_started", "released"} or row.termination is not None
                     or row.notStarted.podUid != row.podUid or not row.notStarted.nodeUnbound or not row.notStarted.containerStatusesEmpty
                     or row.state not in TERMINAL):
+                raise ValueError()
+            if row.phase == "rejected" and row.creationRejection is None:
+                raise ValueError()
+            if row.creationRejection is not None and (row.phase not in {"rejected", "released"}
+                    or row.podUid is not None or row.termination is not None or row.notStarted is not None
+                    or row.state not in TERMINAL or not row.creationRejection.consistent()
+                    or row.creationRejection.podName != row.podName or row.creationRejection.namespaceUid != row.target.namespaceUid
+                    or row.sandboxId is not None
+                    or row.sandboxPhase not in ({None, "released"} if row.phase == "released" else {None, "reserved"})
+                    or row.phase == "rejected" and row.leaseState != "cleanup_pending"):
                 raise ValueError()
             if row.phase == "released":
                 if row.leaseState != "released" or row.state not in TERMINAL or (row.podUid is not None and row.termination is None and row.notStarted is None):
@@ -208,6 +233,14 @@ class ClusterSupervisorClient:
             raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
         return row
 
+    async def creation_rejected(self, lease_id: str, receipt: PodCreationRejection):
+        if not receipt.consistent() or receipt.namespaceUid != self.target.namespaceUid:
+            raise ControlPlaneError("CONTROL_CLUSTER_INPUT_INVALID")
+        row = await self._post(lease_id, "creation-rejected", receipt.model_dump(mode="json"))
+        if row.phase not in {"rejected", "released"} or row.creationRejection != receipt:
+            raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
+        return row
+
     async def terminated(self, lease_id: str, termination: PodTermination):
         if not termination.consistent():
             raise ControlPlaneError("CONTROL_CLUSTER_INPUT_INVALID")
@@ -241,13 +274,15 @@ class ClusterSupervisorClient:
                 or proof.clusterId != self.target.clusterId or proof.namespaceUid != self.target.namespaceUid
                 or proof.podName != "oa-exec-" + SupervisorClient._id(lease_id).replace("-", "")
                 or (proof.kind == "never_launched" and (proof.podUid is not None or proof.terminationId is not None))
+                or (proof.kind == "create_rejected" and (proof.podUid is not None or proof.terminationId is None))
                 or (proof.kind in {"terminated_pod", "never_started_pod"} and (proof.podUid is None or proof.terminationId is None))):
             raise ControlPlaneError("CONTROL_CLUSTER_INPUT_INVALID")
         row = await self._post(lease_id, "release", proof.model_dump(mode="json"))
         if (row.phase != "released" or row.podUid != proof.podUid or row.sandboxId != proof.sandboxId
-                or (row.termination.id if row.termination else row.notStarted.id if row.notStarted else None) != proof.terminationId
+                or (row.termination.id if row.termination else row.notStarted.id if row.notStarted else row.creationRejection.id if row.creationRejection else None) != proof.terminationId
                 or proof.kind == "terminated_pod" and row.termination is None
-                or proof.kind == "never_started_pod" and row.notStarted is None):
+                or proof.kind == "never_started_pod" and row.notStarted is None
+                or proof.kind == "create_rejected" and row.creationRejection is None):
             raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
         return row
 

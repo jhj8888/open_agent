@@ -1,6 +1,6 @@
 # Kubernetes executor SDK 接入
 
-本目录包含在独立 Linux 目录验证 SDK/执行器入口的工具，不是完整的生产部署包。运行镜像、Temporal 集群服务、OpenSandbox/Kata admission/独立回收、RBAC/NetworkPolicy 接线和真实节点验收仍需完成；已有 Helm 保持任务准入关闭。
+本目录包含在独立 Linux 目录验证 SDK/执行器入口的工具。运行镜像、Temporal 集群服务和 RBAC/NetworkPolicy chart 已有交付快照；OpenSandbox/Kata admission/独立回收、真实业务库共同联调及节点/CNI 验收仍需完成，尚不是完整的生产部署包。已有 Helm 保持集群任务准入关闭。
 
 常驻 `cluster_service` 和 `ClusterSupervisor` 已加入：按环境出队、官方 Temporal 活动、Pod 生命周期、重启扫描和有界回收接通，健康任务不会被新副本启动扫描终止；初始调度鉴权及依赖健康检查决定就绪状态。示例配置、权限和限制见 [集群监督服务](../../../docs/platform/cluster-supervisor.md)。这里的“服务代码与隔离验证”不表示完整集群部署已经交付。
 
@@ -25,3 +25,5 @@
 另外已使用独立、零节点的 K3s v1.36.6+k3s1 验证真实 API 默认值、门禁、删除屏障与绑定拒绝。固定制品和 Apache-2.0 许可见 `k3s-fixture-artifact.json` / `LICENSE-k3s`；可复用验证脚本及严格边界见 [未启动 Pod 回收](../../../docs/platform/cluster-unstarted-pods.md)。该 fixture 不部署生产 worker，不包含 kubelet、Kata 或 CNI 验收。
 
 `verify_supervisor_api_fixture.py` 在同一独立 API fixture 上运行真实 Temporal 工作流和集群监督活动，验证有效任务被第二副本保留、取消后取得实际未启动 Pod 证据并删除资源。账本是显式测试夹具，不写展示业务数据库。先完成 SDK overlay 安装和 fixture provisioning，再运行此脚本；完成后必须执行 `cleanup_api_fixture.py`，删除有 owner 标记的容器、网络、卷及其临时 admin 凭据。
+
+`verify_create_rejection.py` 进一步验证真实 401/403/422 创建拒绝：仅完整核心 Status 和 Audit-ID 可作为拒绝凭据，丢失回复、错误格式等继续保留未知状态。V1.65 保存拒绝并撤销执行许可，独立确认资源不存在后释放；合成账本、真实 API 的验证范围和匹配版本升级要求见 [创建拒绝恢复](../../../docs/platform/cluster-create-rejection.md)。
