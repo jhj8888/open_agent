@@ -39,3 +39,9 @@ and the official OpenTelemetry Python SDK / OTLP HTTP exporter 1.45.1,
 also licensed under Apache License 2.0. They run outside the Agent execution
 process. The hash-locked deployment retains wheel license files; transitive
 dependencies retain their own licenses. See deploy/platform/observability.
+
+The optional demo backup tools invoke Restic 0.19.1
+(https://github.com/restic/restic), distributed under the BSD 2-Clause License.
+The original copyright and license are retained in
+deploy/platform/backup/LICENSE-restic. The upstream release binary is verified
+against pinned SHA-256 digests; its dependencies retain their own licenses.

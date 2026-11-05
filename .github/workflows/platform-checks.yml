@@ -124,4 +124,4 @@ jobs:
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
             core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py \
             core/agent/tests/test_task_outputs.py core/agent/tests/test_execution_observations.py \
-            core/agent/tests/test_deepseek_reasoning.py core/agent/tests/test_observation_exporter.py -q -p no:cacheprovider
+            core/agent/tests/test_deepseek_reasoning.py core/agent/tests/test_observation_exporter.py tests/backup -q -p no:cacheprovider

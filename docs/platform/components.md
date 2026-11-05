@@ -21,6 +21,7 @@
 | 主机指标 | [prometheus/node_exporter](https://github.com/prometheus/node_exporter) | 13.9k | Apache-2.0 | 2026-11-05 核验；固定 1.12.1 官方摘要，只在展示机 loopback 采集 CPU/内存/磁盘及指定平台服务 |
 | 日志查询 | [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenSearch) | 14.0k | Apache-2.0 | 默认候选；已有企业日志平台时可复用 |
 | 日志仪表盘 | [opensearch-project/OpenSearch-Dashboards](https://github.com/opensearch-project/OpenSearch-Dashboards) | 2.1k | Apache-2.0 | 可选管理界面；不能绕过租户授权 |
+| 加密备份 | [restic/restic](https://github.com/restic/restic) | 37.0k | BSD-2-Clause | 2026-11-05 核验；固定 0.19.1，官方 CLI 加密与校验，独立恢复验证；见[备份手册](../../deploy/platform/backup/README.md) |
 
 这里只记录平台层采用/计划采用的主要组件，表中的主许可不代替版本级完整依赖审查。计划采用不代表已安装、已固定生产版本或已通过兼容测试。除 OpenSpec 外，本次不自动升级上游依赖。
 

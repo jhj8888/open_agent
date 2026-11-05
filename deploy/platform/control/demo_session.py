@@ -14,13 +14,14 @@ from provision_data import ROOT, container_address
 
 
 class DemoSession:
-    def __init__(self, username='demo', password=None, require_tenant=True):
+    def __init__(self, username='demo', password=None, require_tenant=True, *,
+                 api=None, identity_endpoint=None, state_root=ROOT):
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
                                                  urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-        self.api = 'http://127.0.0.1:18082'
-        identity = json.loads((ROOT / 'identity-secrets.json').read_text())
-        metadata = json.loads((ROOT / 'identity-deployment.json').read_text())
-        endpoint = 'http://' + container_address('open-agent-control-identity') + ':8000'
+        self.api = api or 'http://127.0.0.1:18082'
+        identity = json.loads((state_root / 'identity-secrets.json').read_text())
+        metadata = json.loads((state_root / 'identity-deployment.json').read_text())
+        endpoint = identity_endpoint or 'http://' + container_address('open-agent-control-identity') + ':8000'
         verifier = secrets.token_urlsafe(48)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
         query = urllib.parse.urlencode({'clientId': metadata['client_id'], 'responseType': 'code',
