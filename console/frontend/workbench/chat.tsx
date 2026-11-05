@@ -12,6 +12,7 @@ import {
 } from './components';
 import type { AgentRun, Deployment, RunEvent } from './types';
 import { TaskOutputs } from './outputs';
+import { TaskObservations } from './observations';
 
 export function RunConsole({
   api,
@@ -323,6 +324,7 @@ export function RunConsole({
                     )}
                   </div>
                   {run && <TaskOutputs key={run.run_id} api={api} run={run} />}
+                  {run && <TaskObservations key={`trace-${run.run_id}`} api={api} run={run} />}
                   <details className="execution-details">
                     <summary>
                       <Icon name="terminal" size={14} />

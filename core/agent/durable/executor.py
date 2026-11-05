@@ -28,6 +28,7 @@ from agent.durable.control import AttemptLease, ControlPlaneClient
 from agent.durable.permit import ExecutionPermit, PermitTransport
 from agent.durable.runtime_config import RuntimeBundle, RuntimeReleaseSource
 from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.engine.observations import ExecutionObservations
 from agent.platform_runtime.artifacts import ReleaseRef, load_release
 from agent.platform_runtime.sandbox import OpenSandboxProvider, RunScope
 from agent.platform_runtime.outputs import OUTPUT_ROOT, snapshot, read_snapshot, state_bytes
@@ -100,6 +101,7 @@ class RuntimeExecutor:
             raise RuntimeError("execution_configuration_invalid") from None
 
         permit = ExecutionPermit(self.control, lease, bundle.deadline)
+        observations = ExecutionObservations(lambda phase, step: self.control.observation(lease, phase, step))
         sequence = 0
 
         async def emit(kind: str, payload: dict[str, Any]):
@@ -113,12 +115,14 @@ class RuntimeExecutor:
             attempt = None
             handle = None
             try:
+                await observations.start("attempt", "agent", "DeepAgents", None)
                 if bundle.skills:
                     releases = []
                     total = 0
                     source = RuntimeReleaseSource(self.control, lease)
                     for binding in bundle.skills:
                         await permit.check()
+                        skill_step = await observations.custom("skill", "load_skill", summary={"releaseId": str(binding.releaseId), "manifestSha256": binding.manifestSha256})
                         release = await load_release(
                             source,
                             ReleaseRef(binding.releaseId, binding.manifestSha256),
@@ -127,6 +131,7 @@ class RuntimeExecutor:
                         if total > 20 * 1024 * 1024:
                             raise RuntimeError("skill_total_size_exceeded")
                         releases.append(release)
+                        await observations.finish(skill_step, summary={"fileCount": str(len(release.contents))})
                     provider = self.sandbox_factory(lease, permit)
                     if (
                         not isinstance(provider, OpenSandboxProvider)
@@ -187,7 +192,19 @@ class RuntimeExecutor:
                 )
                 if attempt is not None:
                     runner.bind_attempt(attempt)
+                runner.bind_observations(observations)
                 archived: set[tuple[str,str]] = set()
+
+                async def publish_output(descriptor: dict, content):
+                    tool_step = observations.tool_steps.get(descriptor["step"])
+                    output_step = await observations.custom("artifact", "publish_output", observations.parents.get(tool_step) or "attempt",
+                        summary={"toolCallId": descriptor["step"]})
+                    try:
+                        await self.control.output(lease, descriptor, content)
+                    except BaseException as error:
+                        await observations.finish(output_step, "interrupted" if isinstance(error, asyncio.CancelledError) else "failed", summary={"errorType": "OutputPublicationFailed"})
+                        raise
+                    await observations.finish(output_step, summary={"fileCount": "1"})
 
                 async def archive(step: str, state: dict | None = None):
                     await permit.check()
@@ -198,7 +215,7 @@ class RuntimeExecutor:
                             for row in snapshots:
                                 key=(row["path"],row["sha256"])
                                 if key not in archived:
-                                    await self.control.output(lease,{"path":row["path"],"size":row["size"],"sha256":row["sha256"],"step":step},read_snapshot(attempt,row))
+                                    await publish_output({"path":row["path"],"size":row["size"],"sha256":row["sha256"],"step":step},read_snapshot(attempt,row))
                                     archived.add(key)
                         elif state:
                             candidates=[(path,value) for path,value in state.items() if path.startswith(OUTPUT_ROOT) and value is not None]
@@ -213,7 +230,7 @@ class RuntimeExecutor:
                                     for offset in range(0,len(data),65536):
                                         await permit.check()
                                         yield data[offset:offset+65536]
-                                await self.control.output(lease,{"path":path,"size":len(data),"sha256":sha,"step":step},chunks())
+                                await publish_output({"path":path,"size":len(data),"sha256":sha,"step":step},chunks())
                                 archived.add(key)
                     except Exception:
                         await emit("execution.notice",{"phase":"output_archive_failed"})
@@ -254,8 +271,23 @@ class RuntimeExecutor:
                     for name in ("prompt_tokens", "completion_tokens", "total_tokens")
                 }
                 await emit("usage", usage)
+                await observations.finish("attempt")
                 return usage
+            except BaseException as error:
+                try:
+                    async with asyncio.timeout(5):
+                        await observations.finish("attempt", "interrupted" if isinstance(error, asyncio.CancelledError) else "failed", summary={"errorType": type(error).__name__[:64]})
+                except Exception:
+                    pass
+                raise
             finally:
+                # Cancellation can finish existing steps with the same owned lease. A
+                # killed process leaves persisted starts explicitly incomplete instead.
+                try:
+                    async with asyncio.timeout(8):
+                        await observations.interrupt_open()
+                except Exception:
+                    pass
                 if handle is not None:
                     await asyncio.shield(handle.aclose())
                 if attempt is not None:

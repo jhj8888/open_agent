@@ -292,6 +292,13 @@ class DeepAgentsRunner(BaseModel):
     _attempt: AttemptSandbox | None = PrivateAttr(default=None)
     _outputs: Callable[[str,dict | None],Awaitable[None]] | None = PrivateAttr(default=None)
     _tool_step: str = PrivateAttr(default="")
+    _observations: Any = PrivateAttr(default=None)
+
+    def bind_observations(self, callback: Any) -> None:
+        from agent.engine.observations import ExecutionObservations
+        if self._observations is not None or not isinstance(callback, ExecutionObservations):
+            raise ValueError("Invalid observation callback")
+        self._observations = callback
 
     @property
     def tool_step(self) -> str:
@@ -450,7 +457,7 @@ class DeepAgentsRunner(BaseModel):
                 {"messages": messages},
                 config={
                     "recursion_limit": 12 * (self.max_loop + 2),
-                    "callbacks": [usage_callback],
+                    "callbacks": [usage_callback] + ([self._observations] if self._observations else []),
                 },
                 stream_mode=["messages", "updates", "custom"],
             ),

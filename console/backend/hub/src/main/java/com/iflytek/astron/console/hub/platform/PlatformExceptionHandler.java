@@ -24,7 +24,8 @@ public class PlatformExceptionHandler {
             case "unauthenticated" -> HttpStatus.UNAUTHORIZED;
             case "action_forbidden" -> HttpStatus.FORBIDDEN;
             case "executor_unavailable", "stored_event_unavailable", "output_storage_unavailable", "output_integrity_failed" -> HttpStatus.SERVICE_UNAVAILABLE;
-            case "output_transfer_busy", "output_quota_exceeded" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "output_transfer_busy", "output_quota_exceeded", "observation_limit" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "observation_conflict", "observation_start_missing" -> HttpStatus.CONFLICT;
             case "output_already_published", "output_not_available", "output_upload_expired" -> HttpStatus.CONFLICT;
             case "resource_unavailable" -> HttpStatus.NOT_FOUND;
             case "queue_full", "sandbox_quota_full", "stream_limit", "credential_limit" -> HttpStatus.TOO_MANY_REQUESTS;

@@ -230,6 +230,17 @@ class ControlPlaneClient:
         )
         return result["accepted"] is True
 
+    async def observation(self, lease: AttemptLease, phase: str, step: dict) -> None:
+        body = {"lease": lease.body(), "phase": phase, "step": step}
+        for attempt in range(3):
+            try:
+                await self.request(f"/internal/platform/worker/runs/{lease.run.run_id}/observations", body, limit=16384)
+                return
+            except ControlPlaneError as error:
+                if attempt == 2 or error.code not in {"CONTROL_UNAVAILABLE", "CONTROL_HTTP_503"}:
+                    raise
+                await asyncio.sleep(0.2 * (attempt + 1))
+
     async def retry_later(self, delivery: Delivery) -> bool:
         result = await self.request(
             f"/internal/platform/dispatch/{delivery.id}/retry",

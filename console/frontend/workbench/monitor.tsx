@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ApiScope } from './api';
 import { dateText, ErrorBox, Icon, Status, useResource } from './components';
+import { ObservationStatistics } from './observation-statistics';
 
 type Statistics = {
   window: string;
@@ -70,6 +71,7 @@ export function MonitorPage({
   const totals = data?.totals;
   return (
     <div className="monitor-page">
+      <ObservationStatistics key={`${api.tenant}-${api.environment}`} api={api} />
       <div className="panel-heading">
         <div>
           <h2>任务运行概况</h2>

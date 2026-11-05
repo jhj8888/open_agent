@@ -1,0 +1,178 @@
+{
+  "previous_runs": [
+    "90084a43-210f-41e2-8c16-2e29586a5d84"
+  ],
+  "run_id": "d33a2abc-ae0b-43e5-b7dd-5670d9ee825e",
+  "verified_at": "2026-11-05T00:48:07.180737+00:00",
+  "steps": 87,
+  "totals": {
+    "steps": 87,
+    "modelCalls": 9,
+    "toolCalls": 8,
+    "unknownModelCalls": 0,
+    "inputTokens": 35207,
+    "outputTokens": 1537
+  },
+  "kinds": [
+    "agent",
+    "artifact",
+    "chain",
+    "model",
+    "skill",
+    "tool"
+  ],
+  "all_steps_finished": true,
+  "failed_steps": 0,
+  "parent_links_verified": true,
+  "token_sum_matches_task": true,
+  "file_tool_links_verified": true,
+  "output_files": 2,
+  "two_tenant_denials": 2,
+  "periods": {
+    "this_week": {
+      "start": "2026-11-01T16:00:00Z",
+      "end": "2026-11-08T16:00:00Z",
+      "asOf": "2026-11-05T00:48:06.736972451Z",
+      "tasks": {
+        "tasks": 24,
+        "finishedTasks": 24,
+        "succeededTasks": 14,
+        "failedTasks": 7,
+        "cancelledTasks": 3,
+        "timedOutTasks": 0,
+        "meanTaskMs": 33828.41666667,
+        "p95TaskMs": 127815.0
+      },
+      "usage": {
+        "modelCalls": 9,
+        "unknownModelCalls": 0,
+        "inputTokens": 35207,
+        "outputTokens": 1537,
+        "cacheReadTokens": 31616,
+        "cacheWriteTokens": null,
+        "meanModelMs": 1477.6667,
+        "failedModelCalls": 0,
+        "p95ModelMs": 2459.0,
+        "incompleteModelCalls": 0
+      }
+    },
+    "last_week": {
+      "start": "2026-10-25T16:00:00Z",
+      "end": "2026-11-01T16:00:00Z",
+      "asOf": "2026-11-01T16:00:00Z",
+      "tasks": {
+        "tasks": 0,
+        "finishedTasks": 0,
+        "succeededTasks": 0,
+        "failedTasks": 0,
+        "cancelledTasks": 0,
+        "timedOutTasks": 0,
+        "meanTaskMs": null,
+        "p95TaskMs": null
+      },
+      "usage": {
+        "modelCalls": 0,
+        "unknownModelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": null,
+        "cacheWriteTokens": null,
+        "meanModelMs": null,
+        "failedModelCalls": 0,
+        "p95ModelMs": null,
+        "incompleteModelCalls": 0
+      }
+    },
+    "this_month": {
+      "start": "2026-10-31T16:00:00Z",
+      "end": "2026-11-30T16:00:00Z",
+      "asOf": "2026-11-05T00:48:06.810492921Z",
+      "tasks": {
+        "tasks": 24,
+        "finishedTasks": 24,
+        "succeededTasks": 14,
+        "failedTasks": 7,
+        "cancelledTasks": 3,
+        "timedOutTasks": 0,
+        "meanTaskMs": 33828.41666667,
+        "p95TaskMs": 127815.0
+      },
+      "usage": {
+        "modelCalls": 9,
+        "unknownModelCalls": 0,
+        "inputTokens": 35207,
+        "outputTokens": 1537,
+        "cacheReadTokens": 31616,
+        "cacheWriteTokens": null,
+        "meanModelMs": 1477.6667,
+        "failedModelCalls": 0,
+        "p95ModelMs": 2459.0,
+        "incompleteModelCalls": 0
+      }
+    },
+    "last_month": {
+      "start": "2026-09-30T16:00:00Z",
+      "end": "2026-10-31T16:00:00Z",
+      "asOf": "2026-10-31T16:00:00Z",
+      "tasks": {
+        "tasks": 0,
+        "finishedTasks": 0,
+        "succeededTasks": 0,
+        "failedTasks": 0,
+        "cancelledTasks": 0,
+        "timedOutTasks": 0,
+        "meanTaskMs": null,
+        "p95TaskMs": null
+      },
+      "usage": {
+        "modelCalls": 0,
+        "unknownModelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": null,
+        "cacheWriteTokens": null,
+        "meanModelMs": null,
+        "failedModelCalls": 0,
+        "p95ModelMs": null,
+        "incompleteModelCalls": 0
+      }
+    }
+  },
+  "external_observation_backend": "not_yet_connected",
+  "validation": {
+    "java_checks": 9,
+    "python_checks": 34,
+    "openspec_changes": 11,
+    "workbench_build": true,
+    "browser_steps_visible": true,
+    "browser_weekly_report_visible": true,
+    "browser_csv_rows": 7,
+    "browser_csv_sha256": "b5db0f3b3a656e022aab5cbedeca19c7f3ef627b82085ce63ec0bee1a0798716"
+  },
+  "deployment": {
+    "api_sha256": "fc5a14dca7bc0accd3ab7dbcb04824ef1325e4375d2baee0c32d69704fc55070",
+    "worker_sha256": "b84d1216845ca91e2d0c262abbb2e42f1766f4ac80cce526db0b271f3dc22734",
+    "console_sha256": "e305540b50eed2f3e9eaad7a1c306293f5e4bccf25cf97be7d7e7cd69c18e089"
+  },
+  "public_https": {
+    "checked_at": "2026-11-05T00:56:45.531250+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "e305540b50eed2f3e9eaad7a1c306293f5e4bccf25cf97be7d7e7cd69c18e089",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 14,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  }
+}

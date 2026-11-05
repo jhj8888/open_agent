@@ -2,7 +2,9 @@
 
 ## 2026-11-05 当前状态
 
-新增任务产物持久化已部署：逐工具归档 StateBackend/沙盒交付文件、任务详情列表、文本预览与受权下载。真实成功/取消/失败任务及 2 MiB 浏览器下载已验证；物理沙盒回收和 API 重启后摘要保持一致。当前边界及证据见 [任务产物](task-outputs.md) 与 [验收记录](task-output-verification-20261105.json)。Agentic Observability 的选型与 OpenSpec 已提交，逐步 Token/耗时、工具执行树、自然周/月统计仍在推进。
+逐步观测第一阶段已部署：真实 Skill 任务 87 步、9 次模型、8 次工具，逐步 Token 与任务总量相符；自然周/月、每日趋势、P95 与 CSV 导出已接入。新需求「增量输入、think、工具结果、输出正文」继续实现。私有观测后端/exporter 尚未接通，不能将当前步骤投影当作完整 OSS 观测部署。见 [逐步观测说明](agent-execution-observations.md)。
+
+新增任务产物持久化已部署：逐工具归档 StateBackend/沙盒交付文件、任务详情列表、文本预览与受权下载。真实成功/取消/失败任务及 2 MiB 浏览器下载已验证；物理沙盒回收和 API 重启后摘要保持一致。当前边界及证据见 [任务产物](task-outputs.md) 与 [验收记录](task-output-verification-20261105.json)。
 
 真实工作台已部署到 HTTPS 展示入口，保留用户认可的设计。标准登录、页面创建 Agent、真实 DeepSeek + DeepAgents + Skill 脚本执行、持久事件/用量、独立沙盒回收及未授权环境切换已验证。详见 [真实工作台与证据](live-console.md)。下文按日期保留早期增量及当时限制，不能将早期“尚未部署”当作当前状态。
 

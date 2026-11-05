@@ -9,6 +9,21 @@ from agent.durable.contracts import RunRef
 from agent.durable.control import ControlPlaneClient, ControlPlaneError, AttemptLease
 
 
+@pytest.mark.asyncio
+async def test_observation_transport_retries_identical_body_and_does_not_replay_execution():
+    requests=[]
+    def respond(request):
+        requests.append(request.content)
+        return httpx.Response(503 if len(requests)<3 else 200,json={"accepted":True})
+    client=ControlPlaneClient("https://control.internal","worker","k"*32,transport=httpx.MockTransport(respond))
+    lease=AttemptLease(RunRef("tenant","test",str(uuid4())),1,str(uuid4()),1)
+    try:
+        await client.observation(lease,"finish",{"stepId":"call-1","inputTokens":12})
+        assert len(requests)==3 and len(set(requests))==1
+    finally:
+        await client.aclose()
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [

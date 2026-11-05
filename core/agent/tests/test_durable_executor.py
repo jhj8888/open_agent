@@ -34,6 +34,7 @@ def execution(monkeypatch):
         heartbeat=AsyncMock(return_value=True),
         append=AsyncMock(),
         output=AsyncMock(),
+        observation=AsyncMock(),
     )
     return lease, control, Span(app_id="executor-test"), SimpleNamespace(trace=[])
 
@@ -67,6 +68,25 @@ def policy(endpoint):
     return EndpointPolicy(
         frozenset({parse_endpoint(endpoint)[1]}), (), allow_loopback_for_tests=True
     )
+
+
+@pytest.mark.asyncio
+async def test_skill_uuid_is_serialized_before_official_release_lookup(execution, monkeypatch):
+    lease, control, span, trace = execution
+    value=bundle("http://127.0.0.1:12345/v1").model_dump(mode="json")
+    release=str(uuid4())
+    value["skills"]=[{"releaseId":release,"manifestSha256":"a"*64}]
+    lookup=AsyncMock(side_effect=RuntimeError("synthetic lookup stop"))
+    monkeypatch.setattr("agent.durable.executor.load_release",lookup)
+    async def serializable(lease, phase, step):
+        json.dumps({"phase":phase,"step":step})
+    control.observation.side_effect=serializable
+    with pytest.raises(RuntimeError,match="synthetic lookup stop"):
+        await RuntimeExecutor(control,policy=policy(value["model"]["endpoint"]),sandbox_factory=lambda *_:None).execute(
+            lease,RuntimeBundle.model_validate(value),span,trace)
+    lookup.assert_awaited_once()
+    skill=[call.args[2] for call in control.observation.await_args_list if call.args[1]=="start" and call.args[2]["kind"]=="skill"]
+    assert skill[0]["summary"]["releaseId"]==release
 
 
 def completion():
@@ -120,6 +140,11 @@ async def test_actual_engine_streams_events_and_usage_through_approved_fenced_tr
         )
     assert result == {"prompt_tokens": 22, "completion_tokens": 10, "total_tokens": 32}
     assert len(requests) == 2 and requests[0]["stream"] is True
+    model_steps = [call.args[2] for call in control.observation.await_args_list if call.args[1] == "finish" and call.args[2]["kind"] == "model"]
+    assert len(model_steps) == 2
+    assert sum(row["inputTokens"] for row in model_steps) == 22
+    assert sum(row["outputTokens"] for row in model_steps) == 10
+    assert len({row["stepId"] for row in model_steps}) == 2
     names={tool["function"]["name"] for tool in requests[0]["tools"]}
     assert "write_file" in names and "execute" not in names and "task" not in names
     assert not requests[1].get("tools")

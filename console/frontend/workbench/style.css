@@ -524,3 +524,21 @@
 .output-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .output-preview { margin-top: 16px; border: 1px solid #dce8e0; border-radius: 8px; padding: 12px; background: white; }
 .output-preview pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+/* Agent step projection uses the same scoped API and restrained workbench palette. */
+.observation-summary { display:flex; flex-wrap:wrap; gap:8px 20px; padding:12px 0; color:#35624b; font-size:13px; }
+.step-timeline { margin:12px 0; max-height:440px; overflow:auto; }
+.step-row { border-bottom:1px solid #e8eeea; padding:10px 2px; }
+.step-row > summary { display:flex; align-items:flex-start; gap:10px; cursor:pointer; list-style:none; }
+.step-dot { width:8px; height:8px; border-radius:50%; background:#67a887; margin-top:6px; flex-shrink:0; }
+.step-dot.failed { background:#cd6868; }.step-dot.interrupted { background:#c49b4d; }.step-dot.running { background:#5a93b8; }
+.step-title { display:grid; gap:5px; min-width:0; flex:1; font-size:13px; }
+.step-title b { overflow-wrap:anywhere; font-weight:500; }.step-title small { color:#77817a; }
+.step-track { display:block; height:4px; background:#f0f4f1; border-radius:3px; overflow:hidden; }
+.step-track > span { display:block; height:100%; background:#8ebfa5; border-radius:3px; }
+.step-detail { display:grid; gap:5px; font-size:12px; color:#64776b; padding:12px 0 2px 18px; overflow-wrap:anywhere; }
+.period-details { margin-top:16px; color:#4c6557; font-size:13px; }
+.period-details > summary { cursor:pointer; padding:8px 0; }
+.period-table { overflow:auto; max-height:280px; }
+.period-table table { width:100%; border-collapse:collapse; }
+.period-table th,.period-table td { text-align:left; padding:10px 12px; border-bottom:1px solid #edf1ee; white-space:nowrap; }
+.period-table th { background:#f5f8f6; position:sticky; top:0; font-weight:500; }

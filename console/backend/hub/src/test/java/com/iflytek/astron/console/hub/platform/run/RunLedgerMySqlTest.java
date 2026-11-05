@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -69,6 +69,86 @@ class RunLedgerMySqlTest {
         return new DriverManagerDataSource(url, System.getenv("OA_RUN_TEST_DB_USER"), System.getenv("OA_RUN_TEST_DB_PASSWORD"));
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
+    private TaskObservationService observations() {
+        return new TaskObservationService(ledger,jdbc,new ObjectMapper().findAndRegisterModules(),authorization(),deployments(),new DataSourceTransactionManager(source));
+    }
+    @Test void observationPeriodsCountAllRowsByCallEndAcrossTaskAndCalendarBoundaries() {
+        actors();String run=submit("period-source").runId();
+        for(int i=0;i<64;i++)jdbc.update("""
+                INSERT INTO oa_agent_run(tenant_id,environment,run_id,deployment_id,actor_id,idempotency_key,
+                  request_sha256,input_json,snapshot_json,snapshot_sha256,trace_id,deadline_at,retain_until)
+                SELECT tenant_id,environment,?,deployment_id,actor_id,?,request_sha256,input_json,snapshot_json,
+                  snapshot_sha256,?,deadline_at,retain_until FROM oa_agent_run WHERE run_id=?
+                """,UUID.randomUUID().toString(),"period-"+i,UUID.randomUUID().toString(),run);
+        jdbc.update("UPDATE oa_agent_run SET state='succeeded',created_at='2026-11-01 16:00:00',started_at='2026-11-01 16:00:01',finished_at='2026-11-01 16:00:04'");
+        jdbc.update("UPDATE oa_agent_run SET created_at='2026-10-01 00:00:00' WHERE run_id=?",run);
+        for(int i=0;i<65;i++)jdbc.update("""
+                INSERT INTO oa_run_step(tenant_id,environment,run_id,attempt_no,step_id,kind,name,started_at,ended_at,duration_ms,status,usage_source,input_tokens,output_tokens,cache_read_tokens,start_json,finish_json,start_hash,finish_hash)
+                VALUES(?,'test',?,1,?,'model','fixture-model','2026-11-01 15:59:59','2026-11-01 16:00:00',1000,'succeeded','provider',10,2,5,'{}','{}',?,?)
+                """,A,run,"call-"+i,RunJson.hash("start"),RunJson.hash("finish"));
+        jdbc.update("UPDATE oa_run_step SET ended_at='2026-11-01 15:59:59.999' WHERE step_id='call-0'");
+        jdbc.update("UPDATE oa_run_step SET usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL WHERE step_id='call-1'");
+        jdbc.update("UPDATE oa_run_step SET ended_at=NULL,finish_json=NULL,finish_hash=NULL,duration_ms=NULL,status='running',usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL WHERE step_id='call-2'");
+        var clock=java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T02:00:00Z"),java.time.ZoneOffset.UTC);
+        var stats=new com.iflytek.astron.console.hub.platform.AgentPeriodStatistics(jdbc,access(),clock);
+        var result=stats.snapshot(A,"test","this_week");var tasks=(Map<?,?>)result.get("tasks");var usage=(Map<?,?>)result.get("usage");
+        assertEquals(64,((Number)tasks.get("tasks")).intValue());
+        assertEquals(3000,((Number)tasks.get("p95TaskMs")).intValue());
+        assertEquals(63,((Number)usage.get("modelCalls")).intValue());
+        assertEquals(1,((Number)usage.get("unknownModelCalls")).intValue());
+        assertEquals(620,((Number)usage.get("inputTokens")).intValue());
+        assertEquals(124,((Number)usage.get("outputTokens")).intValue());
+        assertEquals(310,((Number)usage.get("cacheReadTokens")).intValue());
+        assertEquals(1000,((Number)usage.get("p95ModelMs")).intValue());
+        assertEquals(7,((List<?>)result.get("daily")).size());
+        assertEquals(1,((Number)((Map<?,?>)stats.snapshot(A,"test","last_week").get("usage")).get("modelCalls")).intValue());
+        assertEquals(1,((Number)((Map<?,?>)stats.snapshot(A,"test","last_month").get("tasks")).get("tasks")).intValue());
+        assertEquals(0,((Number)((Map<?,?>)stats.snapshot(A,"prod","this_week").get("usage")).get("modelCalls")).intValue());
+        user("alice");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->stats.snapshot(B,"test","this_week"));
+        user("bob");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->stats.snapshot(A,"prod","this_week"));
+        user("viewer");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->stats.snapshot(A,"test","this_week"));
+    }
+    private TaskObservationService.Step observation(String id,String kind,java.time.Instant start,boolean done) {
+        return new TaskObservationService.Step(id,null,kind,"contract_step",start,done?start.plusMillis(5):null,done?5L:null,done?"succeeded":"running",
+                kind.equals("model")?(done?"provider":"unknown"):"not_applicable",kind.equals("model")&&done?12L:null,kind.equals("model")&&done?3L:null,
+                kind.equals("model")&&done?7L:null,null,json.createObjectNode().put("input","synthetic metadata"));
+    }
+    @Test void observationsDeduplicateConcurrentDeliveryAndCountOnlyModelLeaves() throws Exception {
+        actors();var service=observations();var lease=claim(submit("observations").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        var open=observation("call-1","model",start,false);var closed=observation("call-1","model",start,true);
+        concurrent(List.of(()->service.record(lease,"start",open),()->service.record(lease,"start",open)));
+        concurrent(List.of(()->service.record(lease,"finish",closed),()->service.record(lease,"finish",closed)));
+        service.record(lease,"start",open);
+        service.record(lease,"start",observation("tool-1","tool",start,false));
+        service.record(lease,"finish",observation("tool-1","tool",start,true));
+        var page=service.list(caller("alice"),lease.runId(),0,1);
+        assertEquals(true,page.get("hasMore"));assertEquals(1,((List<?>)page.get("items")).size());
+        var next=service.list(caller("alice"),lease.runId(),((Number)page.get("next")).longValue(),1);
+        assertEquals(false,next.get("hasMore"));assertEquals(1,((List<?>)next.get("items")).size());
+        var totals=(Map<?,?>)page.get("totals");assertEquals(12L,((Number)totals.get("inputTokens")).longValue());
+        assertEquals(3L,((Number)totals.get("outputTokens")).longValue());assertEquals(1L,((Number)totals.get("modelCalls")).longValue());
+        code("observation_conflict",()->service.record(lease,"start",observation("call-1","tool",start,false)));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_step WHERE export_state='pending'",Integer.class));
+    }
+    @Test void observationsFenceNewStartsButRetainCancellationAndCurrentPermissions() {
+        actors();var service=observations();var lease=claim(submit("observation-cancel").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        service.record(lease,"start",observation("model-1","model",start,false));
+        service.record(lease,"start",observation("interrupted","model",start,false));
+        ledger.cancel(scope,lease.runId(),"alice",()->{});
+        service.record(lease,"finish",observation("model-1","model",start,true));
+        code("lease_fenced",()->service.record(lease,"start",observation("new-call","model",start,false)));
+        var forged=new RunLedger.Lease(lease.scope(),lease.runId(),lease.attempt(),lease.leaseId(),lease.fencingToken()+1,lease.workerId());
+        code("lease_fenced",()->service.record(forged,"finish",observation("model-1","model",start,true)));
+        ledger.finish(lease,RunState.FAILED,"execution_failed");ledger.resourcesReleased(lease);
+        var page=service.list(caller("alice"),lease.runId(),0,100);
+        var items=(List<Map<String,Object>>)page.get("items");assertEquals("interrupted",items.get(1).get("status"));
+        assertNull(items.get(1).get("input_tokens"));
+        code("action_forbidden",()->service.list(caller("viewer"),lease.runId(),0,100));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        code("resource_unavailable",()->service.list(caller("alice"),lease.runId(),0,100));
+    }
     private static class OutputStore implements TaskOutputStore {
         final Map<String,byte[]> objects=new java.util.concurrent.ConcurrentHashMap<>();
         boolean fail;

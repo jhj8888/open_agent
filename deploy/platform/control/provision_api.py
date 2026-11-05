@@ -17,7 +17,7 @@ import urllib.request
 from provision_data import ROOT, LABEL, OWNER, command, container_address, ensure_container, initialize, private_file, installation_lock, reconcile_firewalld
 
 JRE = 'm.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269'
-ARTIFACT_SHA256 = '02f58e74595e953b65a37d786240c60e304e30a6106e93acd414826e6d695bea'
+ARTIFACT_SHA256 = 'fc5a14dca7bc0accd3ab7dbcb04824ef1325e4375d2baee0c32d69704fc55070'
 API_NETWORK = 'open-agent-control-api'
 
 
@@ -82,7 +82,7 @@ def main():
         admission = True
     environment = {
         'PLATFORM_BIND_ADDRESS': '0.0.0.0', 'PLATFORM_PORT': '18082',
-        'PLATFORM_JDBC_URL': 'jdbc:mysql://open-agent-control-mysql:3306/' + storage['database'] + '?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false',
+        'PLATFORM_JDBC_URL': 'jdbc:mysql://open-agent-control-mysql:3306/' + storage['database'] + '?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false',
         'PLATFORM_DB_USER': 'open_agent', 'PLATFORM_DB_PASSWORD': values['platform_db'],
         'PLATFORM_OIDC_ISSUER': identity['issuer'], 'PLATFORM_OIDC_JWKS': identity.get('internal_jwks', identity['issuer'] + '/.well-known/jwks'),
         'PLATFORM_OIDC_AUDIENCE': identity['client_id'],
