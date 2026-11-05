@@ -16,6 +16,8 @@
 
 ## Migration / Verification
 
+缓存展示增量不修改模型请求或历史记录：官方 ChatDeepSeek 已将 `prompt_cache_hit_tokens` 映射到 `usage_metadata.input_token_details.cache_read`，现有回调和步骤表已保存该字段。调用链为步骤表 → TaskObservationService 的整任务聚合 / AgentPeriodStatistics 的自然周期与每日 SQL → 工作台步骤摘要、总计和 CSV。新增量仅在当前调用具有有效缓存计量时按 input-cache_read 计算，聚合对同一已知子集求和并统计未知调用数，不能把未知缓存按零处理或用全部输入减部分缓存。未结束步骤仅进入任务当前未知计数，周期统计仍按已结束调用口径。共享模型、授权、任务总用量、产物及采集协议保持原路径；无需数据库迁移。
+
 ### 独立观测后端与投递边界
 
 选定 MLflow 3.18.0（官方仓库约 28.7K stars，Apache-2.0），使用官方 OTel Python SDK 1.45.1 的 OTLP/HTTP 导出。共享演示机仅 4 CPU / 7.3 GiB，当前不部署 Langfuse 推荐的完整多服务拓扑。MLflow 独立环境与存储，仅内网运维访问；不把其用户、项目过滤替代平台租户授权。部署前实测资源与禁止外联启动；未通过不标记完成。

@@ -1,0 +1,136 @@
+{
+  "date": "2026-11-05",
+  "feature": "input cache hit and uncached token breakdown",
+  "demo_url": "https://120.26.81.83/open-agent/",
+  "api": {
+    "path": "console\\backend\\hub\\target\\hub-server.jar",
+    "bytes": 193447152,
+    "sha256": "9dec5ca09f990481750728a4574f39850f7a962a382e919d18ff08942040b009",
+    "start_class": "com.iflytek.astron.platform.PlatformApplication",
+    "migration": "1.64"
+  },
+  "schema_changed": false,
+  "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+  "api_upgrade_seconds": 41.261,
+  "verification": {
+    "mysql_observation_tests": 7,
+    "spring_context_tests": 5,
+    "frontend_token_tests": 3,
+    "java_package": "passed",
+    "frontend_typecheck_and_build": "passed",
+    "first_run_note": "Six database checks and five Spring checks passed; the new test fixture lacked Java time registration. Corrected to use the existing configured mapper pattern, then its isolated MySQL retest passed. No production-code change was required.",
+    "isolated_mysql_version": "8.4.13",
+    "public_https": {
+      "checked_at": "2026-11-05T11:43:04.875824+00:00",
+      "origin": "https://120.26.81.83",
+      "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+      "asset_digests_verified": 3,
+      "trusted_tls": true,
+      "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+      "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+      "issuer": "https://120.26.81.83/identity",
+      "pkce_s256": true,
+      "unauthenticated_rejected": true,
+      "forged_headers_rejected": true,
+      "internal_route_denied": true,
+      "authenticated_public_api": true,
+      "list_detail_usage_matches": 21,
+      "static_csp": true,
+      "profile_verified_subject_only": true,
+      "profile_idempotent": true,
+      "profile_does_not_change_tenants": true,
+      "browser_verification": "separate manual browser evidence required"
+    },
+    "retained_task_and_periods": {
+      "checked_at": "2026-11-05T11:41:47.032166+00:00",
+      "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+      "steps": 58,
+      "pages_verified": 20,
+      "model_calls": 6,
+      "task": {
+        "cacheReadTokens": 15232,
+        "uncachedInputTokens": 6042,
+        "cacheReportedModelCalls": 6,
+        "unknownCacheModelCalls": 0
+      },
+      "periods": {
+        "this_week": {
+          "modelCalls": 49,
+          "inputTokens": 167806,
+          "cacheReadTokens": 142080,
+          "uncachedInputTokens": 25726,
+          "cacheReportedModelCalls": 49,
+          "unknownCacheModelCalls": 0
+        },
+        "last_week": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "cacheReadTokens": null,
+          "uncachedInputTokens": null,
+          "cacheReportedModelCalls": 0,
+          "unknownCacheModelCalls": 0
+        },
+        "this_month": {
+          "modelCalls": 49,
+          "inputTokens": 167806,
+          "cacheReadTokens": 142080,
+          "uncachedInputTokens": 25726,
+          "cacheReportedModelCalls": 49,
+          "unknownCacheModelCalls": 0
+        },
+        "last_month": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "cacheReadTokens": null,
+          "uncachedInputTokens": null,
+          "cacheReportedModelCalls": 0,
+          "unknownCacheModelCalls": 0
+        }
+      },
+      "task_total_unchanged": true,
+      "other_tenant_denied": true,
+      "model_or_tool_replayed": false,
+      "examples": [
+        {
+          "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+          "input": 3355,
+          "cached": 0,
+          "new": 3355,
+          "output": 66
+        },
+        {
+          "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+          "input": 3609,
+          "cached": 3328,
+          "new": 281,
+          "output": 233
+        },
+        {
+          "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+          "input": 3865,
+          "cached": 3712,
+          "new": 153,
+          "output": 246
+        }
+      ]
+    },
+    "browser": {
+      "task_run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+      "model_step_summary": true,
+      "task_cache_totals": true,
+      "zero_cache_is_zero": true,
+      "weekly_totals_and_daily_columns": true,
+      "screenshot_sha256": "9b1e28b231d1722d3ed79493343f6d68000f93c106df42ec4287643166d9c938",
+      "csv_download_file_verified": false,
+      "csv_download_note": "Browser download event timed out; implementation is included in the built and published archive. Actual file content was not verified in this run."
+    }
+  },
+  "scope": {
+    "changed": "task and period read projections, workbench step summaries and CSV",
+    "provider_and_worker_changes": false,
+    "replayed_model_or_tool": false,
+    "dependencies_added": false,
+    "unknown_cache": "null and explicit unknown count; never substitute zero or subtract partial cache from all input",
+    "input_total": "unchanged; reported cache is a subset of input"
+  }
+}

@@ -54,6 +54,9 @@ public class AgentPeriodStatistics {
                 SELECT COUNT(*) AS modelCalls,COUNT(CASE WHEN usage_source='unknown' THEN 1 END) AS unknownModelCalls,
                   COALESCE(SUM(input_tokens),0) AS inputTokens,COALESCE(SUM(output_tokens),0) AS outputTokens,
                   SUM(cache_read_tokens) AS cacheReadTokens,SUM(cache_write_tokens) AS cacheWriteTokens,
+                  SUM(input_tokens-cache_read_tokens) AS uncachedInputTokens,
+                  COUNT(CASE WHEN cache_read_tokens IS NOT NULL THEN 1 END) AS cacheReportedModelCalls,
+                  COUNT(CASE WHEN cache_read_tokens IS NULL THEN 1 END) AS unknownCacheModelCalls,
                   AVG(duration_ms) AS meanModelMs,COUNT(CASE WHEN status<>'succeeded' THEN 1 END) AS failedModelCalls
                 """+steps+" AND kind='model'",args);
         usage.put("p95ModelMs",percentile("duration_ms",steps+" AND kind='model' AND duration_ms IS NOT NULL",args));
@@ -62,6 +65,8 @@ public class AgentPeriodStatistics {
         for(LocalDate day=period.start().atZone(ZONE).toLocalDate();day.isBefore(period.end().atZone(ZONE).toLocalDate());day=day.plusDays(1)) {
             var row=new LinkedHashMap<String,Object>();row.put("date",day.toString());
             for(String key:List.of("tasks","modelCalls","unknownModelCalls","inputTokens","outputTokens"))row.put(key,0L);
+            row.put("cacheReadTokens",null);row.put("uncachedInputTokens",null);
+            row.put("cacheReportedModelCalls",0L);row.put("unknownCacheModelCalls",0L);
             days.put(day.toString(),row);
         }
         for(var row:jdbc.queryForList("SELECT DATE_FORMAT(TIMESTAMPADD(HOUR,8,created_at),'%Y-%m-%d') AS day,COUNT(*) AS tasks"+tasks+" GROUP BY day",args))
@@ -69,7 +74,10 @@ public class AgentPeriodStatistics {
         for(var row:jdbc.queryForList("""
                 SELECT DATE_FORMAT(TIMESTAMPADD(HOUR,8,ended_at),'%Y-%m-%d') AS day,COUNT(*) AS modelCalls,
                   COUNT(CASE WHEN usage_source='unknown' THEN 1 END) AS unknownModelCalls,
-                  COALESCE(SUM(input_tokens),0) AS inputTokens,COALESCE(SUM(output_tokens),0) AS outputTokens
+                  COALESCE(SUM(input_tokens),0) AS inputTokens,COALESCE(SUM(output_tokens),0) AS outputTokens,
+                  SUM(cache_read_tokens) AS cacheReadTokens,SUM(input_tokens-cache_read_tokens) AS uncachedInputTokens,
+                  COUNT(CASE WHEN cache_read_tokens IS NOT NULL THEN 1 END) AS cacheReportedModelCalls,
+                  COUNT(CASE WHEN cache_read_tokens IS NULL THEN 1 END) AS unknownCacheModelCalls
                 """+steps+" AND kind='model' GROUP BY day",args)) {
             var target=days.get(row.remove("day").toString());target.putAll(row);
         }

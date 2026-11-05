@@ -67,6 +67,7 @@ jobs:
       - run: npm run type-check
       - run: npm run build
       - run: npm run test:workbench-session
+      - run: npm run test:workbench-tokens
       - run: npm run build:workbench
   monitoring-rules:
     runs-on: ubuntu-24.04

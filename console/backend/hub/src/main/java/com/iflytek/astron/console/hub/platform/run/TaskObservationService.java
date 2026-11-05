@@ -167,7 +167,11 @@ public class TaskObservationService {
                       COUNT(CASE WHEN kind='tool' THEN 1 END) AS toolCalls,
                       COUNT(CASE WHEN kind='model' AND usage_source='unknown' THEN 1 END) AS unknownModelCalls,
                       COALESCE(SUM(CASE WHEN kind='model' THEN input_tokens END),0) AS inputTokens,
-                      COALESCE(SUM(CASE WHEN kind='model' THEN output_tokens END),0) AS outputTokens
+                      COALESCE(SUM(CASE WHEN kind='model' THEN output_tokens END),0) AS outputTokens,
+                      SUM(CASE WHEN kind='model' THEN cache_read_tokens END) AS cacheReadTokens,
+                      SUM(CASE WHEN kind='model' THEN input_tokens-cache_read_tokens END) AS uncachedInputTokens,
+                      COUNT(CASE WHEN kind='model' AND cache_read_tokens IS NOT NULL THEN 1 END) AS cacheReportedModelCalls,
+                      COUNT(CASE WHEN kind='model' AND cache_read_tokens IS NULL THEN 1 END) AS unknownCacheModelCalls
                     FROM oa_run_step WHERE run_id=?
                     """,runId);
             return Map.of("items",rows,"hasMore",more,"next",rows.isEmpty()?after:rows.getLast().get("id"),"totals",totals);

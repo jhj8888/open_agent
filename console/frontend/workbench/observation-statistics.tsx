@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiScope } from './api';
 import { ErrorBox, dateText, useResource } from './components';
+import { cacheSummaryText } from './tokens';
 
 type Daily = {
   date: string;
@@ -9,6 +10,9 @@ type Daily = {
   unknownModelCalls: number;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens?: number | null;
+  uncachedInputTokens?: number | null;
+  unknownCacheModelCalls?: number;
 };
 type Report = {
   period: string;
@@ -34,6 +38,8 @@ type Report = {
     outputTokens: number;
     cacheReadTokens: number | null;
     cacheWriteTokens: number | null;
+    uncachedInputTokens?: number | null;
+    unknownCacheModelCalls?: number;
     meanModelMs: number | null;
     p95ModelMs: number | null;
   };
@@ -69,6 +75,9 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
       '未知用量调用数',
       '输入Token',
       '输出Token',
+      '已报告缓存命中Token',
+      '已报告新增Token',
+      '缓存明细未知调用数',
       '时区',
       '统计截止',
     ];
@@ -79,6 +88,9 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
       row.unknownModelCalls,
       row.inputTokens,
       row.outputTokens,
+      row.cacheReadTokens ?? '',
+      row.uncachedInputTokens ?? '',
+      row.unknownCacheModelCalls ?? '',
       data.timezone,
       data.asOf,
     ]);
@@ -174,9 +186,17 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
           </div>
           <p className="form-note">
             模型平均 {seconds(data.usage.meanModelMs)} · P95{' '}
-            {seconds(data.usage.p95ModelMs)} · 缓存读取{' '}
-            {amount(data.usage.cacheReadTokens)}{' '}
-            Token（已包含在输入中）。未知用量不计为零；未结束调用不计入已结束调用总量。
+            {seconds(data.usage.p95ModelMs)} ·{' '}
+            {cacheSummaryText(
+              data.usage.cacheReadTokens,
+              data.usage.uncachedInputTokens,
+              data.usage.unknownCacheModelCalls
+            )}
+            {data.usage.unknownCacheModelCalls != null &&
+              data.usage.unknownCacheModelCalls > 0 &&
+              ` · 缓存明细未知 ${data.usage.unknownCacheModelCalls} 次`}
+            。
+            新增指未命中缓存的输入；缓存与新增均包含在输入总量中。未知明细不计为零；未结束调用不计入已结束调用总量。
           </p>
           <details className="period-details" open>
             <summary>每日任务与用量</summary>
@@ -189,6 +209,9 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
                     <th>模型调用</th>
                     <th>输入 Token</th>
                     <th>输出 Token</th>
+                    <th>已报告缓存 Token</th>
+                    <th>已报告新增 Token</th>
+                    <th>缓存明细未知</th>
                     <th>未知用量</th>
                   </tr>
                 </thead>
@@ -200,6 +223,9 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
                       <td>{amount(row.modelCalls)}</td>
                       <td>{amount(row.inputTokens)}</td>
                       <td>{amount(row.outputTokens)}</td>
+                      <td>{amount(row.cacheReadTokens)}</td>
+                      <td>{amount(row.uncachedInputTokens)}</td>
+                      <td>{amount(row.unknownCacheModelCalls)}</td>
                       <td>{amount(row.unknownModelCalls)}</td>
                     </tr>
                   ))}

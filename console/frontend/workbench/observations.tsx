@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiScope, errorMessage } from './api';
 import { ErrorBox, dateText, terminal } from './components';
 import type { AgentRun } from './types';
+import { cacheSummaryText, inputTokensText } from './tokens';
 
 type ContentBlock = {
   text: string;
@@ -53,6 +54,9 @@ type Page = {
     unknownModelCalls: number;
     inputTokens: number;
     outputTokens: number;
+    cacheReadTokens?: number | null;
+    uncachedInputTokens?: number | null;
+    unknownCacheModelCalls?: number;
   };
 };
 const kinds: Record<string, string> = {
@@ -235,7 +239,8 @@ export function TaskObservations({
         <span>{page?.totals.steps ?? 0} 个步骤</span>
       </div>
       <p className="form-note">
-        模型用量逐次记录，缓存包含在输入 Token 中；纯工具直接用量为
+        模型用量逐次记录；输入总量 = 缓存命中 +
+        新增（未命中缓存），新增不等于本轮新增消息长度。纯工具直接用量为
         0，框架父步骤不重复计入。展开模型或工具步骤，可查看脱敏后的输入、实际
         think、工具结果与输出；较长内容会标明截断。
       </p>
@@ -253,6 +258,19 @@ export function TaskObservations({
               ).toLocaleString()}
             </span>
             <span>未知用量 {page.totals.unknownModelCalls} 次</span>
+            <span>
+              {cacheSummaryText(
+                page.totals.cacheReadTokens,
+                page.totals.uncachedInputTokens,
+                page.totals.unknownCacheModelCalls
+              )}
+            </span>
+            {page.totals.unknownCacheModelCalls != null &&
+              page.totals.unknownCacheModelCalls > 0 && (
+                <span>
+                  缓存明细未知 {page.totals.unknownCacheModelCalls} 次
+                </span>
+              )}
           </div>
           <div className="output-heading">
             <select
@@ -282,7 +300,7 @@ export function TaskObservations({
               const token =
                 row.kind === 'model'
                   ? row.usage_source === 'provider'
-                    ? `输入 ${row.input_tokens} / 输出 ${row.output_tokens}`
+                    ? `${inputTokensText(row.input_tokens, row.cache_read_tokens)} / 输出 ${row.output_tokens}`
                     : 'Token 未报告'
                   : row.usage_source === 'aggregate'
                     ? '父步骤不重复计量'
@@ -321,9 +339,13 @@ export function TaskObservations({
                       步骤 {row.step_id} · 尝试 {row.attempt_no}
                     </span>
                     <span>父步骤 {row.parent_step_id ?? '无'}</span>
-                    {row.cache_read_tokens != null && (
+                    {row.kind === 'model' && (
                       <span>
-                        缓存读取 {row.cache_read_tokens} Token（已含于输入）
+                        {inputTokensText(
+                          row.input_tokens,
+                          row.cache_read_tokens
+                        )}{' '}
+                        Token；缓存与新增均已包含在输入总量中。
                       </span>
                     )}
                     {row.cache_write_tokens != null && (

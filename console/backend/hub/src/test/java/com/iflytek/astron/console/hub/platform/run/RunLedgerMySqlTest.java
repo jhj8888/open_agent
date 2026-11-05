@@ -135,6 +135,9 @@ class RunLedgerMySqlTest {
                 """,A,run,"call-"+i,RunJson.hash("start"),RunJson.hash("finish"));
         jdbc.update("UPDATE oa_run_step SET ended_at='2026-11-01 15:59:59.999' WHERE step_id='call-0'");
         jdbc.update("UPDATE oa_run_step SET usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL WHERE step_id='call-1'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=NULL WHERE step_id='call-3'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=0 WHERE step_id='call-4'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=10 WHERE step_id='call-5'");
         jdbc.update("UPDATE oa_run_step SET ended_at=NULL,finish_json=NULL,finish_hash=NULL,duration_ms=NULL,status='running',usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL WHERE step_id='call-2'");
         var clock=java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T02:00:00Z"),java.time.ZoneOffset.UTC);
         var stats=new com.iflytek.astron.console.hub.platform.AgentPeriodStatistics(jdbc,access(),clock);
@@ -145,7 +148,15 @@ class RunLedgerMySqlTest {
         assertEquals(1,((Number)usage.get("unknownModelCalls")).intValue());
         assertEquals(620,((Number)usage.get("inputTokens")).intValue());
         assertEquals(124,((Number)usage.get("outputTokens")).intValue());
-        assertEquals(310,((Number)usage.get("cacheReadTokens")).intValue());
+        assertEquals(305,((Number)usage.get("cacheReadTokens")).intValue());
+        assertEquals(305,((Number)usage.get("uncachedInputTokens")).intValue());
+        assertEquals(61,((Number)usage.get("cacheReportedModelCalls")).intValue());
+        assertEquals(2,((Number)usage.get("unknownCacheModelCalls")).intValue());
+        var daily=(List<Map<String,Object>>)result.get("daily");
+        assertEquals(305,((Number)daily.getFirst().get("cacheReadTokens")).intValue());
+        assertEquals(305,((Number)daily.getFirst().get("uncachedInputTokens")).intValue());
+        assertEquals(2,((Number)daily.getFirst().get("unknownCacheModelCalls")).intValue());
+        assertNull(daily.getLast().get("cacheReadTokens"));
         assertEquals(1000,((Number)usage.get("p95ModelMs")).intValue());
         assertEquals(7,((List<?>)result.get("daily")).size());
         assertEquals(1,((Number)((Map<?,?>)stats.snapshot(A,"test","last_week").get("usage")).get("modelCalls")).intValue());
@@ -203,9 +214,34 @@ class RunLedgerMySqlTest {
         assertEquals(false,next.get("hasMore"));assertEquals(1,((List<?>)next.get("items")).size());
         var totals=(Map<?,?>)page.get("totals");assertEquals(12L,((Number)totals.get("inputTokens")).longValue());
         assertEquals(3L,((Number)totals.get("outputTokens")).longValue());assertEquals(1L,((Number)totals.get("modelCalls")).longValue());
+        assertEquals(7L,((Number)totals.get("cacheReadTokens")).longValue());
+        assertEquals(5L,((Number)totals.get("uncachedInputTokens")).longValue());
+        assertEquals(0L,((Number)totals.get("unknownCacheModelCalls")).longValue());
         code("observation_conflict",()->service.record(lease,"start",observation("call-1","tool",start,false)));
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_step WHERE export_state='pending'",Integer.class));
     }
+    @Test void observationCacheBreakdownPreservesUnknownAndDoesNotUseCurrentPage() throws Exception {
+        var json=this.json.copy().findAndRegisterModules();
+        actors();var service=observations();var lease=claim(submit("cache-breakdown").runId());
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        service.record(lease,"start",observation("pending","model",start,false));
+        var empty=(Map<?,?>)service.list(caller("alice"),lease.runId(),0,1).get("totals");
+        assertNull(empty.get("cacheReadTokens"));assertNull(empty.get("uncachedInputTokens"));
+        for(int i=0;i<4;i++) {
+            String id="cache-"+i;service.record(lease,"start",observation(id,"model",start,false));
+            var body=json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(observation(id,"model",start,true));
+            if(i==1)body.put("cacheReadTokens",0);else if(i==2)body.put("cacheReadTokens",12);else if(i==3)body.putNull("cacheReadTokens");
+            service.record(lease,"finish",json.treeToValue(body,TaskObservationService.Step.class));
+        }
+        var page=service.list(caller("alice"),lease.runId(),0,1);assertEquals(true,page.get("hasMore"));
+        var totals=(Map<?,?>)page.get("totals");
+        assertEquals(48,((Number)totals.get("inputTokens")).intValue());
+        assertEquals(19,((Number)totals.get("cacheReadTokens")).intValue());
+        assertEquals(17,((Number)totals.get("uncachedInputTokens")).intValue());
+        assertEquals(3,((Number)totals.get("cacheReportedModelCalls")).intValue());
+        assertEquals(2,((Number)totals.get("unknownCacheModelCalls")).intValue());
+    }
+
     @Test void observationsFenceNewStartsButRetainCancellationAndCurrentPermissions() {
         actors();var service=observations();var lease=claim(submit("observation-cancel").runId());
         var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
