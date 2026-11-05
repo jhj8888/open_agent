@@ -56,6 +56,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.63__record_unstarted_cluster_pods.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.64__scope_outbox_dispatch_by_environment.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.65__record_rejected_cluster_creations.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.66__bind_cluster_sandbox_resources.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -356,6 +357,12 @@ class RunLedgerMySqlTest {
     private static final String CLUSTER_OWNER = "cluster-1", NAMESPACE_UID = "a9388d6f-67c0-4d99-ae2c-75b6bb924154";
     private RunClusterSupervision cluster() { return cluster(BOOT); }
     private RunClusterSupervision cluster(String clusterId) {
+        return cluster(clusterId,false);
+    }
+    private static final RunClusterSupervision.SandboxTarget SANDBOX_TARGET = new RunClusterSupervision.SandboxTarget(
+            "sandboxes-test","c9388d6f-67c0-4d99-ae2c-75b6bb924154","kata-qemu");
+    private RunClusterSupervision kataCluster() { return cluster(BOOT,true); }
+    private RunClusterSupervision cluster(String clusterId,boolean sandbox) {
         var keys = Map.of("cluster-1",Map.of("role","reconciler","secret","s".repeat(32)),
                 "cluster-2",Map.of("role","reconciler","secret","t".repeat(32)),
                 "executor-1",Map.of("role","worker","secret","w".repeat(32)),
@@ -365,6 +372,7 @@ class RunLedgerMySqlTest {
         var config = new org.springframework.mock.env.MockEnvironment()
                 .withProperty("PLATFORM_SERVICE_KEYS",json.valueToTree(keys).toString())
                 .withProperty("PLATFORM_CLUSTER_RECONCILERS",json.valueToTree(targets).toString());
+        if (sandbox) config.withProperty("PLATFORM_CLUSTER_SANDBOXES",json.valueToTree(Map.of(CLUSTER_OWNER,SANDBOX_TARGET)).toString());
         return new RunClusterSupervision(instance(),journal(),new JdbcTemplate(source),new DataSourceTransactionManager(source),
                 new ObjectMapper().findAndRegisterModules(),config);
     }
@@ -391,6 +399,96 @@ class RunLedgerMySqlTest {
     private RunClusterSupervision.CreationRejection creationRejection(RunClusterSupervision.Snapshot value, int status, String reason) {
         return new RunClusterSupervision.CreationRejection(UUID.randomUUID().toString(),UUID.randomUUID().toString(),value.podName(),
                 value.target().namespaceUid(),status,reason,"a".repeat(64),"b".repeat(64));
+    }
+
+    private RunClusterSupervision.SandboxResource sandboxResource() {
+        return new RunClusterSupervision.SandboxResource(UUID.randomUUID().toString(),UUID.randomUUID().toString(),"11",
+                UUID.randomUUID().toString(),"12","a".repeat(64));
+    }
+    @Test void clusterSandboxPreparationIsBoundToLiveLeaseReleasedSkillAndConfiguredNamespace() {
+        bindSkill(scope,deployment);var value=observedCluster("kata-prepare");String id=value.lease().leaseId();
+        code("cluster_sandbox_unconfigured",()->cluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE));
+        code("invalid_sandbox_configuration",()->kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE.replace("a","b")));
+        assertEquals(0,count("oa_run_sandbox"));
+        var prepared=kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE);
+        assertEquals(SANDBOX_TARGET,prepared.sandboxTarget());assertEquals("reserved",prepared.sandboxPhase());
+        assertEquals("kata",prepared.isolationProfile());assertNull(prepared.sandboxResource());
+        assertEquals(prepared,kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE));
+        code("cluster_sandbox_binding_changed",()->cluster().inspect(id,CLUSTER_OWNER));
+        code("resource_unavailable",()->kataCluster().inspect(id,"cluster-2"));
+        code("cluster_sandbox_state_conflict",()->kataCluster().sandboxResource(id,CLUSTER_OWNER,sandboxResource()));
+        kataCluster().fence(id,CLUSTER_OWNER);
+        code("lease_fenced",()->kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE));
+        var stopped=kataCluster().terminated(id,CLUSTER_OWNER,termination(value));
+        assertEquals("released",kataCluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"terminated_pod")).sandboxPhase());
+    }
+    @Test void clusterSandboxUidObservationSurvivesCancellationButCannotReplaceIdentityOrReleaseResources() {
+        bindSkill(scope,deployment);var value=observedCluster("kata-observe");String id=value.lease().leaseId();
+        kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE);journal().creating(value.lease());
+        var resource=sandboxResource();kataCluster().fence(id,CLUSTER_OWNER);
+        var observed=kataCluster().sandboxResource(id,CLUSTER_OWNER,resource);
+        assertEquals("failed",observed.state());assertEquals("cleanup_pending",observed.leaseState());
+        assertEquals(resource,observed.sandboxResource());assertEquals(resource.sandboxId(),observed.sandboxId());
+        assertEquals(resource,kataCluster().sandboxResource(id,CLUSTER_OWNER,resource).sandboxResource());
+        code("cluster_sandbox_resource_conflict",()->kataCluster().sandboxResource(id,CLUSTER_OWNER,sandboxResource()));
+        code("cluster_sandbox_resource_required",()->kataCluster().adoptSandbox(id,CLUSTER_OWNER,resource.sandboxId()));
+        code("lease_fenced",()->ledger.withPermit(value.lease(),()->true));
+        var stopped=kataCluster().terminated(id,CLUSTER_OWNER,termination(value));
+        code("cluster_sandbox_cleanup_unavailable",()->kataCluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"terminated_pod")));
+        assertEquals("cleanup_pending",kataCluster().inspect(id,CLUSTER_OWNER).leaseState());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='sandbox.release.verified'",Integer.class));
+    }
+    @Test void clusterSandboxUidCannotBelongToTwoAttemptsAndFailedBindingRollsBackJournal() {
+        bindSkill(scope,deployment);var first=observedCluster("kata-first");var second=observedCluster("kata-second");
+        for(var value:List.of(first,second)) {kataCluster().prepareSandbox(value.lease().leaseId(),CLUSTER_OWNER,IMAGE);journal().creating(value.lease());}
+        var resource=sandboxResource();kataCluster().sandboxResource(first.lease().leaseId(),CLUSTER_OWNER,resource);
+        var duplicate=new RunClusterSupervision.SandboxResource(UUID.randomUUID().toString(),resource.workloadUid(),"13",UUID.randomUUID().toString(),"14","b".repeat(64));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->kataCluster().sandboxResource(second.lease().leaseId(),CLUSTER_OWNER,duplicate));
+        var unchanged=kataCluster().inspect(second.lease().leaseId(),CLUSTER_OWNER);
+        assertNull(unchanged.sandboxResource());assertNull(unchanged.sandboxId());assertEquals("creating",unchanged.sandboxPhase());
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update(
+                "UPDATE oa_run_cluster_execution SET sandbox_pod_uid=? WHERE lease_id=?",UUID.randomUUID().toString(),first.lease().leaseId()));
+    }
+
+    @Test @EnabledIfEnvironmentVariable(named="OA_RUN_TEST_RESTART_SIGNAL",matches=".+")
+    void clusterSandboxBindingSurvivesDatabaseCrashWithoutGrantingNewExecution() throws Exception {
+        bindSkill(scope,deployment);var value=observedCluster("kata-restart");String id=value.lease().leaseId();
+        kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE);journal().creating(value.lease());
+        var resource=sandboxResource();kataCluster().sandboxResource(id,CLUSTER_OWNER,resource);kataCluster().fence(id,CLUSTER_OWNER);
+        var signal=java.nio.file.Path.of(System.getenv("OA_RUN_TEST_RESTART_SIGNAL"));java.nio.file.Files.writeString(signal,"restart");
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(60);
+        while(!java.nio.file.Files.readString(signal).equals("ready") && System.nanoTime()<until) Thread.sleep(100);
+        assertEquals("ready",java.nio.file.Files.readString(signal));
+        var restored=kataCluster().inspect(id,CLUSTER_OWNER);
+        assertEquals(SANDBOX_TARGET,restored.sandboxTarget());assertEquals(resource,restored.sandboxResource());
+        assertEquals("failed",restored.state());assertEquals("cleanup_pending",restored.leaseState());
+        code("lease_fenced",()->kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE));
+        code("cluster_sandbox_resource_conflict",()->kataCluster().sandboxResource(id,CLUSTER_OWNER,sandboxResource()));
+    }
+
+    @Test void clusterSandboxCompetingObservationsBindExactlyOneIdentity() throws Exception {
+        bindSkill(scope,deployment);var value=observedCluster("kata-race");String id=value.lease().leaseId();
+        kataCluster().prepareSandbox(id,CLUSTER_OWNER,IMAGE);journal().creating(value.lease());
+        var first=sandboxResource();var second=sandboxResource();var start=new CountDownLatch(1);
+        try(var workers=Executors.newFixedThreadPool(2)) {
+            List<java.util.concurrent.Future<String>> results=new ArrayList<>();
+            for(var resource:List.of(first,second)) results.add(workers.submit(()->{
+                start.await();
+                try {kataCluster().sandboxResource(id,CLUSTER_OWNER,resource);return resource.sandboxId();}
+                catch(RunFailure failure) {assertEquals("cluster_sandbox_resource_conflict",failure.code());return "conflict";}
+            }));
+            start.countDown();var outcomes=new ArrayList<String>();
+            for(var result:results) outcomes.add(result.get(30,TimeUnit.SECONDS));
+            assertEquals(1,outcomes.stream().filter("conflict"::equals).count());
+            var stored=kataCluster().inspect(id,CLUSTER_OWNER);
+            assertTrue(outcomes.contains(stored.sandboxId()));
+            assertEquals(stored.sandboxId(),stored.sandboxResource().sandboxId());
+            assertEquals("held",stored.leaseState());assertEquals("running",stored.state());
+            assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update(
+                    "UPDATE oa_run_cluster_execution SET sandbox_resource_json='{}' WHERE lease_id=?",id));
+            assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update(
+                    "UPDATE oa_run_cluster_execution SET sandbox_target_json='null' WHERE lease_id=?",id));
+        }
     }
 
     @Test void clusterDefinitiveRejectionFencesPersistsAndReleasesExactlyOnce() {

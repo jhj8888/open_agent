@@ -1,6 +1,6 @@
 # Kata 沙盒部署准备
 
-此目录固定企业 K8S 沙盒的公开配置输入，并用官方 OpenSandbox 实现验证最终生成的工作负载。**当前还不是可开启任务准入的沙盒部署包**：集群准入/独立回收服务、CR/Pod UID 持久绑定、真实节点隔离和故障验收仍需接通。`cluster_child` 继续拒绝沙盒配置，不回落为普通容器或宿主执行。
+此目录固定企业 K8S 沙盒的公开配置输入，并用官方 OpenSandbox 实现验证最终生成的工作负载。**当前还不是可开启任务准入的沙盒部署包**：CR/Pod UID 的[持久绑定接口](../../../docs/platform/cluster-sandbox-binding.md)已实现，集群准入/独立回收服务、实际资源核验、真实节点隔离和故障验收仍需接通。`cluster_child` 继续拒绝沙盒配置，不回落为普通容器或宿主执行。
 
 调用方向：平台 `OpenSandboxProvider` → 官方 Python SDK → 通过 HTTPS 访问 Lifecycle Server 的代理 → 独立 namespace 中的 BatchSandbox/Kata Pod。模型凭据只在受信 executor；租户代码仍以 UID/GID 1000 执行。原演示环境使用既有 gVisor/宿主隔离，不随这个准备包切换。
 

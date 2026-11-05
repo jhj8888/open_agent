@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination, PodNotStarted, PodCreationRejection
+from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination, PodNotStarted, PodCreationRejection, ClusterSandboxTarget, ClusterSandboxResource
 from agent.durable.contracts import RunRef
 from agent.durable.control import ControlPlaneClient, ControlPlaneError
 
@@ -54,6 +54,84 @@ def rejected():
     row['creationRejection'] = dict(id=str(uuid4()),auditId=str(uuid4()),podName=row['podName'],
         namespaceUid=row['target']['namespaceUid'],httpStatus=403,reason='Forbidden',requestSha256='a'*64,responseSha256='b'*64)
     return row
+
+
+def sandbox_snapshot():
+    row=snapshot()
+    row.update(phase='observed',podUid=str(uuid4()),observedResourceVersion='2',
+        sandboxPhase='reserved',isolationProfile='kata',runtimeImage='registry.invalid/skill@sha256:'+'a'*64,
+        sandboxTarget={'namespace':'sandboxes-test','namespaceUid':str(uuid4()),'runtimeClass':'kata-qemu'},
+        sandboxResource=None)
+    return row
+
+
+@pytest.mark.asyncio
+async def test_sandbox_preparation_and_late_resource_binding_keep_separate_identities():
+    row=sandbox_snapshot();target=ClusterSandboxTarget.model_validate(row['sandboxTarget'])
+    resource=ClusterSandboxResource(sandboxId=str(uuid4()),workloadUid=str(uuid4()),workloadResourceVersion='3',
+        podUid=str(uuid4()),podResourceVersion='4',evidenceSha256='b'*64)
+    paths=[]
+    def respond(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith('/sandbox-resource'):
+            assert json.loads(request.content)==resource.model_dump(mode='json')
+            row.update(state='cancelled',leaseState='cleanup_pending',sandboxPhase='created',sandboxId=resource.sandboxId,
+                sandboxResource=resource.model_dump(mode='json'))
+        return httpx.Response(200,json=row)
+    control,_=client(row,respond)
+    api=ClusterSupervisorClient(control,'supervisor',ClusterTarget.model_validate(row['target']),target)
+    try:
+        assert (await api.prepare_sandbox(row['lease']['leaseId'],row['runtimeImage'])).sandboxTarget==target
+        observed=await api.sandbox_resource(row['lease']['leaseId'],resource)
+        assert observed.state=='cancelled' and observed.sandboxResource==resource
+        assert observed.podUid!=resource.podUid
+        assert paths[0].endswith('/sandbox-prepare') and paths[1].endswith('/sandbox-resource')
+    finally:await control.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change',['target','namespace_uid','runtime_class','profile','image','sandbox_id','executor_uid','same_uid','unprepared','reserved','phase'])
+async def test_sandbox_observation_rejects_configuration_drift_and_resource_substitution(change):
+    row=sandbox_snapshot();target=ClusterSandboxTarget.model_validate(row['sandboxTarget'])
+    resource=dict(sandboxId=str(uuid4()),workloadUid=str(uuid4()),workloadResourceVersion='3',podUid=str(uuid4()),
+        podResourceVersion='4',evidenceSha256='b'*64)
+    row.update(sandboxResource=resource,sandboxId=resource['sandboxId'],sandboxPhase='created')
+    if change=='target':row['sandboxTarget']['namespace']='different'
+    if change=='namespace_uid':row['sandboxTarget']['namespaceUid']=str(uuid4())
+    if change=='runtime_class':row['sandboxTarget']['runtimeClass']='runc'
+    if change=='profile':row['isolationProfile']='gvisor-demo'
+    if change=='image':row['runtimeImage']='registry.invalid/skill:latest'
+    if change=='sandbox_id':row['sandboxId']=str(uuid4())
+    if change=='executor_uid':row['sandboxResource']['podUid']=row['podUid']
+    if change=='same_uid':row['sandboxResource']['podUid']=row['sandboxResource']['workloadUid']
+    if change=='unprepared':row['sandboxTarget']=None
+    if change=='reserved':row['sandboxPhase']='reserved'
+    if change=='phase':row['phase']='not_started'
+    control,_=client(row,lambda _:httpx.Response(200,json=row))
+    api=ClusterSupervisorClient(control,'supervisor',ClusterTarget.model_validate(row['target']),target)
+    try:
+        with pytest.raises(ControlPlaneError,match='CONTROL_CLUSTER_INVALID'):await api.inspect(row['lease']['leaseId'])
+    finally:await control.aclose()
+
+
+@pytest.mark.asyncio
+async def test_sandbox_transport_requires_operator_binding_and_immutable_image_before_request():
+    row=sandbox_snapshot();requests=[]
+    control,api=client(row,lambda r:requests.append(r) or httpx.Response(200,json=row))
+    try:
+        with pytest.raises(ControlPlaneError,match='CONTROL_CLUSTER_INPUT_INVALID'):
+            await api.prepare_sandbox(row['lease']['leaseId'],row['runtimeImage'])
+        with pytest.raises(ControlPlaneError,match='CONTROL_CLUSTER_INVALID'):
+            await api.inspect(row['lease']['leaseId'])
+        target=ClusterSandboxTarget.model_validate(row['sandboxTarget'])
+        api=ClusterSupervisorClient(control,'supervisor',ClusterTarget.model_validate(row['target']),target)
+        with pytest.raises(ControlPlaneError,match='CONTROL_CLUSTER_INPUT_INVALID'):
+            await api.prepare_sandbox(row['lease']['leaseId'],'registry.invalid/skill:latest')
+        assert len(requests)==1
+        with pytest.raises(ValueError,match='independent namespace'):
+            ClusterSupervisorClient(control,'supervisor',ClusterTarget.model_validate(row['target']),
+                target.model_copy(update={'namespaceUid':row['target']['namespaceUid']}))
+    finally:await control.aclose()
 
 
 @pytest.mark.asyncio

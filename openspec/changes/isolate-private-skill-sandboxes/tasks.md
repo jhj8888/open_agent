@@ -27,3 +27,5 @@
 2026-11-05 已接通实际 OIDC/HTTP/S3/数据库/Temporal/systemd/Unix 核验/gVisor Skill 全链路，并验证正常完成、取消及 executor SIGKILL 后的独立物理回收。52 项核验代理及监督测试通过，新增 IPv4/IPv6 与开机防护恢复配置。证据见 `docs/platform/skill-run-verification-20261105.json`、`run-recovery-verification-20261105.json`。无 ID 的未知 creating 仍保留配额，需补足创建服务在途清理；生产 Kata/K8S、完整故障和离线攻击面未验收，因此任务保持未勾选。
 
 2026-11-05 Kubernetes 配置准备增量：固定官方 OpenSandbox server 源码和镜像，验证真实配置模型/模板合并后的 CR；零节点 API 接受 CRD、Pod 与策略并拒绝超额请求。19 项配置测试、33 项 SDK 测试及 196 项离线镜像检查通过；详见 `docs/platform/kata-profile-verification-20261105.json`。API 夹具 1.36.6 不在 BOM 最高 1.34 的矩阵中；集群 Skill admission/UID 绑定/独立清理与 Kata/CNI 实机测试未交付，1.1、1.3、2.2、2.3、3.1 保持未勾选。
+
+2026-11-05 V1.66 增量：在同一任务许可事务预留沙盒配额并固定目标，独立记录 CR/Pod UID，取消后仅允许保留回收观察；同一资源不得被两个任务占有。54 项 Java（含真实 MySQL、竞争和两次强制重启）、72 项 Windows Python及 210 项 Linux 镜像检查通过，Windows 的 5 项 Linux 专属检查已由镜像覆盖。展示机控制 API 升级及原任务/产物/缓存 Token 复核通过。证据见 `docs/platform/cluster-sandbox-binding-verification-20261105.json`；实际 Kubernetes 核验服务、停止证据和 Kata/CNI 验收尚未完成，整体任务继续保留未勾选。

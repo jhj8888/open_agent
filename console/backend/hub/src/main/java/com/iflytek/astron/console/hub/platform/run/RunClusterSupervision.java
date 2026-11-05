@@ -40,13 +40,19 @@ public class RunClusterSupervision {
     private final ObjectMapper json;
     private final TransactionTemplate transaction;
     private final Map<String, Target> targets;
+    private final Map<String, SandboxTarget> sandboxTargets;
 
     public record Target(String workerId, String environment, String clusterId, String namespace,
                          String namespaceUid, String executorImage) {}
     public record Snapshot(RunLedger.Lease lease, String supervisorId, Target target, String podName,
             String podUid, String observedResourceVersion, String phase, String state, String leaseState,
             Instant heartbeatUntil, Instant deadlineAt, String sandboxPhase, String sandboxId,
-            String isolationProfile, String runtimeImage, Termination termination, NotStarted notStarted, CreationRejection creationRejection) {}
+            String isolationProfile, String runtimeImage, Termination termination, NotStarted notStarted, CreationRejection creationRejection,
+            SandboxTarget sandboxTarget, SandboxResource sandboxResource) {}
+    public record SandboxTarget(String namespace, String namespaceUid, String runtimeClass) {}
+    /** First independent observation only; resource versions are not mutable status checkpoints. */
+    public record SandboxResource(String sandboxId, String workloadUid, String workloadResourceVersion,
+            String podUid, String podResourceVersion, String evidenceSha256) {}
     public record Claim(RunLedger.Lease lease, String state, Snapshot execution) {}
     public record Lookup(String state, Snapshot execution) {}
     public record Observation(String podUid, String resourceVersion) {}
@@ -93,6 +99,26 @@ public class RunClusterSupervision {
                         || supervisor.secret() == null || supervisor.secret().equals(worker.secret())) throw new IllegalArgumentException();
             }
             targets = Map.copyOf(configured);
+            Map<String, SandboxTarget> sandboxes = json.readerFor(new TypeReference<Map<String, SandboxTarget>>() {})
+                    .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .readValue(environment.getProperty("PLATFORM_CLUSTER_SANDBOXES", "{}"));
+            if (sandboxes == null || sandboxes.size() > 100) throw new IllegalArgumentException();
+            var sandboxNamespaces = new java.util.HashMap<String, String>();
+            for (var entry : sandboxes.entrySet()) {
+                var execution = configured.get(entry.getKey()); var sandbox = entry.getValue();
+                if (execution == null || sandbox == null || !dns(sandbox.namespace(),63) || sandbox.namespace().contains(".")
+                        || !dns(sandbox.runtimeClass(),63) || sandbox.runtimeClass().contains(".")) throw new IllegalArgumentException();
+                uuid(sandbox.namespaceUid());
+                for (var other : configured.values()) {
+                    if (other.clusterId().equals(execution.clusterId()) && (sandbox.namespace().equals(other.namespace())
+                            || sandbox.namespaceUid().equals(other.namespaceUid()))) throw new IllegalArgumentException();
+                }
+                for (String identity : List.of(sandbox.namespace(), sandbox.namespaceUid())) {
+                    String previous = sandboxNamespaces.putIfAbsent(execution.clusterId()+"/"+identity, execution.environment());
+                    if (previous != null && !previous.equals(execution.environment())) throw new IllegalArgumentException();
+                }
+            }
+            sandboxTargets = Map.copyOf(sandboxes);
         } catch (Exception invalid) { throw new IllegalStateException("Invalid platform cluster supervisor bindings"); }
     }
 
@@ -234,9 +260,59 @@ public class RunClusterSupervision {
         uuid(sandboxId);
         return locked(leaseId, supervisor, () -> {
             var value = snapshot(row(leaseId, supervisor));
+            if (value.sandboxTarget() != null) throw new RunFailure("cluster_sandbox_resource_required");
             if (value.podUid() == null || "released".equals(value.phase())) throw new RunFailure("cluster_execution_conflict");
             journal.created(value.lease(), sandboxId);
             return snapshot(row(leaseId, supervisor));
+        });
+    }
+
+    /** Preparation is permitted only while this exact executor lease can still act. */
+    public Snapshot prepareSandbox(String leaseId, String supervisor, String image) {
+        var expected = sandboxTargets.get(supervisor);
+        if (expected == null) throw new RunFailure("cluster_sandbox_unconfigured");
+        return ledger.withPermit(ownedLease(leaseId, supervisor), () -> {
+            var value = snapshot(row(leaseId, supervisor));
+            if (!"observed".equals(value.phase()) || value.podUid() == null || value.sandboxResource() != null)
+                throw new RunFailure("cluster_sandbox_state_conflict");
+            journal.reserve(value.lease(), "kata", image);
+            if (value.sandboxTarget() != null) {
+                if (!expected.equals(value.sandboxTarget())) throw new RunFailure("cluster_sandbox_binding_changed");
+                return snapshot(row(leaseId, supervisor));
+            }
+            jdbc.update("UPDATE oa_run_cluster_execution SET sandbox_target_json=? WHERE lease_id=?",
+                    RunJson.encode(json,json.valueToTree(expected),1024),leaseId);
+            LOG.info("Cluster sandbox target bound lease_id={} supervisor={} namespace_uid={}",leaseId,supervisor,expected.namespaceUid());
+            return snapshot(row(leaseId, supervisor));
+        });
+    }
+
+    /** Reconciler observation can arrive after cancellation; it never grants execution permission. */
+    public Snapshot sandboxResource(String leaseId, String supervisor, SandboxResource resource) {
+        if (resource == null) throw new RunFailure("invalid_cluster_sandbox_resource");
+        uuid(resource.sandboxId()); uuid(resource.workloadUid()); uuid(resource.podUid());
+        version(resource.workloadResourceVersion()); version(resource.podResourceVersion());
+        if (!hash(resource.evidenceSha256())) throw new RunFailure("invalid_cluster_sandbox_resource");
+        return locked(leaseId,supervisor,() -> {
+            var value = snapshot(row(leaseId,supervisor));
+            if (value.sandboxTarget() == null || !value.sandboxTarget().equals(sandboxTargets.get(supervisor)))
+                throw new RunFailure("cluster_sandbox_binding_changed");
+            if (value.sandboxResource() != null) {
+                if (resource.equals(value.sandboxResource())) return value;
+                throw new RunFailure("cluster_sandbox_resource_conflict");
+            }
+            if (value.podUid() == null || !Set.of("observed","terminated").contains(value.phase())
+                    || value.podUid().equals(resource.podUid()) || value.podUid().equals(resource.workloadUid())
+                    || resource.podUid().equals(resource.workloadUid())
+                    || !"kata".equals(value.isolationProfile())
+                    || value.sandboxPhase() == null || !Set.of("creating","created","cleanup_pending").contains(value.sandboxPhase()))
+                throw new RunFailure("cluster_sandbox_state_conflict");
+            journal.created(value.lease(),resource.sandboxId());
+            jdbc.update("UPDATE oa_run_cluster_execution SET sandbox_resource_json=?,sandbox_workload_uid=?,sandbox_pod_uid=?,sandbox_bound_at=CURRENT_TIMESTAMP(3) WHERE lease_id=?",
+                    RunJson.encode(json,json.valueToTree(resource),2048),resource.workloadUid(),resource.podUid(),leaseId);
+            LOG.info("Cluster sandbox resource bound lease_id={} supervisor={} workload_uid={} pod_uid={}",
+                    leaseId,supervisor,resource.workloadUid(),resource.podUid());
+            return snapshot(row(leaseId,supervisor));
         });
     }
 
@@ -249,6 +325,11 @@ public class RunClusterSupervision {
                 throw new RunFailure("cleanup_proof_conflict");
             }
             if (!RunState.parse(value.state()).terminal()) throw new RunFailure("cleanup_before_terminal");
+            // UID registration is not physical termination. The independent Kata
+            // stop/settlement receipt must be connected before this can release.
+            if (value.sandboxTarget() != null && (value.sandboxId() != null
+                    || (value.sandboxPhase() != null && !"reserved".equals(value.sandboxPhase()))))
+                throw new RunFailure("cluster_sandbox_cleanup_unavailable");
             if (!proof.clusterId().equals(value.target().clusterId()) || !proof.namespaceUid().equals(value.target().namespaceUid())
                     || !proof.podName().equals(value.podName()) || !Objects.equals(proof.podUid(), value.podUid()))
                 throw new RunFailure("cleanup_unverified");
@@ -308,7 +389,13 @@ public class RunClusterSupervision {
                 (String) row.get("pod_uid"), (String) row.get("observed_resource_version"), (String) row.get("phase"),
                 (String) row.get("run_state"), (String) row.get("lease_state"),
                 ((Timestamp) row.get("heartbeat_until")).toInstant(), ((Timestamp) row.get("deadline_at")).toInstant(),
-                (String) row.get("sandbox_phase"), (String) row.get("sandbox_id"), (String) row.get("isolation_profile"), (String) row.get("runtime_image"), termination, notStarted, rejection);
+                (String) row.get("sandbox_phase"), (String) row.get("sandbox_id"), (String) row.get("isolation_profile"), (String) row.get("runtime_image"), termination, notStarted, rejection,
+                sandboxRecord(row,"sandbox_target_json",SandboxTarget.class),sandboxRecord(row,"sandbox_resource_json",SandboxResource.class));
+    }
+    private <T> T sandboxRecord(Map<String,Object> row,String column,Class<T> type) {
+        if (row.get(column) == null) return null;
+        try { return json.readValue((String)row.get(column),type); }
+        catch (Exception invalid) { throw new RunFailure("cluster_sandbox_binding_invalid"); }
     }
     private Target target(String supervisor) {
         var value = targets.get(supervisor); if (value == null) throw new RunFailure("action_forbidden"); return value;
@@ -321,6 +408,8 @@ public class RunClusterSupervision {
     private void owned(Snapshot value, String supervisor) {
         if (!supervisor.equals(value.supervisorId())) throw new RunFailure("resource_unavailable");
         if (!target(supervisor).equals(value.target())) throw new RunFailure("cluster_binding_changed");
+        if (value.sandboxTarget() != null && !value.sandboxTarget().equals(sandboxTargets.get(supervisor)))
+            throw new RunFailure("cluster_sandbox_binding_changed");
     }
     private boolean same(Object incoming, String stored) {
         try { return incoming.equals(json.readValue(stored, incoming.getClass())); }

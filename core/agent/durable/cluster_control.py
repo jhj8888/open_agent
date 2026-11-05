@@ -28,6 +28,21 @@ class ClusterTarget(WireModel):
     executorImage: Annotated[str, Field(max_length=512, pattern=r"^[a-z0-9][a-z0-9.:/_-]*@sha256:[a-f0-9]{64}$")]
 
 
+class ClusterSandboxTarget(WireModel):
+    namespace: Annotated[str, Field(max_length=63, pattern=r"^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$")]
+    namespaceUid: Identifier
+    runtimeClass: Annotated[str, Field(max_length=63, pattern=r"^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$")]
+
+
+class ClusterSandboxResource(WireModel):
+    sandboxId: Identifier
+    workloadUid: Identifier
+    workloadResourceVersion: Version
+    podUid: Identifier
+    podResourceVersion: Version
+    evidenceSha256: Hash
+
+
 class PodTermination(WireModel):
     id: Identifier
     podUid: Identifier
@@ -90,6 +105,8 @@ class ClusterSnapshot(WireModel):
     termination: PodTermination | None
     notStarted: PodNotStarted | None = None
     creationRejection: PodCreationRejection | None = None
+    sandboxTarget: ClusterSandboxTarget | None = None
+    sandboxResource: ClusterSandboxResource | None = None
 
 
 class ClusterClaim(WireModel):
@@ -121,10 +138,14 @@ class ClusterCleanupProof(WireModel):
 class ClusterSupervisorClient:
     PREFIX = "/internal/platform/reconcile/cluster"
 
-    def __init__(self, control: ControlPlaneClient, supervisor_id: str, target: ClusterTarget):
+    def __init__(self, control: ControlPlaneClient, supervisor_id: str, target: ClusterTarget,
+                 sandbox_target: ClusterSandboxTarget | None = None):
         if control.http.headers.get("X-Platform-Key-Id") != supervisor_id:
             raise ValueError("Cluster supervisor transport identity mismatch")
         self.control, self.supervisor_id, self.target = control, supervisor_id, target
+        if sandbox_target is not None and (sandbox_target.namespace == target.namespace or sandbox_target.namespaceUid == target.namespaceUid):
+            raise ValueError("Cluster sandbox must use an independent namespace")
+        self.sandbox_target = sandbox_target
 
     def _snapshot(self, value: object, lease_id: str | None = None) -> ClusterSnapshot:
         try:
@@ -165,6 +186,16 @@ class ClusterSupervisorClient:
                 if row.leaseState != "released" or row.state not in TERMINAL or (row.podUid is not None and row.termination is None and row.notStarted is None):
                     raise ValueError()
             elif row.leaseState == "released":
+                raise ValueError()
+            if row.sandboxTarget is not None and (row.sandboxTarget != self.sandbox_target
+                    or row.isolationProfile != 'kata' or row.sandboxPhase is None
+                    or row.runtimeImage is None or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[a-f0-9]{64}', row.runtimeImage)):
+                raise ValueError()
+            if row.sandboxResource is not None and (row.sandboxTarget is None or row.podUid is None
+                    or row.phase not in {'observed', 'terminated', 'released'}
+                    or row.sandboxResource.sandboxId != row.sandboxId
+                    or row.sandboxPhase not in {'created', 'cleanup_pending', 'released'}
+                    or len({row.podUid,row.sandboxResource.workloadUid,row.sandboxResource.podUid}) != 3):
                 raise ValueError()
             return row
         except ValueError:
@@ -267,6 +298,25 @@ class ClusterSupervisorClient:
         row = await self._post(lease_id, "sandbox-observed", {"sandboxId": SupervisorClient._id(sandbox_id)})
         if row.podUid is None or row.sandboxId != sandbox_id or row.phase in {"prepared", "released"}:
             raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
+        return row
+
+    async def prepare_sandbox(self, lease_id: str, image: str):
+        if (self.sandbox_target is None or not isinstance(image,str) or len(image)>512
+                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[a-f0-9]{64}',image)):
+            raise ControlPlaneError('CONTROL_CLUSTER_INPUT_INVALID')
+        row = await self._post(lease_id,'sandbox-prepare',{'image':image})
+        if (row.phase!='observed' or row.state!='running' or row.leaseState!='held'
+                or row.sandboxTarget!=self.sandbox_target or row.sandboxPhase!='reserved'
+                or row.sandboxResource is not None or row.runtimeImage!=image):
+            raise ControlPlaneError('CONTROL_CLUSTER_INVALID')
+        return row
+
+    async def sandbox_resource(self, lease_id: str, resource: ClusterSandboxResource):
+        if self.sandbox_target is None or resource.workloadUid == resource.podUid:
+            raise ControlPlaneError('CONTROL_CLUSTER_INPUT_INVALID')
+        row = await self._post(lease_id,'sandbox-resource',resource.model_dump(mode='json'))
+        if row.sandboxResource != resource:
+            raise ControlPlaneError('CONTROL_CLUSTER_INVALID')
         return row
 
     async def release(self, lease_id: str, proof: ClusterCleanupProof):

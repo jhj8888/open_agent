@@ -24,7 +24,7 @@ from temporalio.client import Client
 from temporalio.service import TLSConfig
 from temporalio.worker import Worker
 
-from agent.durable.cluster_control import ClusterSupervisorClient, ClusterTarget
+from agent.durable.cluster_control import ClusterSupervisorClient, ClusterTarget, ClusterSandboxTarget
 from agent.durable.cluster_lifecycle import ClusterLifecycle
 from agent.durable.cluster_process import ClusterProgram, KubernetesProcesses
 from agent.durable.cluster_supervisor import ClusterSupervisor
@@ -92,6 +92,7 @@ class Settings(BaseModel):
     supervisor: Identity
     dispatcher: Identity
     target: ClusterTarget
+    sandbox_target: ClusterSandboxTarget | None = None
     program: ClusterProgram
     temporal: TemporalSettings
     maximum_activities: Annotated[int, Field(strict=True, ge=2, le=128)] = 16
@@ -100,6 +101,9 @@ class Settings(BaseModel):
     def identities(self):
         if len({self.supervisor.id, self.dispatcher.id, self.target.workerId}) != 3:
             raise ValueError('Execution service identities must be distinct')
+        if self.sandbox_target is not None and (self.sandbox_target.namespace == self.target.namespace
+                or self.sandbox_target.namespaceUid == self.target.namespaceUid):
+            raise ValueError('Sandbox and executor namespaces must be distinct')
         return self
 
 
@@ -142,7 +146,7 @@ async def serve(settings: Settings, *, processes=None, stop: asyncio.Event | Non
         for identity in (settings.supervisor, settings.dispatcher):
             controls.append(ControlPlaneClient(settings.control_endpoint, identity.id,
                 identity.key.get_secret_value(), ca_file=settings.control_ca_file))
-        api = ClusterSupervisorClient(controls[0], settings.supervisor.id, settings.target)
+        api = ClusterSupervisorClient(controls[0], settings.supervisor.id, settings.target, settings.sandbox_target)
         supervisor = ClusterSupervisor(api, ClusterLifecycle(api, processes))
         temporal = await Client.connect(settings.temporal.address, namespace=settings.temporal.namespace,
             tls=settings.temporal.tls(), connect_timeout=timedelta(seconds=10))

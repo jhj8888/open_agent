@@ -54,7 +54,8 @@ class PlatformRunInternalSecurityTest {
         String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
         var paths=java.util.List.of("runs/"+RUN+"/claim","runs/"+RUN+"/lookup","runs/"+RUN+"/abandon","pending",
                 "attempts/"+id+"/inspect","attempts/"+id+"/begin","attempts/"+id+"/observed","attempts/"+id+"/terminated",
-                "attempts/"+id+"/fence","attempts/"+id+"/not-started","attempts/"+id+"/creation-rejected","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
+                "attempts/"+id+"/fence","attempts/"+id+"/not-started","attempts/"+id+"/creation-rejected","attempts/"+id+"/sandbox-observed",
+                "attempts/"+id+"/sandbox-prepare","attempts/"+id+"/sandbox-resource","attempts/"+id+"/release");
         for(String path:paths) {
             String url="/internal/platform/reconcile/cluster/"+path;
             mvc.perform(post(url).header("Authorization","Bearer user").contentType("application/json").content("{}"))
@@ -76,6 +77,21 @@ class PlatformRunInternalSecurityTest {
                 .contentType("application/json").content("{\"tenant\":\"space-10\",\"environment\":\"anything\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoMoreInteractions(clusters);
+    }
+
+    @Test void sandboxResourceEndpointsUseOnlyVerifiedReconcilerIdentity() throws Exception {
+        String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
+        String prefix="/internal/platform/reconcile/cluster/attempts/"+id;
+        mvc.perform(post(prefix+"/sandbox-prepare").header("X-Platform-Key-Id","supervisor-one")
+                .header("X-Platform-Service-Key","s".repeat(32)).header("X-User-Id","forged")
+                .contentType("application/json").content("{\"image\":\"registry.invalid/skill@sha256:"+"a".repeat(64)+"\"}"))
+                .andExpect(status().isOk());
+        verify(clusters).prepareSandbox(id,"supervisor-one","registry.invalid/skill@sha256:"+"a".repeat(64));
+        mvc.perform(post(prefix+"/sandbox-resource").header("X-Platform-Key-Id","supervisor-one")
+                .header("X-Platform-Service-Key","s".repeat(32)).contentType("application/json").content("{}"))
+                .andExpect(status().isOk());
+        verify(clusters).sandboxResource(eq(id),eq("supervisor-one"),any(RunClusterSupervision.SandboxResource.class));
+        verifyNoInteractions(ledger,journal);
     }
 
     @Test void workerDispatcherAndUserCannotEnterAnyReconcilerOperation() throws Exception {

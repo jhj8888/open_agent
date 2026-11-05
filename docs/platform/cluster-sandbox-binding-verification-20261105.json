@@ -1,0 +1,296 @@
+{
+  "date": "2026-11-05",
+  "feature": "durable independent Kubernetes sandbox target and CR/Pod UID binding",
+  "schema": "1.66",
+  "demo_url": "https://120.26.81.83/open-agent/",
+  "java": [
+    {
+      "name": "RunLedgerMySqlTest",
+      "tests": "23",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "333.689"
+    },
+    {
+      "name": "RunClusterConfigurationTest",
+      "tests": "9",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.296"
+    },
+    {
+      "name": "PlatformRunInternalSecurityTest",
+      "tests": "16",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "23.304"
+    },
+    {
+      "name": "PlatformApplicationTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "7.817"
+    }
+  ],
+  "mysql_concurrent_binding": {
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "13.063"
+  },
+  "real_database_restarts": 2,
+  "isolated_mysql_fixtures_cleaned": true,
+  "windows_control_supervisor": {
+    "tests": "65",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "1",
+    "time": "19.543"
+  },
+  "windows_service": {
+    "tests": "12",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "4",
+    "time": "2.883"
+  },
+  "worker_image": {
+    "schema": 1,
+    "input_archive_sha256": "1b634b824038e9b90f7feada93981914b08c6375a2d68e9883b807dc276d8b79",
+    "input_manifest_sha256": "277743b99d7c97183762c11f41d910492bb4bcd984d9538228855f728f53e0f1",
+    "builder_sha256": "42cef6b14eff21fb213e5003d8a02007d0c81c315dee3d1e92fa7ed559b049c7",
+    "image": {
+      "tag": "open-agent/cluster-worker:1b634b824038e9b9",
+      "local_image_id": "sha256:8ae5fe838beefa187cb15a1182cd55576637ab737653d0608833e0f816bfc599",
+      "size_bytes": 671960095,
+      "registry_manifest_digest": null
+    },
+    "archive": {
+      "path": "/opt/open-agent/worker-image-build/1b634b824038e9b90f7feada93981914b08c6375a2d68e9883b807dc276d8b79.docker.tar",
+      "sha256": "9f0720563d9a2b614e098d890aa76eac458d7c302c86e51f67a47372242dcc3a",
+      "bytes": 706428416
+    },
+    "base_archive": {
+      "path": "/opt/open-agent/worker-image-build/65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c.base.docker.tar",
+      "sha256": "c24495d7eeb4e90a9c675edcf7ba5302537de10c894c19e396ec3c3c0f272293",
+      "bytes": 134603264
+    },
+    "base_registry_verification": {
+      "upstream": "registry-1.docker.io/library/python",
+      "manifest_digest": "sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd",
+      "linux_amd64_manifest_digest": "sha256:061c190f3d5815b341a18dfe8a45771f8ba68c15a607ea56997fde3009ac4eec",
+      "config_id": "sha256:65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c",
+      "mirror_config_matches_official": true
+    }
+  },
+  "worker_image_contracts": {
+    "image_id": "sha256:8ae5fe838beefa187cb15a1182cd55576637ab737653d0608833e0f816bfc599",
+    "test_archive_sha256": "8d9592aa743f722036ae4150aaf5a63c6dc39a36e974b0d75c69bc5efcc06bea",
+    "temporal_binary_sha256": "6968c86c97d91d4b49e19c0c9b0842bfb5eb2d356f22b989006d1e09164eab5b",
+    "network": "none",
+    "uid": 10001,
+    "read_only": true,
+    "results": {
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "210",
+          "time": "94.799",
+          "timestamp": "2026-11-05T14:21:35.814846+00:00",
+          "hostname": "37a783bc9114"
+        }
+      ]
+    },
+    "scope": "Official SDKs with synthetic model/control/Kubernetes responses and real local Temporal; not a Kubelet/Kata end-to-end test."
+  },
+  "worker_probe": {
+    "input_archive_sha256": "1b634b824038e9b90f7feada93981914b08c6375a2d68e9883b807dc276d8b79",
+    "image_archive_sha256": "9f0720563d9a2b614e098d890aa76eac458d7c302c86e51f67a47372242dcc3a",
+    "build_network": "none",
+    "probe_network": "none",
+    "read_only": true,
+    "capabilities": "ALL dropped",
+    "load_verification": "Same Docker daemon import and identity check; not an empty-node cold-start test."
+  },
+  "api": {
+    "path": "console\\backend\\hub\\target\\hub-server.jar",
+    "bytes": 193458232,
+    "sha256": "75927e061935b5e05c5e77b871c464f6fd210b6ea372ae6163c2d4f741ff9c45",
+    "start_class": "com.iflytek.astron.platform.PlatformApplication",
+    "migration": "1.66"
+  },
+  "upgrade": {
+    "seconds": 44.694,
+    "private_sql_backup_saved": true,
+    "cluster_bindings_enabled": false,
+    "active_execution_backend": "systemd-gvisor-demo"
+  },
+  "retained_task": {
+    "model_version": 2,
+    "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "verified_at": "2026-11-05T14:26:24.237008+00:00",
+    "steps": 58,
+    "model_calls": 6,
+    "tool_calls": 4,
+    "steps_with_think": 2,
+    "input_modes": [
+      "initial",
+      "append",
+      "append",
+      "append",
+      "append",
+      "context_changed"
+    ],
+    "totals": {
+      "steps": 58,
+      "modelCalls": 6,
+      "toolCalls": 4,
+      "unknownModelCalls": 0,
+      "inputTokens": 21274,
+      "outputTokens": 968,
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "actual_tool_results": true,
+    "output_text": true,
+    "synthetic_secret_redacted": true,
+    "other_tenant_denied": true,
+    "token_sum_matches_task": true,
+    "retained_files": 2,
+    "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+    "download_digests_verified": true,
+    "thinking_steps": [
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input_tokens": 3609,
+        "duration_ms": 1850
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input_tokens": 3865,
+        "duration_ms": 1928
+      }
+    ]
+  },
+  "cache_tokens": {
+    "checked_at": "2026-11-05T14:26:26.145232+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T14:26:28.584601+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "openspec": {
+    "passed": 11,
+    "failed": 0
+  },
+  "scope": [
+    "Real MySQL transactions, SQL constraints, concurrent first-identity race and two isolated SIGKILL/restart cycles.",
+    "HTTP role isolation uses Spring MVC with mocked services; resource UIDs in ledger tests are synthetic.",
+    "The deployed demo keeps both cluster binding maps empty; active host worker dependencies are unchanged.",
+    "The new isolated image includes strict new response models and is not activated as a production cluster worker."
+  ],
+  "remaining": [
+    "Actual independent Kubernetes resource verification and HTTPS admission service.",
+    "Controller creation settlement, sandbox stop receipts and physical cleanup.",
+    "Real Kata/CNI/KVM isolation, failure recovery, full offline installation and capacity acceptance."
+  ]
+}

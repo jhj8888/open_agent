@@ -32,7 +32,7 @@
       "2.36"
     ]
   },
-  "source_commit": "d76e478b26ac11f710743d8fee2d6a2214844dc9",
+  "source_commit": "07179d5fe6c28f7e748a46171e64a1d796b63d9b",
   "source_note": "Source hashes below are authoritative; builder changes may be uncommitted at packaging time.",
   "files": {
     ".dockerignore": {
@@ -896,8 +896,8 @@
       "bytes": 2854
     },
     "source/core/agent/durable/cluster_control.py": {
-      "sha256": "6471d15337814dc87bff769b902c4f7f2c1c57329d2aadfc4a57eb077699ef90",
-      "bytes": 15242
+      "sha256": "cc36b63f83478dd0c6cd96ee2aff4a7109dab7745852bd99e1b1497922c1a9bb",
+      "bytes": 18195
     },
     "source/core/agent/durable/cluster_lifecycle.py": {
       "sha256": "b062f5beea750d996156a9ab4fe54de815e0a6321718be1c97de89432b640440",
@@ -908,8 +908,8 @@
       "bytes": 22848
     },
     "source/core/agent/durable/cluster_service.py": {
-      "sha256": "1cf9b64a257b37f1f20c15ce322e9487dfb37aa266928047f7143df406935e17",
-      "bytes": 11252
+      "sha256": "3efcc42f1d332f5c9d2c511269873c57e841c98655723bb8409800ba2604eae8",
+      "bytes": 11620
     },
     "source/core/agent/durable/cluster_supervisor.py": {
       "sha256": "985316beb212e03a3b07ae61d3fd0be96c77733515c079a8b49843168a003efe",

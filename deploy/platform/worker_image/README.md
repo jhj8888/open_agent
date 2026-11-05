@@ -32,7 +32,7 @@ python verify_image.py --report /private/worker-image-build/build-report.json --
 
 `verify_image.py` 验证归档与导入身份、默认命令、UID/GID 10001、网络关闭、只读文件系统、移除 capabilities、实际模块加载、安装版本、缺配置失败及 OS 包清单。导入检查使用同一 Docker daemon，不能据此宣称空节点冷启动已验收。`verify_contracts.py` 另外挂载显式测试包和预核验 Temporal CLI，运行合成模型/账本/Kubernetes 响应与真实本地 Temporal 的回归；测试包不进入发布镜像。
 
-镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定、创建拒绝恢复和每次尝试独立的 execd 鉴权，196 项镜像内检查通过；拒绝恢复要求控制面 V1.65 或更新版本；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
+镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定、创建拒绝恢复和每次尝试独立的 execd 鉴权，210 项镜像内检查通过；拒绝恢复要求控制面 V1.65 或更新版本；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
 
 ## 清单与许可范围
 
@@ -46,3 +46,5 @@ python verify_image.py --report /private/worker-image-build/build-report.json --
 官方参考：[uv 导出](https://docs.astral.sh/uv/concepts/projects/export/)、[pip 目标平台下载](https://pip.pypa.io/en/stable/cli/pip_download/)、[PyPA markers](https://packaging.pypa.io/en/stable/markers.html)、[Docker 构建建议](https://docs.docker.com/build/building/best-practices/)。
 
 2026-11-05 Kata 配置准备与 SDK 镜像验证见 [验证记录](../../../docs/platform/kata-profile-verification-20261105.json)。新增的 CNI 模式仍需独立准入；集群 Skill 入口保持关闭。
+
+V1.66 沙盒资源绑定和监督服务目标校验见 [身份绑定验证](../../../docs/platform/cluster-sandbox-binding-verification-20261105.json)。该镜像需与当前集群 API 同步升级；完整沙盒准入/停止证据服务仍未开放。

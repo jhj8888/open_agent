@@ -52,4 +52,22 @@ class RunClusterConfigurationTest {
         invalid(environment(Map.of("supervisor",target(),"supervisor2",prod)));
     }
     @Test void workerIdentityCannotBeSharedByDifferentClusterReconcilers() { invalid(environment(Map.of("supervisor",target(),"supervisor2",target()))); }
+    private Map<String,Object> sandbox() {
+        return new LinkedHashMap<>(Map.of("namespace","sandboxes-test","namespaceUid","c9388d6f-67c0-4d99-ae2c-75b6bb924154","runtimeClass","kata-qemu"));
+    }
+    @Test void sandboxTargetsRequireConfiguredSupervisorsAndIndependentNamespaceIdentity() {
+        var config=environment(Map.of("supervisor",target()));
+        assertNotNull(instance(config.withProperty("PLATFORM_CLUSTER_SANDBOXES",json.valueToTree(Map.of("supervisor",sandbox())).toString())));
+        invalid(config.withProperty("PLATFORM_CLUSTER_SANDBOXES",json.valueToTree(Map.of("unknown",sandbox())).toString()));
+        for(var change:Map.of("namespace","executors-test","namespaceUid",target().get("namespaceUid"),"runtimeClass","invalid/name","unknown","ignored").entrySet()) {
+            var value=sandbox();value.put(change.getKey(),change.getValue());
+            invalid(config.withProperty("PLATFORM_CLUSTER_SANDBOXES",json.valueToTree(Map.of("supervisor",value)).toString()));
+        }
+    }
+    @Test void sandboxNamespaceCannotBeSharedAcrossEnvironments() {
+        var prod=target();prod.put("environment","prod");prod.put("workerId","executor2");
+        prod.put("namespace","executors-prod");prod.put("namespaceUid","b9388d6f-67c0-4d99-ae2c-75b6bb924154");
+        var config=environment(Map.of("supervisor",target(),"supervisor2",prod));
+        invalid(config.withProperty("PLATFORM_CLUSTER_SANDBOXES",json.valueToTree(Map.of("supervisor",sandbox(),"supervisor2",sandbox())).toString()));
+    }
 }

@@ -58,6 +58,17 @@ def test_bounded_configuration_reads_only_regular_files_inside_mount(tmp_path):
         service.mounted_bytes(root,'.')
 
 
+def test_service_sandbox_target_is_optional_but_cannot_reuse_executor_namespace(system):
+    row,driver,_=system
+    config=settings(row,driver)
+    assert config.sandbox_target is None
+    target={'namespace':'sandboxes-test','namespaceUid':str(uuid4()),'runtimeClass':'kata-qemu'}
+    assert service.Settings.model_validate({**config.model_dump(),'sandbox_target':target}).sandbox_target.namespace=='sandboxes-test'
+    for change in [{'namespace':row.target.namespace},{'namespaceUid':row.target.namespaceUid}]:
+        with pytest.raises(ValueError,match='namespaces must be distinct'):
+            service.Settings.model_validate({**config.model_dump(),'sandbox_target':{**target,**change}})
+
+
 @pytest.mark.skipif(os.name!='posix',reason='Linux Secret projection and process probe')
 def test_projected_secret_and_readiness_probe_fail_closed(tmp_path):
     root=tmp_path/'mount';root.mkdir()

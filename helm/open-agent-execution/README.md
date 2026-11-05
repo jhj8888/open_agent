@@ -34,6 +34,8 @@
 
 控制 Secret 的 `PLATFORM_SERVICE_KEYS` 分别登记 worker、dispatcher、reconciler 角色且限定相同环境；`PLATFORM_CLUSTER_RECONCILERS` 将 supervisor 身份映射到同一固定 cluster target，单机 `PLATFORM_RECONCILER_WORKERS` 不得同时绑定该 worker。Temporal namespace 需预先注册，证书授权、地址、namespace、task_queue 三者与服务配置一致，test/prod 分别配置。
 
+V1.66 增加沙盒目标与 CR/Pod UID 的[持久绑定接口](../../docs/platform/cluster-sandbox-binding.md)。监督服务的可选 `sandbox_target` 对应 API 的 `PLATFORM_CLUSTER_SANDBOXES`，不能复用 executor namespace。该配置只用于严格识别目标，不会自动开启 Skill；独立核验/停止证据服务接通前保持缺省。升级集群 API 后需同步使用当前 worker 镜像，旧严格响应模型不识别新增字段。
+
 为受信 CPU 节点设置 `open-agent.io/control-pool: trusted` 与 `open-agent.io/executor-pool: trusted`（可审核修改 pool 值）；不使用 GPU 资源。镜像需预加载或验证拉取耗时：当前账本初次心跳期限仍为 30 秒，拉取/调度超时会进入失败回收。生产 supervisor 至少两个副本且启用 PDB，但副本数不是 HA 已验收的证明。
 
 ## API TLS 和双向网络放行

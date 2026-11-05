@@ -59,4 +59,13 @@ public class PlatformClusterReconcileController {
     public RunClusterSupervision.Snapshot release(@PathVariable UUID leaseId, @RequestBody RunClusterSupervision.Proof input, Principal principal) {
         return supervision.release(leaseId.toString(), principal.getName(), input);
     }
+    public record SandboxPreparation(String image) {}
+    @PostMapping("/attempts/{leaseId}/sandbox-prepare")
+    public RunClusterSupervision.Snapshot prepareSandbox(@PathVariable UUID leaseId, @RequestBody SandboxPreparation input, Principal principal) {
+        return supervision.prepareSandbox(leaseId.toString(),principal.getName(),input.image());
+    }
+    @PostMapping("/attempts/{leaseId}/sandbox-resource")
+    public RunClusterSupervision.Snapshot sandboxResource(@PathVariable UUID leaseId, @RequestBody RunClusterSupervision.SandboxResource input, Principal principal) {
+        return supervision.sandboxResource(leaseId.toString(),principal.getName(),input);
+    }
 }

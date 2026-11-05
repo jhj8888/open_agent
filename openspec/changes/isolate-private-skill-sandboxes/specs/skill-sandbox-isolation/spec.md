@@ -90,6 +90,16 @@
 - **WHEN** 创建意图已提交但确认或 SDK 创建响应丢失
 - **THEN** 不重复创建，未知资源继续占用配额并按租约元数据进入回收流程
 
+#### Scenario: 集群沙盒目标和资源身份
+
+- **WHEN** 受信核验器为集群任务准备并观察沙盒
+- **THEN** 目标 namespace UID 和 RuntimeClass 来自操作者固定配置，CR UID 和 Pod UID 只绑定一次且独立于 executor 身份；同一资源不能归属两个任务
+
+#### Scenario: 取消后收到沙盒资源观察
+
+- **WHEN** 同一租约的 CR／Pod 身份在取消或终态后才被核验器确认
+- **THEN** 可以持久登记用于回收，但不能替换已绑定 UID、恢复执行许可或凭资源观察释放配额
+
 #### Scenario: worker 上报销毁
 
 - **WHEN** worker 上报 SDK 销毁成功或心跳已过期
