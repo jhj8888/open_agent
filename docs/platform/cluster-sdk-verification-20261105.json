@@ -1,0 +1,101 @@
+{
+  "recorded_at": "2026-11-05T06:24:13.304116+00:00",
+  "scope": "Official Kubernetes SDK process adapter, durable lifecycle coordination and executor entry point; no live cluster admission",
+  "sdk": {
+    "version": "36.0.3",
+    "license": "Apache-2.0",
+    "github_stars_displayed": "7.7k",
+    "source": "https://github.com/kubernetes-client/python/tree/v36.0.3"
+  },
+  "windows_compatibility_regression": {
+    "tests": 298,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "windows_final_targeted": {
+    "tests": 65,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 64,
+    "skip_reason": "Linux projected-volume symlink behavior is exercised on the demo Linux host"
+  },
+  "first_collection_error": "New test helper import used the wrong package path; corrected to agent.tests before any test ran",
+  "linux": {
+    "checked_at": "2026-11-05T06:22:03.917152+00:00",
+    "archive_sha256": "b6897b42e7f4fba46b770a633c26aa863801ebf3ecc47ba4c8816a9adc9452fd",
+    "tests_passed": 65,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "dependencies": {
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "durationpy": "0.11",
+      "kubernetes": "36.0.3",
+      "oauthlib": "4.0.1",
+      "requests-oauthlib": "2.0.0",
+      "yarl": "1.25.1"
+    },
+    "offline_overlay_install": true,
+    "live_worker_environment_modified": false,
+    "live_worker_dependencies_before_and_after": {
+      "aiohttp": "3.11.14",
+      "aiosignal": "1.3.2",
+      "yarl": "1.18.3"
+    },
+    "https_loopback_verified": true,
+    "projected_secret_symlinks_verified": true,
+    "kubernetes_api_and_kubelet_verified": false,
+    "kata_and_cni_verified": false
+  },
+  "artifact": {
+    "sha256": "b6897b42e7f4fba46b770a633c26aa863801ebf3ecc47ba4c8816a9adc9452fd",
+    "bytes": 6541226,
+    "files": 25,
+    "wheels": 7,
+    "includes_platform_license_and_notice": true,
+    "manifest": "deploy/platform/cluster/contract-artifacts.json"
+  },
+  "spec_changes_passed": 11,
+  "public_console": {
+    "checked_at": "2026-11-05T06:23:39.053013+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 19,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "verified_contracts": [
+    "Official SDK model serialization/deserialization and synthetic kube-system/namespace UID binding",
+    "Scheduling gate remains until the Pod spec and durable UID binding are confirmed",
+    "Lost create reply or UID commit never causes another create or automatic recovery activation",
+    "UID/resourceVersion preconditions, replacement resources and unsafe admission mutation rejection",
+    "Real loopback HTTPS creation response loss has one POST; redirects are not followed",
+    "Immutable termination receipt before finalizer removal; other finalizers retained",
+    "Missing Pod, missing exit metadata, node uncertainty and premature cleanup retain resources",
+    "Fixed worker configuration mount, actual Linux symlink containment, lease/identity checks",
+    "Offline incremental dependency overlay with checksums and preserved licenses; live worker versions unchanged"
+  ],
+  "not_yet_verified_or_delivered": [
+    "Actual Kubernetes API/defaulting/admission, scheduler, kubelet/CRI process termination and node fault recovery",
+    "Complete Temporal cluster supervisor service, RBAC/network wiring and executor container images",
+    "Positive never-started Pod evidence, ambiguous creation closure and sandbox reconciliation",
+    "OpenSandbox/Kata/CNI cluster integration and physical isolation",
+    "Complete disconnected cold installation and production HA/capacity acceptance"
+  ]
+}

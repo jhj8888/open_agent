@@ -5,6 +5,7 @@
 | 用途 | 官方仓库 | Stars | 仓库主许可 | 使用决策 |
 |---|---|---|---|---|
 | 平台基座 | [iflytek/astron-agent](https://github.com/iflytek/astron-agent) | 9.0k | Apache-2.0 | 采用用户本地快照；保留来源与许可 |
+| K8S 官方接入 SDK | [kubernetes-client/python](https://github.com/kubernetes-client/python) | 7.7k | Apache-2.0 | 2026-11-05 核验；固定 36.0.3，`cluster` 可选依赖；SDK 过程适配已实现，真实集群验收待完成 |
 | 规格开发工具 | [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 73.8k | MIT | 开发依赖已固定 1.16.0，不部署到生产 |
 | Agent 主引擎推荐 | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) | 30.9k | MIT | 复用 Python 路径；原生 Skill 与现有桥接需收敛 |
 | 编程执行引擎候选 | [anomalyco/opencode](https://github.com/anomalyco/opencode) | 224.2k | MIT | 评估 V2；首期不新增第二运行时，见[主引擎评估](agent-runtime-evaluation.md) |

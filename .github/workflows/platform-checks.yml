@@ -98,7 +98,7 @@ jobs:
         run: |
           python3 -m venv .ci-venv
           .ci-venv/bin/pip install uv==0.10.9
-          .ci-venv/bin/uv sync --directory core/agent --frozen --python 3.12
+          .ci-venv/bin/uv sync --directory core/agent --frozen --extra cluster --python 3.12
       - name: Check both the adapter contract and existing DeepAgents behavior
         run: >-
           core/agent/.venv/bin/python -m pytest tests/model_contract
@@ -134,5 +134,6 @@ jobs:
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
             core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py \
             core/agent/tests/test_durable_supervision.py core/agent/tests/test_cluster_control.py \
+            core/agent/tests/test_cluster_process.py core/agent/tests/test_cluster_child.py core/agent/tests/test_cluster_transport.py \
             core/agent/tests/test_task_outputs.py core/agent/tests/test_execution_observations.py \
             core/agent/tests/test_deepseek_reasoning.py core/agent/tests/test_observation_exporter.py tests/backup -q -p no:cacheprovider

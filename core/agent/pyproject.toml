@@ -53,3 +53,8 @@ dependencies = [
     "temporalio==1.35.0",
     "langchain-deepseek==1.1.1",
 ]
+
+[project.optional-dependencies]
+cluster = [
+    "kubernetes==36.0.3",
+]

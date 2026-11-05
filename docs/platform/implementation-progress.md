@@ -2,6 +2,8 @@
 
 ## 2026-11-05 当前状态
 
+集群执行 SDK 适配继续推进：官方 Kubernetes Python 36.0.3、Pod 调度门禁、UID/配置核验、终止证据先提交与 finalizer 恢复、受信集群 executor 入口已加入。298 项兼容回归通过，最终 Linux SDK/入口检查 65 项通过；7 个增量 wheel 离线安装在展示机专用目录，活动 worker 环境未更改。完整集群 Temporal 服务、未启动/未知创建回收协议、OpenSandbox/Kata 物理核验和真实 K8S/CNI 验收尚未完成，集群任务准入仍关闭。见[SDK 验证记录](cluster-sdk-verification-20261105.json)。
+
 集群执行控制协议已加入并部署到展示 API V1.62：目标/namespace UID/Pod UID 与租约绑定、单次启动、不可替换的终止证据及原子回收事务通过 104 项 Java 检查，含隔离数据库强制重启；Python 传输与单机兼容 27 项通过。更新后真实 Skill 任务成功并释放沙盒/执行配额，旧任务步骤和文件仍可访问。集群执行身份未启用，实际 Pod/finalizer、OpenSandbox/Kata 核验与 K8S 故障矩阵仍在推进；详见[集群执行接入](cluster-execution.md)。
 
 控制 API/工作台镜像与专用 test/prod Helm 包已生成：固定输入摘要、离线构建/导出、私有仓库引用核验工具、独立 Secret/命名空间、资源/探针/PDB/HPA 与默认拒绝的 NetworkPolicy 已接通，29 项检查通过。新镜像在独立恢复数据上通过真实工作台登录、197 个步骤查询和 12 个产物摘要验证。展示入口仍使用此前已验收的运行部署；新交付包没有替换线上执行链。集群执行器未完成，因此 chart 强制关闭新任务准入；实际 K8S/CNI/Kata、私有仓库导入、完整离线冷启动及容量验收继续推进。见[交付说明](../../deploy/platform/images/README.md)与[验证记录](platform-delivery-verification-20261105.json)。

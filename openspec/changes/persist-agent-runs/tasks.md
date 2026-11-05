@@ -50,3 +50,13 @@ V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑
 - [x] 展示 API 更新到 V1.62，更新前保存私有 SQL 备份；真实 Skill 任务和物理回收、旧步骤/文件与 HTTPS 入口复查通过。集群身份保持未配置，6 类实际 HTTP 访问拒绝通过。
 
 实现边界见 `docs/platform/cluster-execution.md`，证据见 `docs/platform/cluster-control-verification-20261105.json`。Pod 元数据测试为合成契约数据；Kubernetes SDK 执行适配器、Pod/finalizer、OpenSandbox/Kata 物理核验、节点/未知创建恢复及生产集群验收仍待完成。专用 chart 继续关闭集群任务准入，原 1.3、2.1–2.3 与系统验收大项保持未勾选。
+
+## 2026-11-05 Kubernetes SDK 过程适配增量
+
+- [x] 接入官方 SDK 36.0.3，固定镜像与租约配置，校验集群/namespace UID；带 scheduling gate 创建，UID 持久确认后才允许调度，不重放未知创建。
+- [x] 非零宽限停止与 UID/resourceVersion 前置条件，终止证据提交后再移除自身 finalizer；保留其他 finalizer，替换 Pod、配置注入、PodGC Failed/404 与节点失联不能作为停止证明。
+- [x] 集群 executor 从固定 Secret 投射目录读取配置，绑定当前 worker/租约，复用 RuntimeExecutor；拒绝旧主机 Unix socket 沙盒配置，不绕过未实现的集群 admission。
+- [x] 298 项兼容回归通过；最后定向检查 Windows 64 通过/1 项 Linux 专属跳过、Linux 65 通过/0 跳过。真实 loopback HTTPS 与投射形式符号链接已核验；Pod/节点状态仍为合成响应。
+- [x] 7 个增量 wheel 与锁定摘要逐项核对、保留 LICENSE/NOTICE，在展示机独立目录离线安装验证；活动 worker 依赖前后不变。
+
+详见 `docs/platform/cluster-sdk-verification-20261105.json` 和 `deploy/platform/cluster/README.md`。完整集群服务/镜像、未启动 Pod 的正向证据与未知创建关闭、OpenSandbox/Kata/CNI 及真实集群故障矩阵仍待交付，以上未勾选的整项任务保持未完成。

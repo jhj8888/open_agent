@@ -1,0 +1,227 @@
+{
+  "scope": "Linux contract verification overlay only; not a complete worker image or Kubernetes deployment",
+  "sha256": "b6897b42e7f4fba46b770a633c26aa863801ebf3ecc47ba4c8816a9adc9452fd",
+  "bytes": 6541226,
+  "base": "Existing demo worker Python 3.11 frozen environment; unchanged",
+  "files": [
+    {
+      "path": "LICENSE",
+      "size": 11548,
+      "sha256": "0ca6d94db54d53a423fa53e37f5990a7a3561707566f98856efedcb3f3d1f2fc"
+    },
+    {
+      "path": "NOTICE",
+      "size": 2816,
+      "sha256": "7b747a51f8b0a96314cc1662d7570f98e163c819de3c8b0d19a62417d45227c4"
+    },
+    {
+      "path": "source/agent/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "source/agent/durable/__init__.py",
+      "size": 88,
+      "sha256": "47bd699fedd54028cc632584f396a2843a4b474cacd22c6dfab9f0fbdf6e141d"
+    },
+    {
+      "path": "source/agent/durable/child.py",
+      "size": 7732,
+      "sha256": "5eba882f63c936732571a0cf43803fe95b89150c8ce84fccfdf4b373a88f29c7"
+    },
+    {
+      "path": "source/agent/durable/cluster_child.py",
+      "size": 2854,
+      "sha256": "2084e204b1f59f2b8fa958c413e42424b7e48ca638612c8a63d021671f63684a"
+    },
+    {
+      "path": "source/agent/durable/cluster_control.py",
+      "size": 11490,
+      "sha256": "3b8aacc5a24e8524b24f3f7e9e7d2d19d5deb9e9674ee4ecfcfbd1c5a5db74d7"
+    },
+    {
+      "path": "source/agent/durable/cluster_lifecycle.py",
+      "size": 2984,
+      "sha256": "b39fc433c47b5e5209187770a170b3cd526ec287b03640054252d05d07685b59"
+    },
+    {
+      "path": "source/agent/durable/cluster_process.py",
+      "size": 18008,
+      "sha256": "dcae6e0e9a82b0081136f0cf23e5b3ece11d1d358267e1a2efc8a0f097775a5d"
+    },
+    {
+      "path": "source/agent/durable/contracts.py",
+      "size": 1140,
+      "sha256": "1883846d92e4b57184e0c2fa3a7bbf970ba1b2b71361dedfc64f146512c29d8f"
+    },
+    {
+      "path": "source/agent/durable/control.py",
+      "size": 13658,
+      "sha256": "a94a380dc58727dc79cbbd71f8fd21f4774ee3ef7a13fea2dd8cc365fd187d91"
+    },
+    {
+      "path": "source/agent/durable/host_process.py",
+      "size": 9700,
+      "sha256": "91ed70b760418d14bb40183f1c7760c65498c11defdafb71d04bd24f8daae04c"
+    },
+    {
+      "path": "source/agent/durable/supervision.py",
+      "size": 9809,
+      "sha256": "94698c1e8739fbb2344f68d1649abf06784e5e70cded76de14048399c8063ce5"
+    },
+    {
+      "path": "source/agent/tests/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "source/agent/tests/test_cluster_child.py",
+      "size": 3341,
+      "sha256": "685f3940e085e68a689d13aff03b5e604631b33a16a370a89d3fdb94eecfbcfb"
+    },
+    {
+      "path": "source/agent/tests/test_cluster_control.py",
+      "size": 8334,
+      "sha256": "c2acae6616e3b0088dcfe4463556d7e80f9ea3c4802522a994de67b885196596"
+    },
+    {
+      "path": "source/agent/tests/test_cluster_process.py",
+      "size": 18439,
+      "sha256": "148961ea5e59590abb02fb2e634453b9a25250e173a3e249e020a3c1b8ba646f"
+    },
+    {
+      "path": "source/agent/tests/test_cluster_transport.py",
+      "size": 4952,
+      "sha256": "a97dd954758975433532232f19cac44c445177ce31609c4664fa23151e7cf5f0"
+    },
+    {
+      "path": "wheels/aiohttp-3.14.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "size": 1929915,
+      "sha256": "50a195903119008fe9cc68710535eb37f556ffffd6a7759afe70a2c145587045"
+    },
+    {
+      "path": "wheels/aiosignal-1.4.0-py3-none-any.whl",
+      "size": 7490,
+      "sha256": "053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e"
+    },
+    {
+      "path": "wheels/durationpy-0.11-py3-none-any.whl",
+      "size": 4133,
+      "sha256": "a739fe2b8972c250ff72f8e2c488d18cf25f7b852f49ee76048775d5171df30c"
+    },
+    {
+      "path": "wheels/kubernetes-36.0.3-py2.py3-none-any.whl",
+      "size": 4618066,
+      "sha256": "8fde9241c4b298e6374a069dcf728359b4e72c2fb29489a975ba4e1c047cf10f"
+    },
+    {
+      "path": "wheels/oauthlib-4.0.1-py3-none-any.whl",
+      "size": 161934,
+      "sha256": "498a298876e996301950a5b053d12c31628bb7b895db03666430c69ce182eb61"
+    },
+    {
+      "path": "wheels/requests_oauthlib-2.0.0-py2.py3-none-any.whl",
+      "size": 24179,
+      "sha256": "7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36"
+    },
+    {
+      "path": "wheels/yarl-1.25.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "size": 117728,
+      "sha256": "d5add7b4ca7afeea91d52e4d4e4db3b1fe9885b71f07054560d8c4296b7441a2"
+    }
+  ],
+  "additional_dependencies": [
+    {
+      "name": "aiohttp",
+      "version": "3.14.5",
+      "wheel": "aiohttp-3.14.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "50a195903119008fe9cc68710535eb37f556ffffd6a7759afe70a2c145587045",
+      "reviewed_license": "Apache-2.0 AND MIT",
+      "license_expression": "Apache-2.0 AND MIT",
+      "license_classifiers": [],
+      "license_files": [
+        "aiohttp-3.14.5.dist-info/licenses/LICENSE.txt",
+        "aiohttp-3.14.5.dist-info/licenses/vendor/llhttp/LICENSE"
+      ]
+    },
+    {
+      "name": "aiosignal",
+      "version": "1.4.0",
+      "wheel": "aiosignal-1.4.0-py3-none-any.whl",
+      "sha256": "053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e",
+      "reviewed_license": "Apache-2.0",
+      "license_expression": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "license_files": [
+        "aiosignal-1.4.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "durationpy",
+      "version": "0.11",
+      "wheel": "durationpy-0.11-py3-none-any.whl",
+      "sha256": "a739fe2b8972c250ff72f8e2c488d18cf25f7b852f49ee76048775d5171df30c",
+      "reviewed_license": "MIT",
+      "license_expression": null,
+      "license_classifiers": [],
+      "license_files": [
+        "durationpy-0.11.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "kubernetes",
+      "version": "36.0.3",
+      "wheel": "kubernetes-36.0.3-py2.py3-none-any.whl",
+      "sha256": "8fde9241c4b298e6374a069dcf728359b4e72c2fb29489a975ba4e1c047cf10f",
+      "reviewed_license": "Apache-2.0",
+      "license_expression": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "license_files": [
+        "kubernetes-36.0.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "oauthlib",
+      "version": "4.0.1",
+      "wheel": "oauthlib-4.0.1-py3-none-any.whl",
+      "sha256": "498a298876e996301950a5b053d12c31628bb7b895db03666430c69ce182eb61",
+      "reviewed_license": "BSD-3-Clause",
+      "license_expression": null,
+      "license_classifiers": [],
+      "license_files": [
+        "oauthlib-4.0.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "requests-oauthlib",
+      "version": "2.0.0",
+      "wheel": "requests_oauthlib-2.0.0-py2.py3-none-any.whl",
+      "sha256": "7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36",
+      "reviewed_license": "ISC",
+      "license_expression": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "license_files": [
+        "requests_oauthlib-2.0.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "yarl",
+      "version": "1.25.1",
+      "wheel": "yarl-1.25.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "d5add7b4ca7afeea91d52e4d4e4db3b1fe9885b71f07054560d8c4296b7441a2",
+      "reviewed_license": "Apache-2.0",
+      "license_expression": null,
+      "license_classifiers": [],
+      "license_files": [
+        "yarl-1.25.1.dist-info/licenses/LICENSE",
+        "yarl-1.25.1.dist-info/licenses/NOTICE"
+      ]
+    }
+  ]
+}

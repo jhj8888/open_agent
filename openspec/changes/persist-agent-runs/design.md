@@ -28,6 +28,12 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+### Kubernetes SDK 执行实体适配
+
+集群监督器通过官方 Kubernetes Python SDK 操作 executor Pod，控制面 API 仍是任务与资源绑定的唯一账本。SDK 使用独立 TLS 配置、有限请求超时、禁止自动重试创建；不读取用户上传的 kubeconfig。每次操作验证 kube-system UID 与执行 namespace UID，Pod 以完整租约摘要、唯一名称、固定镜像和专用无 token ServiceAccount 绑定。受信 executor 与不可信 Skill 沙盒分离。
+
+新建 Pod 带平台 finalizer 和 scheduling gate、非 root/只读根文件系统、能力全删、Seccomp、有限临时盘/CPU/内存，禁止额外容器、自动 token 与宿主挂载。先核对配置、将 UID 写入账本，再通过 UID/resourceVersion 条件移除 scheduling gate；创建/绑定回复丢失时不能先运行 executor。恢复只查询同名资源并核对 UID，不重试创建、不自动激活。停止请求携带 UID 与 resourceVersion 前置条件、非零宽限时间；只有 kubelet 已报告唯一 executor 容器终止、节点身份可核验，且终止证据已持久提交后，才移除平台自身的 finalizer。其他 finalizer 保留，404、节点失联、PodGC 的 Failed 状态或删除请求成功均不能单独成为终止证据。此适配不替代 OpenSandbox/Kata 的独立物理清理，完整集群服务与真实节点验收仍需接通。未调度 Pod 没有容器终止记录时继续保留配额，后续必须补齐从未运行的正向证据协议，不能凭等待时间释放。
+
 集群执行使用独立 `oa_run_cluster_execution` 资源绑定，复用同一 RunLedger、租约、终态、SandboxJournal 与最终释放事务，不把 Pod 名或 UID 填进 boot/unit/cgroup 字段。调用链为 Temporal → 集群监督器 → 独立 reconciler HTTP → 账本 → Kubernetes 官方客户端 → 单次 executor Pod → 既有模型/Skill 执行器。集群身份、namespace UID、环境、worker 身份和固定镜像由管理员配置，不能来自租户请求；systemd 与集群监督身份不得混用。一次性 launch 授权在创建 Pod 前提交，Pod UID 只绑定一次；重启读取持久绑定，不重放创建或工具。记录可信监督器观察到的容器终止状态并持久化后才允许删除 Pod、提交独立回收证明和释放配额。删除请求成功、API 404、TTL、NodeLost、空列表和未经核验的强删均不能代替物理终止证据；未知创建继续占额。已有单机协议和部署保持兼容，集群 chart 在执行适配器及目标集群验证完成前仍关闭准入。
 
 集群控制面分增量交付：先实现资源/终止证据账本和严格身份接口，随后接官方 Kubernetes 客户端、finalizer 生命周期、Pod 运行配置和 OpenSandbox/Kata 核验。前一增量的 MySQL/API 检查只证明账本契约，不代表 Pod、Kata、CNI 或完整执行已验收。共同的 Skill 验证、资源释放和审计逻辑提取为同一个事务内实现，单机与集群都必须先通过各自的核验门禁，不能增加第二条 worker 自行释放通道。

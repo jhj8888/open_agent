@@ -109,6 +109,30 @@
 - **WHEN** 重连位置已超出事件保留期
 - **THEN** 返回明确过期错误并提供当前任务状态查询方式
 
+### Requirement: 集群执行实体的安全生命周期
+
+系统 SHALL 通过官方 Kubernetes SDK 创建固定配置的受信 executor Pod，使用租约绑定与 UID 前置条件操作，且在终止证据持久提交前保留平台 finalizer。
+
+#### Scenario: 启动前的资源核验
+
+- **WHEN** 新 Pod 已创建但安全配置尚未核验，或 UID 尚未确认写入账本
+- **THEN** 保留 scheduling gate，不允许该 Pod 被调度；只有绑定成功后才能通过 UID/resourceVersion 前置条件解除门禁
+
+#### Scenario: 创建回复丢失或监督进程重启
+
+- **WHEN** 单次创建已发出但结果未知，或监督进程在记录 Pod UID 前重启
+- **THEN** 只查询并核对同名 Pod 的完整绑定，不再次创建；未找到时保留配额
+
+#### Scenario: Pod 名称被复用或配置被注入
+
+- **WHEN** Pod UID、租约、镜像、容器或敏感安全配置与预期不符
+- **THEN** 拒绝启动确认和删除，不操作替换资源，不释放配额
+
+#### Scenario: 回收时证据提交失败
+
+- **WHEN** executor 终止记录无法写入控制面
+- **THEN** 保留 Pod 的平台 finalizer，后续从原 Pod 的终止状态继续核验，不丢失证据
+
 ### Requirement: 执行配置读取容错
 
 系统 SHALL 仅在没有开始模型或工具调用的只读运行配置获取阶段，对传输失败进行最多一次重试，并在重试前重新验证有效租约；日志只包含固定错误分类。

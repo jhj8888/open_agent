@@ -1,10 +1,10 @@
 # Kubernetes 执行接入
 
-当前增量实现集群执行的控制面账本、独立服务接口和 Python 严格传输，复用既有 RunLedger、配额、终态、SandboxJournal、Skill 验证与审计。尚未实现可启动 Pod 的集群监督器、finalizer 处理和 OpenSandbox/Kata 物理核验；专用 Helm 继续关闭新任务准入。单机展示仍使用已验收的 systemd/OpenSandbox/gVisor 执行链。
+当前已实现集群执行的控制面账本、独立服务接口、Python 严格传输，以及官方 Kubernetes SDK 的 Pod 过程适配、scheduling gate/finalizer 与受信 executor 入口。复用既有 RunLedger、配额、终态、SandboxJournal、Skill 验证与审计。尚未接通完整集群 Temporal 服务、OpenSandbox/Kata admission/物理核验和目标节点验收；专用 Helm 继续关闭新任务准入。单机展示仍使用已验收的 systemd/OpenSandbox/gVisor 执行链。
 
 ## 调用路径与身份
 
-目标调用路径为 Temporal → 集群监督器 → 控制面账本 / Kubernetes 官方客户端 → 每次租约的可信 executor Pod → 模型接口 / 独立不可信代码沙盒。本增量实现监督器到控制面的协议，尚未接通 Kubernetes API。executor Pod 与租户代码沙盒是不同资源，不能把可信 executor 的容器停止当成沙盒停止。
+目标调用路径为 Temporal → 集群监督器 → 控制面账本 / Kubernetes 官方客户端 → 每次租约的可信 executor Pod → 模型接口 / 独立不可信代码沙盒。监督器到控制面的协议与 SDK 过程调用均已实现，尚未对真实 Kubernetes API/kubelet 完成验收。executor Pod 与租户代码沙盒是不同资源，不能把可信 executor 的容器停止当成沙盒停止。
 
 仅 `reconciler` 服务身份能访问 `/internal/platform/reconcile/cluster/*`；普通 JWT、worker、dispatcher、observer 均不能提交证明。`PLATFORM_CLUSTER_RECONCILERS` 默认为 `{}`，未配置身份不得领取集群任务。其键为监督身份 ID，值为下表中的部署目标；凭据仍从已有 `PLATFORM_SERVICE_KEYS` 注入，不放在请求、Pod 标签或 Temporal 载荷中。
 
@@ -44,6 +44,10 @@ Kubernetes 的强制删除可能在节点进程仍运行时移除 API 对象，�
 
 MySQL/API 检查覆盖并发领取、一次性启动、跨身份/环境拒绝、资源 UID 固定、终止证据重放、未知状态保留配额、审计失败回滚、单机兼容和数据库重启。测试中的 Pod 元数据是合成契约数据，不能据此宣称真实 Pod 已终止。
 
-Python 检查覆盖响应身份/状态一致性、分页、重复回收确认、秘密字段拒绝与启动授权不重试。它不包含模型请求或租户代码，也未依赖/安装 Kubernetes 客户端。下一步接官方客户端与 executor/finalizer 生命周期，再接沙盒物理核验、目标集群的 CNI/Kata、节点故障及离线端到端验收。
+前一轮 Python 传输检查覆盖响应身份/状态一致性、分页、重复回收确认、秘密字段拒绝与启动授权不重试，不包含模型请求或租户代码。
+
+后续 SDK 增量使用 `kubernetes==36.0.3`，新 Pod 先带 scheduling gate，配置和 UID 持久绑定成功后才允许调度；非零宽限停止、UID/resourceVersion CAS、终止证据先提交、只移除自身 finalizer。创建/绑定回复丢失不重放创建，恢复不自动激活；未知或尚未运行的 Pod 继续占额。非 root 集群入口接入已有执行器，但明确拒绝旧单机 Unix socket 沙盒配置。
+
+兼容回归 298 项通过；最终 SDK/入口定向检查在 Windows 为 64 通过、1 项 Linux 专属跳过，展示服务器 Linux 为 65 通过、0 跳过。Linux 使用校验过的增量 wheel 在专用 vendor 目录离线安装，活动 worker 的 aiohttp/aiosignal/yarl 版本前后相同。Pod/节点数据是合成 API 响应，真实本机 TLS 测试证明创建回复丢失时不自动重试、不跟随重定向；文件系统测试核验 Secret 投射形式的符号链接边界。不能将这些证据视为真实调度、容器停止、网络隔离或完整离线交付。见 [SDK 接入与依赖](../../deploy/platform/cluster/README.md)及[SDK 验证记录](cluster-sdk-verification-20261105.json)。
 
 迁移 V1.62 仅新增集群绑定表，保留现有 systemd 监督字段与接口；回退应用时保留新表和已有记录。控制面就绪检查要求新表存在，旧任务及文件不清理。应用镜像交付包的版本/摘要仍以各自验收清单为准，不能将此前控制面镜像自动视为包含本增量。
