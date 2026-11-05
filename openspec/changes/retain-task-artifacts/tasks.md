@@ -1,5 +1,7 @@
 # Tasks
 
+2026-11-06：V1.67 修复真实 MySQL/S3 演练复现的清理后迟到写入漏回收；成功清理按日复查，失败至少退避 5 分钟，按到期排序每批 20 条。27 项 Java 检查及九阶段真实服务演练通过，更新展示 API 后原 58 步/2 文件/缓存统计与公网权限复查通过。见 `docs/platform/output-reconciliation-verification-20261106.json`。1.2 的业务数据库故障对账缺口已有证据，multipart 中途断流和未完成分片治理仍待补齐，保持复合项未关闭。
+
 2026-11-06：真实临时 S3 强杀/重启、存储层读写/删除不可用错误、对象提交后上传 JVM 强杀、独立进程读取及精确候选键重复清理通过。保留样本完整；固定部署 JAR 与官方 SDK，演练容器/卷/凭据已清理，生产执行类/业务数据未变。见 `docs/platform/output-store-recovery-verification-20261106.json`。这不包含业务数据库自动对账或 multipart 中断，1.2 保持未关闭。4.2 中联合备份/恢复已有 `backup-recovery-verification-20261105.json` 的实测证据，任务删除生命周期仍未完成。
 
 2026-11-06：持续变化文件的 reader 竞态补充通过：实际 Linux 文件/管道背压下追加、截断、覆盖后恢复 mtime，各 10 次拒绝；稳定文件按 SHA256 验证成功。固定镜像内 4 项通过，核对实际 helper 源码摘要，与原 gVisor 验证相同；已加入持续集成。见 `docs/platform/output-races-verification-20261106.json`。2.2 的 reader 并发修改缺口已有证据，但这不扩大到完整父进程/SDK/生产 Kata 竞态，复合验收保持未关闭；对象存储中断/强杀、权限矩阵及删除治理继续推进。

@@ -124,7 +124,7 @@ public class PlatformApplication {
             try {
                 // Check the migration needed by the public API, not only TCP reachability.
                 jdbc.queryForList("SELECT key_id FROM oa_deployment_credential LIMIT 0");
-                jdbc.queryForList("SELECT upload_id FROM oa_run_output_upload LIMIT 0");
+                jdbc.queryForList("SELECT upload_id,reconcile_after FROM oa_run_output_upload LIMIT 0");
                 jdbc.queryForList("SELECT id FROM oa_run_step LIMIT 0");
                 jdbc.queryForList("SELECT adapter,thinking_enabled FROM oa_model_connection_version LIMIT 0");
                 jdbc.queryForList("SELECT observation_content_bytes FROM oa_run_attempt LIMIT 0");

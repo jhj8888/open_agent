@@ -1,0 +1,276 @@
+{
+  "checked_at": "2026-11-05T17:15:13.629810+00:00",
+  "api_artifact_sha256": "300817a427ae88d0501559325786d618f9d8f5a522455145394e3fcc2a56722b",
+  "probe_sha256": "7a0540d9b7b942c53227bacd155dedd477bb2ffe6ea3c4b8a0dd065866cc1d7d",
+  "mysql_image": "m.daocloud.io/docker.io/library/mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+  "s3_image": "m.daocloud.io/docker.io/chrislusf/seaweedfs@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+  "phases": [
+    "prepare",
+    "candidate-present",
+    "uploader-sigkill",
+    "outage",
+    "recover",
+    "late-reap",
+    "late-present",
+    "late-uploader-sigkill",
+    "late-recover"
+  ],
+  "actual_task_output_service_and_run_ledger": true,
+  "migrations": "upstream dependency tables + V1.49 through V1.67 from verified release JAR",
+  "uploader_sigkill_after_s3_commit_before_publication": true,
+  "writing_record_persisted": true,
+  "offline_reconciliation_preserves_reaping_for_retry": true,
+  "failed_upload_has_no_public_object_reference": true,
+  "initial_recovery_cleared_uploads": 3,
+  "final_recovery_cleared_uploads": 4,
+  "retained_published_uploads": 2,
+  "retry_uses_different_immutable_key": true,
+  "repeated_reconciliation_keeps_published_objects": true,
+  "network": "none; S3/Java share disposable MySQL network namespace",
+  "object_committed_after_first_reap_is_eventually_removed": true,
+  "fixture_containers_volumes_credentials_removed": true,
+  "production_data_modified": false,
+  "http_authorization_or_multipart_interruption_verified": false,
+  "aging": "fixture created_at/reconcile_after advanced explicitly; no 15-minute/24-hour wall-clock wait",
+  "build": {
+    "platform_sha256": "300817a427ae88d0501559325786d618f9d8f5a522455145394e3fcc2a56722b",
+    "source_sha256": "9e55fcfb93e0c7aa9273147c9d06b3304b3901c72670395c44cedc18d84c293b",
+    "probe_sha256": "7a0540d9b7b942c53227bacd155dedd477bb2ffe6ea3c4b8a0dd065866cc1d7d",
+    "bytes": 10715
+  },
+  "java": [
+    {
+      "suite": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "outputsLateFailureRearmsARecordAlreadyClearedByConcurrentReconciliation",
+        "outputsPersistAcrossCleanupRestartRetentionAndRequireCurrentTaskAccess",
+        "outputsRejectUnsafePathsEnforceVersionsAndReconcileOnlyUnpublishedObjects",
+        "outputsCleanupFailureBacksOffAndOtherCandidatesContinue",
+        "outputsConcurrentReservationAndRevocationDuringIoAreFenced",
+        "outputsRecheckLateObjectsAfterCleanupWithoutDeletingPublishedFiles"
+      ]
+    },
+    {
+      "suite": "com.iflytek.astron.console.hub.platform.run.PlatformRunInternalSecurityTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "missingWrongAndUserBearerCredentialsCannotEnterWorkerApi",
+        "sandboxResourceEndpointsUseOnlyVerifiedReconcilerIdentity",
+        "runtimeCredentialAccessRequiresWorkerRoleAndAuthenticatedLeaseOwner",
+        "clusterRoutesRejectUserWorkerDispatcherAndObserverIdentities",
+        "metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes",
+        "clusterControllerUsesVerifiedServicePrincipalAndRejectsInvalidScope",
+        "malformedDispatcherEnvironmentCannotReachStorage",
+        "dispatcherMustSelectOneEnvironmentAndLegacyRequestsAreTestOnly",
+        "dispatcherAndWorkerRolesAreNotInterchangeable",
+        "sandboxJournalRequiresServiceIdentityAndNeverAcceptsQuotaReleaseFromWorker",
+        "sandboxQuotaAndCreationConflictHaveExplicitHttpStatuses",
+        "authenticatedIdentityBindsClaimAndResponseIsNotCached",
+        "perOperationPermitUsesAuthenticatedOwnerAndNeverFallsBackToUserJwt",
+        "malformedScopeFailsBeforeStorageAndTrailingSlashCannotBypassServiceAuth",
+        "workerDispatcherAndUserCannotEnterAnyReconcilerOperation",
+        "reconcilerIdentityComesFromAuthenticationAndCannotReadWorkerSecrets"
+      ]
+    },
+    {
+      "suite": "com.iflytek.astron.platform.PlatformApplicationTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "readinessChecksRequiredSchemaAndDoesNotExposeDatabaseErrors",
+        "managementUsesVerifiedSubjectAndRejectsForgedIdentityHeaders",
+        "profileUsesVerifiedSubjectOnlyAndDoesNotAcceptForgedGrants",
+        "dedicatedContextLoadsRealRunServiceWithoutLegacyApplication",
+        "realServletErrorDispatchPreservesUnauthorizedStatus"
+      ]
+    }
+  ],
+  "regression_before_fix": {
+    "api_sha256": "75927e061935b5e05c5e77b871c464f6fd210b6ea372ae6163c2d4f741ff9c45",
+    "probe_sha256": "ece19a7caec65d260e38e9a4595eca619705aa8cc1dae599c900041e09e9464e",
+    "passed_phases": [
+      "prepare",
+      "candidate-present",
+      "outage",
+      "recover",
+      "late-reap",
+      "late-present"
+    ],
+    "failed_phase": "late-recover",
+    "failure": "IllegalStateException; expected late object to be removed, but verified read succeeded",
+    "temporary_credentials_removed": true
+  },
+  "deployment": {
+    "phase": "complete",
+    "old_artifact": "75927e061935b5e05c5e77b871c464f6fd210b6ea372ae6163c2d4f741ff9c45",
+    "new_artifact": "300817a427ae88d0501559325786d618f9d8f5a522455145394e3fcc2a56722b",
+    "started_at": "2026-11-05T17:16:50.358163+00:00",
+    "finished_at": "2026-11-05T17:17:32.013572+00:00",
+    "elapsed_seconds": 41.65,
+    "backup_sha256": "e0e7345168ef0087557cdc5fb2af5c012fd681aa62d30a4dcef65813cf224895",
+    "schema_version": "1.67",
+    "private_sql_backup_saved": true
+  },
+  "demo": {
+    "step_content": {
+      "model_version": 2,
+      "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+      "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+      "verified_at": "2026-11-05T23:00:08.462415+00:00",
+      "steps": 58,
+      "model_calls": 6,
+      "tool_calls": 4,
+      "steps_with_think": 2,
+      "input_modes": [
+        "initial",
+        "append",
+        "append",
+        "append",
+        "append",
+        "context_changed"
+      ],
+      "totals": {
+        "steps": 58,
+        "modelCalls": 6,
+        "toolCalls": 4,
+        "unknownModelCalls": 0,
+        "inputTokens": 21274,
+        "outputTokens": 968,
+        "cacheReadTokens": 15232,
+        "uncachedInputTokens": 6042,
+        "cacheReportedModelCalls": 6,
+        "unknownCacheModelCalls": 0
+      },
+      "actual_tool_results": true,
+      "output_text": true,
+      "synthetic_secret_redacted": true,
+      "other_tenant_denied": true,
+      "token_sum_matches_task": true,
+      "retained_files": 2,
+      "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+      "download_digests_verified": true,
+      "thinking_steps": [
+        {
+          "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+          "input_tokens": 3609,
+          "duration_ms": 1850
+        },
+        {
+          "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+          "input_tokens": 3865,
+          "duration_ms": 1928
+        }
+      ]
+    },
+    "cache_tokens": {
+      "checked_at": "2026-11-05T23:00:09.897652+00:00",
+      "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+      "steps": 58,
+      "pages_verified": 20,
+      "model_calls": 6,
+      "task": {
+        "cacheReadTokens": 15232,
+        "uncachedInputTokens": 6042,
+        "cacheReportedModelCalls": 6,
+        "unknownCacheModelCalls": 0
+      },
+      "periods": {
+        "this_week": {
+          "modelCalls": 49,
+          "inputTokens": 167806,
+          "cacheReadTokens": 142080,
+          "uncachedInputTokens": 25726,
+          "cacheReportedModelCalls": 49,
+          "unknownCacheModelCalls": 0
+        },
+        "last_week": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "cacheReadTokens": null,
+          "uncachedInputTokens": null,
+          "cacheReportedModelCalls": 0,
+          "unknownCacheModelCalls": 0
+        },
+        "this_month": {
+          "modelCalls": 49,
+          "inputTokens": 167806,
+          "cacheReadTokens": 142080,
+          "uncachedInputTokens": 25726,
+          "cacheReportedModelCalls": 49,
+          "unknownCacheModelCalls": 0
+        },
+        "last_month": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "cacheReadTokens": null,
+          "uncachedInputTokens": null,
+          "cacheReportedModelCalls": 0,
+          "unknownCacheModelCalls": 0
+        }
+      },
+      "task_total_unchanged": true,
+      "other_tenant_denied": true,
+      "model_or_tool_replayed": false,
+      "examples": [
+        {
+          "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+          "input": 3355,
+          "cached": 0,
+          "new": 3355,
+          "output": 66
+        },
+        {
+          "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+          "input": 3609,
+          "cached": 3328,
+          "new": 281,
+          "output": 233
+        },
+        {
+          "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+          "input": 3865,
+          "cached": 3712,
+          "new": 153,
+          "output": 246
+        }
+      ]
+    },
+    "public_console": {
+      "checked_at": "2026-11-05T23:00:12.566443+00:00",
+      "origin": "https://120.26.81.83",
+      "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+      "asset_digests_verified": 3,
+      "trusted_tls": true,
+      "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+      "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+      "issuer": "https://120.26.81.83/identity",
+      "pkce_s256": true,
+      "unauthenticated_rejected": true,
+      "forged_headers_rejected": true,
+      "internal_route_denied": true,
+      "authenticated_public_api": true,
+      "list_detail_usage_matches": 21,
+      "static_csp": true,
+      "profile_verified_subject_only": true,
+      "profile_idempotent": true,
+      "profile_does_not_change_tenants": true,
+      "browser_verification": "separate manual browser evidence required"
+    }
+  },
+  "sources": {
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/TaskOutputService.java": "02a5e15e3ab70802a3b48699f936351777270d2d1c69ab24b1769521dc529d56",
+    "console/backend/hub/src/main/resources/db/migration/V1.67__recheck_unpublished_output_uploads.sql": "a876204e1c73d44b08a7ef9b57f70644407c33521ba3eb6f067cf18e7e06b511",
+    "deploy/platform/control/OutputReconciliationProbe.java": "9e55fcfb93e0c7aa9273147c9d06b3304b3901c72670395c44cedc18d84c293b",
+    "deploy/platform/control/verify_output_reconciliation.py": "73b8051771c56f3a7349387159271ef2d2a56f124fefbd87caa4109faa66a51a",
+    "deploy/platform/control/package_output_store_probe.py": "9019b7b71c4b4e5327025a22c3a10484e982ffbde8d37624e7a2a78d86432fd8"
+  }
+}

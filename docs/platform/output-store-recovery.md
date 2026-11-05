@@ -1,5 +1,7 @@
 # 任务产物存储故障演练
 
+后续已补充真实 MySQL 与 `TaskOutputService` 联调，并修复清理后的迟到对象漏回收问题，见[对账恢复](output-reconciliation.md)。下文保留本轮存储类单独验证的范围。
+
 2026-11-06（北京时间）在展示服务器的独立临时 S3 上，使用当前已部署 JAR 中的 `MinioTaskOutputStore` 和打包的官方 Minio SDK 验证。生产执行类没有修改，也没有替换或重启展示站对象存储。完整证据见 [JSON](output-store-recovery-verification-20261106.json)。
 
 验证调用为 `OutputStoreRecoveryProbe → MinioTaskOutputStore → Minio Java SDK → SeaweedFS`。数据、凭据和卷均为新建测试资源，没有连接业务数据库，也没有调用模型或重放用户任务。

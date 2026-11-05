@@ -57,6 +57,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.64__scope_outbox_dispatch_by_environment.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.65__record_rejected_cluster_creations.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.66__bind_cluster_sandbox_resources.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.67__recheck_unpublished_output_uploads.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -265,6 +266,8 @@ class RunLedgerMySqlTest {
     private static class OutputStore implements TaskOutputStore {
         final Map<String,byte[]> objects=new java.util.concurrent.ConcurrentHashMap<>();
         boolean fail;
+        java.util.function.Predicate<String> failRemove=key->false;
+        final Map<String,Integer> removals=new java.util.HashMap<>();
         Runnable afterPut=()->{};
         @Override public void put(String key,java.io.InputStream input,long size,String sha) {
             if(fail)throw new RunFailure("output_storage_unavailable");
@@ -272,7 +275,11 @@ class RunLedgerMySqlTest {
             catch(java.io.IOException invalid){throw new RuntimeException(invalid);}
         }
         @Override public org.springframework.core.io.Resource verified(String key,long size,String sha) {return new ByteArrayResource(objects.get(key));}
-        @Override public void remove(String key) {objects.remove(key);}
+        @Override public void remove(String key) {
+            removals.merge(key,1,Integer::sum);
+            if(failRemove.test(key))throw new RunFailure("output_storage_unavailable");
+            objects.remove(key);
+        }
     }
     private TaskOutputService outputs(OutputStore store) {
         return new TaskOutputService(ledger,jdbc,store,authorization(),deployments(),new DataSourceTransactionManager(source),new org.springframework.mock.env.MockEnvironment());
@@ -332,6 +339,56 @@ class RunLedgerMySqlTest {
         code("output_not_available",()->service.download(caller("alice"),lease.runId(),id,false));
         jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
         service.reconcile();assertTrue(store.objects.isEmpty());
+    }
+    @Test void outputsRecheckLateObjectsAfterCleanupWithoutDeletingPublishedFiles() {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("output-late-object").runId());
+        String keep=(String)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/keep.txt",1,RunJson.hash("a"),"final")).get("output_id");
+        service.upload(lease,keep,new java.io.ByteArrayInputStream(new byte[]{'a'}),1);
+        String id=(String)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/late.txt",1,RunJson.hash("b"),"final")).get("output_id");
+        store.fail=true;
+        code("output_storage_unavailable",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'b'}),1));
+        store.fail=false;
+        String key=jdbc.queryForObject("SELECT object_key FROM oa_run_output_upload WHERE output_id=?",String.class,id);
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        service.reconcile();assertEquals("cleared",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE output_id=?",String.class,id));
+        store.objects.put(key,new byte[]{'b'}); // S3 commit by a late process, after the first delete.
+        service.reconcile();assertTrue(store.objects.containsKey(key));assertEquals(1,store.removals.get(key));
+        jdbc.update("UPDATE oa_run_output_upload SET reconcile_after=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE output_id=?",id);
+        service.reconcile();assertFalse(store.objects.containsKey(key));assertEquals(2,store.removals.get(key));
+        assertEquals(1,store.objects.size());assertEquals("available",jdbc.queryForObject("SELECT state FROM oa_run_output WHERE output_id=?",String.class,keep));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='published'",Integer.class));
+    }
+    @Test void outputsCleanupFailureBacksOffAndOtherCandidatesContinue() {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("output-reap-backoff").runId());
+        var keys=new ArrayList<String>();store.fail=true;
+        for(String name:List.of("one","two")) {
+            String id=(String)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/"+name,1,RunJson.hash("a"),"final")).get("output_id");
+            code("output_storage_unavailable",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'a'}),1));
+            keys.add(jdbc.queryForObject("SELECT object_key FROM oa_run_output_upload WHERE output_id=?",String.class,id));
+        }
+        store.fail=false;store.failRemove=keys.getFirst()::equals;
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        service.reconcile();service.reconcile();
+        assertEquals("reaping",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE object_key=?",String.class,keys.getFirst()));
+        assertEquals("cleared",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE object_key=?",String.class,keys.getLast()));
+        assertEquals(1,store.removals.get(keys.getFirst()));assertEquals(1,store.removals.get(keys.getLast()));
+        store.failRemove=key->false;
+        jdbc.update("UPDATE oa_run_output_upload SET reconcile_after=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE object_key=?",keys.getFirst());
+        service.reconcile();assertEquals(2,store.removals.get(keys.getFirst()));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='cleared'",Integer.class));
+    }
+    @Test void outputsLateFailureRearmsARecordAlreadyClearedByConcurrentReconciliation() {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("output-late-failure").runId());
+        String id=(String)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/late.txt",1,RunJson.hash("a"),"final")).get("output_id");
+        store.afterPut=()->{
+            jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+            service.reconcile();
+            assertEquals("cleared",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE output_id=?",String.class,id));
+        };
+        code("output_upload_expired",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'a'}),1));
+        assertEquals("abandoned",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE output_id=?",String.class,id));
+        assertEquals("failed",jdbc.queryForObject("SELECT state FROM oa_run_output WHERE output_id=?",String.class,id));
+        service.reconcile();assertEquals("cleared",jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE output_id=?",String.class,id));
     }
     private RunOutbox outbox() { return new RunOutbox(new JdbcTemplate(source), new DataSourceTransactionManager(source)); }
     private RunSandboxJournal journal() { return new RunSandboxJournal(instance(), new JdbcTemplate(source)); }

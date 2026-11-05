@@ -84,7 +84,7 @@ public class TaskOutputService {
             tx.execute(status->{
                 jdbc.queryForMap("SELECT output_id FROM oa_run_output WHERE output_id=? FOR UPDATE",id);
                 if(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output WHERE object_key=?",Integer.class,key)==0) {
-                    jdbc.update("UPDATE oa_run_output_upload SET state='abandoned' WHERE upload_id=? AND state='writing'",upload);
+                    jdbc.update("UPDATE oa_run_output_upload SET state='abandoned',reconcile_after=CURRENT_TIMESTAMP(3) WHERE upload_id=? AND state IN ('writing','reaping','cleared')",upload);
                     jdbc.update("UPDATE oa_run_output SET state='failed' WHERE output_id=? AND state<>'available'",id);
                 }return null;
             });throw failure;
@@ -113,18 +113,18 @@ public class TaskOutputService {
             return new Download(resource,name,size,(String)row.get("sha256"));
         } catch(RuntimeException denied) { try {resource.getInputStream().close();}catch(Exception ignored){}throw denied; }
     }
-    /** Only exact unpublished candidate keys, older than the bounded upload deadline, may be reaped. */
+    /** Keep exact-key tombstones: an old uploader may commit after an earlier successful delete. */
     @Scheduled(fixedDelay=60000,initialDelay=60000)
     public void reconcile() {
-        for(var row:jdbc.queryForList("SELECT upload_id,output_id,object_key FROM oa_run_output_upload WHERE state IN ('writing','abandoned','reaping') AND created_at<TIMESTAMPADD(MINUTE,-15,CURRENT_TIMESTAMP(3)) LIMIT 20")) {
+        for(var row:jdbc.queryForList("SELECT upload_id,output_id,object_key FROM oa_run_output_upload WHERE state IN ('writing','abandoned','reaping','cleared') AND created_at<TIMESTAMPADD(MINUTE,-15,CURRENT_TIMESTAMP(3)) AND reconcile_after<=CURRENT_TIMESTAMP(3) ORDER BY reconcile_after,upload_id LIMIT 20")) {
             try {
                 boolean reap=Boolean.TRUE.equals(tx.execute(status->{
                     jdbc.queryForMap("SELECT output_id FROM oa_run_output WHERE output_id=? FOR UPDATE",row.get("output_id"));
                     if(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output WHERE object_key=?",Integer.class,row.get("object_key"))!=0)return false;
-                    if(jdbc.update("UPDATE oa_run_output_upload SET state='reaping' WHERE upload_id=? AND state IN ('writing','abandoned','reaping')",row.get("upload_id"))!=1)return false;
+                    if(jdbc.update("UPDATE oa_run_output_upload SET state='reaping',reconcile_after=TIMESTAMPADD(MINUTE,5,CURRENT_TIMESTAMP(3)) WHERE upload_id=? AND state IN ('writing','abandoned','reaping','cleared') AND reconcile_after<=CURRENT_TIMESTAMP(3)",row.get("upload_id"))!=1)return false;
                     jdbc.update("UPDATE oa_run_output SET state='failed' WHERE output_id=? AND state='pending'",row.get("output_id"));return true;
                 }));
-                if(reap) {store.remove((String)row.get("object_key"));jdbc.update("UPDATE oa_run_output_upload SET state='cleared' WHERE upload_id=? AND state='reaping'",row.get("upload_id"));}
+                if(reap) {store.remove((String)row.get("object_key"));jdbc.update("UPDATE oa_run_output_upload SET state='cleared',reconcile_after=TIMESTAMPADD(DAY,1,CURRENT_TIMESTAMP(3)) WHERE upload_id=? AND state='reaping'",row.get("upload_id"));}
             } catch(RuntimeException failure) {org.slf4j.LoggerFactory.getLogger(getClass()).warn("Task output reconciliation deferred; upload={}",row.get("upload_id"));}
         }
     }
