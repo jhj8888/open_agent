@@ -6,7 +6,7 @@
 
 固定 Pod 配置使用独立 ServiceAccount 且禁用 token 挂载、非 root UID 10001、只读根文件系统、能力全删、RuntimeDefault Seccomp、有限资源、独立 `/tmp`。创建和恢复会核对 kube-system/执行 namespace UID、Pod UID、租约摘要与完整安全配置。仅接受已知 API 默认值，额外容器/卷/环境变量/权限或镜像变动会拒绝；目标集群若有注入 webhook，必须在集成阶段明确协调，不能绕过核验。
 
-新 Pod 带 scheduling gate，完成核验并将 UID 写入账本后，才通过带 UID/resourceVersion 条件的 JSON Patch 移除门禁。采用 [Kubernetes 1.30 起稳定的 Pod Scheduling Readiness](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-scheduling-readiness/)，目标集群需要该特性且后续必须实测；当前没有声称兼容用户尚未提供版本的全部集群。恢复不自动激活、不重试创建。未调度/镜像拉取失败等缺少容器终止记录的路径仍占额，尚需实现从未运行的正向证据与创建关闭协议。
+新 Pod 带 scheduling gate，完成核验并将 UID 写入账本后，才通过带 UID/resourceVersion 条件的 JSON Patch 移除门禁。采用 [Kubernetes 1.30 起稳定的 Pod Scheduling Readiness](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-scheduling-readiness/)，目标集群需要该特性且后续必须实测；当前没有声称兼容用户尚未提供版本的全部集群。恢复不自动激活、不重试创建。从未绑定节点的 Pod 可凭删除屏障及独立持久证据回收；已绑定但镜像拉取失败、未知创建等缺少正向证明的路径仍占额。
 
 ## 依赖与离线契约包
 
@@ -18,4 +18,6 @@
 
 `package_contract.py` 从 `.local/cluster-wheels` 和显式源码清单生成带摘要的契约归档；它只包含 7 个增量 wheel，依赖展示机既有 Python 3.11 环境，不能用于全新机器完整离线安装。`verify_contract.py` 在 `/opt/open-agent/cluster-contracts/<sha256>` 的专用 vendor 目录离线安装增量，验证安装前后活动 worker 依赖不变，再运行官方 SDK 序列化、故障恢复、真实本机 HTTPS 和 Linux Secret 投射符号链接检查。
 
-这些检查的 Pod、节点和终止状态是合成 API 数据。本机 HTTPS 只证明实际 SDK 不重试丢失的创建回复、不跟随重定向，不证明 kubelet/CRI 已停止进程，也不证明 CNI/Kata 隔离。
+契约检查的 Pod、节点和终止状态是合成 API 数据。本机 HTTPS 只证明实际 SDK 不重试丢失的创建回复、不跟随重定向，不证明 kubelet/CRI 已停止进程，也不证明 CNI/Kata 隔离。
+
+另外已使用独立、零节点的 K3s v1.36.6+k3s1 验证真实 API 默认值、门禁、删除屏障与绑定拒绝。固定制品和 Apache-2.0 许可见 `k3s-fixture-artifact.json` / `LICENSE-k3s`；可复用验证脚本及严格边界见 [未启动 Pod 回收](../../../docs/platform/cluster-unstarted-pods.md)。该 fixture 不部署生产 worker，不包含 kubelet、Kata 或 CNI 验收。

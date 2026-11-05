@@ -31,7 +31,7 @@ class ClusterLifecycle:
         if current.phase == "released":
             return current, True
         current = await self.control.fence(lease)
-        if current.phase == "terminated":
+        if current.phase in {"terminated", "not_started"}:
             await self.processes.finalize(current)
             return current, await self.processes.absent_after_receipt(current)
         pod = await self.processes.inspect(current)
@@ -46,6 +46,14 @@ class ClusterLifecycle:
             current = await self.control.observed(lease, pod.metadata.uid, pod.metadata.resource_version)
         if current.phase != "observed":
             raise ClusterProcessError("CLUSTER_BINDING_INVALID")
+        if self.processes.unbound_unstarted(current, pod):
+            if pod.metadata.deletion_timestamp is None:
+                await self.processes.request_stop(current, pod)
+                return current, False
+            receipt = self.processes.not_started_receipt(current, pod)
+            current = await self.control.not_started(lease, receipt)
+            await self.processes.finalize(current)
+            return current, await self.processes.absent_after_receipt(current)
         if pod.status is None or pod.status.phase not in {"Succeeded", "Failed"}:
             await self.processes.request_stop(current, pod)
             return current, False

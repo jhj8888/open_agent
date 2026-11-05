@@ -43,6 +43,10 @@ public class PlatformClusterReconcileController {
     }
     @PostMapping("/attempts/{leaseId}/fence")
     public RunClusterSupervision.Snapshot fence(@PathVariable UUID leaseId, Principal principal) { return supervision.fence(leaseId.toString(), principal.getName()); }
+    @PostMapping("/attempts/{leaseId}/not-started")
+    public RunClusterSupervision.Snapshot notStarted(@PathVariable UUID leaseId, @RequestBody RunClusterSupervision.NotStarted input, Principal principal) {
+        return supervision.notStarted(leaseId.toString(), principal.getName(), input);
+    }
     @PostMapping("/attempts/{leaseId}/sandbox-observed")
     public RunClusterSupervision.Snapshot sandbox(@PathVariable UUID leaseId, @RequestBody @Valid PlatformRunReconcileController.SandboxObservation input, Principal principal) {
         return supervision.adoptSandbox(leaseId.toString(), principal.getName(), input.sandboxId().toString());

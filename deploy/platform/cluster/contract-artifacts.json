@@ -1,7 +1,7 @@
 {
   "scope": "Linux contract verification overlay only; not a complete worker image or Kubernetes deployment",
-  "sha256": "b6897b42e7f4fba46b770a633c26aa863801ebf3ecc47ba4c8816a9adc9452fd",
-  "bytes": 6541226,
+  "sha256": "5f96edac8a63e28009f16067c6db147c4b4153dca33553e04491b4d82b5c0e38",
+  "bytes": 6542823,
   "base": "Existing demo worker Python 3.11 frozen environment; unchanged",
   "files": [
     {
@@ -36,18 +36,18 @@
     },
     {
       "path": "source/agent/durable/cluster_control.py",
-      "size": 11490,
-      "sha256": "3b8aacc5a24e8524b24f3f7e9e7d2d19d5deb9e9674ee4ecfcfbd1c5a5db74d7"
+      "size": 13131,
+      "sha256": "e12612868c4c52c3f5299427e19915d23a74de4146e3a755d24c955640a9ceac"
     },
     {
       "path": "source/agent/durable/cluster_lifecycle.py",
-      "size": 2984,
-      "sha256": "b39fc433c47b5e5209187770a170b3cd526ec287b03640054252d05d07685b59"
+      "size": 3488,
+      "sha256": "2cf4e8bc4d275a71899c9f0fa9d30280359dfbd6982c556b37061603c90f598e"
     },
     {
       "path": "source/agent/durable/cluster_process.py",
-      "size": 18008,
-      "sha256": "dcae6e0e9a82b0081136f0cf23e5b3ece11d1d358267e1a2efc8a0f097775a5d"
+      "size": 19873,
+      "sha256": "e8129febb3bad2ff0177a59eb4ed712945c2b5e1ef20ee3a40f548170effea7a"
     },
     {
       "path": "source/agent/durable/contracts.py",
@@ -81,13 +81,13 @@
     },
     {
       "path": "source/agent/tests/test_cluster_control.py",
-      "size": 8334,
-      "sha256": "c2acae6616e3b0088dcfe4463556d7e80f9ea3c4802522a994de67b885196596"
+      "size": 10669,
+      "sha256": "f442ae36b8f28f33da7ca705f0409f7f72237e2fb929d23aaa49e1d234b95c9e"
     },
     {
       "path": "source/agent/tests/test_cluster_process.py",
-      "size": 18439,
-      "sha256": "148961ea5e59590abb02fb2e634453b9a25250e173a3e249e020a3c1b8ba646f"
+      "size": 21503,
+      "sha256": "140136e48b8935d5a40bb0d6654658acc3f7da5690d4e4ef4bbada8cefe40919"
     },
     {
       "path": "source/agent/tests/test_cluster_transport.py",

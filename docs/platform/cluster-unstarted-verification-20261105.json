@@ -1,0 +1,892 @@
+{
+  "recorded_at": "2026-11-05T07:29:35.181165+00:00",
+  "scope": "Positive never-bound Pod deletion barrier, durable receipt and atomic release; demo API V1.63; cluster execution remains disabled",
+  "java": {
+    "tests_passed": 43,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "suite": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+        "tests": "15",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "190.242",
+        "cases": [
+          {
+            "name": "clusterConcurrentAdmissionAndBeginAreOneShot",
+            "passed": true
+          },
+          {
+            "name": "clusterUnstartedReleaseAuditFailureKeepsBothReservations",
+            "passed": true
+          },
+          {
+            "name": "clusterUnstartedReceiptRequiresFenceAndIsReplayable",
+            "passed": true
+          },
+          {
+            "name": "clusterUnstartedEvidenceRejectsMissingBarrierAndConflictingReceipts",
+            "passed": true
+          },
+          {
+            "name": "databaseCrashAndRestartPreserveRunOutboxAndIdempotency",
+            "passed": true
+          },
+          {
+            "name": "clusterUnknownSandboxCreationRetainsBothQuotas",
+            "passed": true
+          },
+          {
+            "name": "clusterAdmissionAndBindingAreAtomicAndScoped",
+            "passed": true
+          },
+          {
+            "name": "clusterUnknownLaunchAndUnterminatedPodNeverReleaseQuota",
+            "passed": true
+          },
+          {
+            "name": "clusterReleaseAndAuditRollbackTogetherAndSkillEvidenceUsesSharedPath",
+            "passed": true
+          },
+          {
+            "name": "clusterTerminationRequiresActualContainerIdentityAndTerminalPhase",
+            "passed": true
+          },
+          {
+            "name": "clusterPodUidAndTerminationCannotBeReplacedOrForgedAcrossAttempts",
+            "passed": true
+          },
+          {
+            "name": "clusterPendingCursorDoesNotHideNewWorkAndLegacyBindingsCannotBeAdopted",
+            "passed": true
+          },
+          {
+            "name": "clusterUnboundPodCanPersistBarrierAfterGateWasRemoved",
+            "passed": true
+          },
+          {
+            "name": "clusterUnstartedRejectsAnyAuthorizedSandboxCreation",
+            "passed": true
+          },
+          {
+            "name": "clusterPreparedCancellationReleasesOnceAndStillSupportsLookup",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "suite": "com.iflytek.astron.console.hub.platform.run.RunClusterConfigurationTest",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.163",
+        "cases": [
+          {
+            "name": "workerRoleCannotActAsClusterReconciler",
+            "passed": true
+          },
+          {
+            "name": "mutableImagesInvalidNamesAndUnknownConfigurationKeysAreRejected",
+            "passed": true
+          },
+          {
+            "name": "twoEnvironmentsCannotShareTheSameNamespaceUid",
+            "passed": true
+          },
+          {
+            "name": "legacyReconcilerAndWorkerBindingsCannotBeReused",
+            "passed": true
+          },
+          {
+            "name": "workerIdentityCannotBeSharedByDifferentClusterReconcilers",
+            "passed": true
+          },
+          {
+            "name": "absentConfigurationLeavesClusterAdmissionUnavailable",
+            "passed": true
+          },
+          {
+            "name": "configuredFixedIdentityIsAccepted",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "suite": "com.iflytek.astron.console.hub.platform.run.RunSupervisionConfigurationTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.24",
+        "cases": [
+          {
+            "name": "unconfiguredSupervisorFailsClosedBeforeDatabaseAccess",
+            "passed": true
+          },
+          {
+            "name": "boundSupervisorRejectsMalformedOrUnboundedScanBeforeStorage",
+            "passed": true
+          },
+          {
+            "name": "missingWrongRoleAndSharedCredentialsAreRejectedWithoutEchoingConfiguration",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "suite": "com.iflytek.astron.console.hub.platform.run.PlatformRunInternalSecurityTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "34.072",
+        "cases": [
+          {
+            "name": "missingWrongAndUserBearerCredentialsCannotEnterWorkerApi",
+            "passed": true
+          },
+          {
+            "name": "runtimeCredentialAccessRequiresWorkerRoleAndAuthenticatedLeaseOwner",
+            "passed": true
+          },
+          {
+            "name": "clusterRoutesRejectUserWorkerDispatcherAndObserverIdentities",
+            "passed": true
+          },
+          {
+            "name": "metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes",
+            "passed": true
+          },
+          {
+            "name": "clusterControllerUsesVerifiedServicePrincipalAndRejectsInvalidScope",
+            "passed": true
+          },
+          {
+            "name": "dispatcherAndWorkerRolesAreNotInterchangeable",
+            "passed": true
+          },
+          {
+            "name": "sandboxJournalRequiresServiceIdentityAndNeverAcceptsQuotaReleaseFromWorker",
+            "passed": true
+          },
+          {
+            "name": "sandboxQuotaAndCreationConflictHaveExplicitHttpStatuses",
+            "passed": true
+          },
+          {
+            "name": "authenticatedIdentityBindsClaimAndResponseIsNotCached",
+            "passed": true
+          },
+          {
+            "name": "perOperationPermitUsesAuthenticatedOwnerAndNeverFallsBackToUserJwt",
+            "passed": true
+          },
+          {
+            "name": "malformedScopeFailsBeforeStorageAndTrailingSlashCannotBypassServiceAuth",
+            "passed": true
+          },
+          {
+            "name": "workerDispatcherAndUserCannotEnterAnyReconcilerOperation",
+            "passed": true
+          },
+          {
+            "name": "reconcilerIdentityComesFromAuthenticationAndCannotReadWorkerSecrets",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "suite": "com.iflytek.astron.platform.PlatformApplicationTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "18.825",
+        "cases": [
+          {
+            "name": "readinessChecksRequiredSchemaAndDoesNotExposeDatabaseErrors",
+            "passed": true
+          },
+          {
+            "name": "managementUsesVerifiedSubjectAndRejectsForgedIdentityHeaders",
+            "passed": true
+          },
+          {
+            "name": "profileUsesVerifiedSubjectOnlyAndDoesNotAcceptForgedGrants",
+            "passed": true
+          },
+          {
+            "name": "dedicatedContextLoadsRealRunServiceWithoutLegacyApplication",
+            "passed": true
+          },
+          {
+            "name": "realServletErrorDispatchPreservesUnauthorizedStatus",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "database": "isolated MySQL 8.4.13",
+    "sigkill_restart_included": true
+  },
+  "python": {
+    "windows_passed": 77,
+    "windows_linux_only_skipped": 1,
+    "linux": {
+      "checked_at": "2026-11-05T07:03:29.003879+00:00",
+      "archive_sha256": "5f96edac8a63e28009f16067c6db147c4b4153dca33553e04491b4d82b5c0e38",
+      "tests_passed": 78,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "dependencies": {
+        "aiohttp": "3.14.5",
+        "aiosignal": "1.4.0",
+        "durationpy": "0.11",
+        "kubernetes": "36.0.3",
+        "oauthlib": "4.0.1",
+        "requests-oauthlib": "2.0.0",
+        "yarl": "1.25.1"
+      },
+      "offline_overlay_install": true,
+      "live_worker_environment_modified": false,
+      "live_worker_dependencies_before_and_after": {
+        "aiohttp": "3.11.14",
+        "aiosignal": "1.3.2",
+        "yarl": "1.18.3"
+      },
+      "https_loopback_verified": true,
+      "projected_secret_symlinks_verified": true,
+      "kubernetes_api_and_kubelet_verified": false,
+      "kata_and_cni_verified": false
+    }
+  },
+  "k3s": {
+    "artifact": {
+      "version": "v1.36.6+k3s1",
+      "sha256": "66ceb8e67edfa547195135d74783bfadc2ecc04a91059e90ae5f70a3dbc98c15",
+      "bytes": 79380642,
+      "url": "https://github.com/k3s-io/k3s/releases/download/v1.36.6%2Bk3s1/k3s",
+      "license": "Apache-2.0",
+      "license_sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    "fixture": {
+      "version": "v1.36.6+k3s1",
+      "container_id": "ef1d1deb2fb1d3f156d12146f7d55109f53b9aeba3d1289708d138b136be8648",
+      "private_endpoint": "https://192.168.192.2:6443",
+      "agentless": true,
+      "privileged": false,
+      "host_network": false,
+      "public_port": false,
+      "memory_limit_mib": 768,
+      "phase": "ready",
+      "ready_at": "2026-11-05T06:47:23.794288+00:00",
+      "network": "open-agent-k3s-api-contract"
+    },
+    "api": {
+      "cases": [
+        {
+          "version": "v1.36.6+k3s1",
+          "namespace": "oa-contract-0a6651bf",
+          "kubelet_present": false,
+          "source_sha256": "5f96edac8a63e28009f16067c6db147c4b4153dca33553e04491b4d82b5c0e38",
+          "gate_retained": true,
+          "pod_uid": "8d418904-8728-4814-ae2e-a00237ee1288",
+          "defaulted_spec": {
+            "activeDeadlineSeconds": 3610,
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "command": [
+                  "/opt/venv/bin/python",
+                  "-m",
+                  "agent.durable.cluster_child"
+                ],
+                "env": [
+                  {
+                    "name": "OPEN_AGENT_LEASE",
+                    "value": "{\"attempt\":1,\"fencingToken\":1,\"leaseId\":\"64550706-5e66-41e2-ae84-40daa4dcc7bf\",\"runId\":\"c8e6d244-77c7-4663-a628-e806cc584231\",\"scope\":{\"environment\":\"test\",\"tenant\":\"tenant\"},\"workerId\":\"executor\"}"
+                  },
+                  {
+                    "name": "OPEN_AGENT_POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "LANGSMITH_TRACING",
+                    "value": "false"
+                  },
+                  {
+                    "name": "LANGCHAIN_TRACING_V2",
+                    "value": "false"
+                  },
+                  {
+                    "name": "PYTHONDONTWRITEBYTECODE",
+                    "value": "1"
+                  }
+                ],
+                "image": "registry.invalid/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "executor",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "ephemeral-storage": "256Mi",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "ephemeral-storage": "128Mi",
+                    "memory": "256Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "readOnlyRootFilesystem": true,
+                  "runAsGroup": 10001,
+                  "runAsNonRoot": true,
+                  "runAsUser": 10001,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                  {
+                    "mountPath": "/run/open-agent/worker",
+                    "name": "worker",
+                    "readOnly": true
+                  },
+                  {
+                    "mountPath": "/tmp",
+                    "name": "tmp"
+                  }
+                ]
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "enableServiceLinks": false,
+            "nodeSelector": {
+              "kubernetes.io/arch": "amd64",
+              "kubernetes.io/os": "linux",
+              "open-agent.io/executor-pool": "trusted"
+            },
+            "preemptionPolicy": "PreemptLowerPriority",
+            "priority": 0,
+            "restartPolicy": "Never",
+            "schedulerName": "default-scheduler",
+            "schedulingGates": [
+              {
+                "name": "open-agent.io/execution-authorized"
+              }
+            ],
+            "securityContext": {
+              "fsGroup": 10001,
+              "fsGroupChangePolicy": "OnRootMismatch",
+              "runAsGroup": 10001,
+              "runAsNonRoot": true,
+              "runAsUser": 10001,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "serviceAccount": "executor",
+            "serviceAccountName": "executor",
+            "terminationGracePeriodSeconds": 30,
+            "tolerations": [
+              {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+              },
+              {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+              }
+            ],
+            "volumes": [
+              {
+                "name": "worker",
+                "secret": {
+                  "defaultMode": 288,
+                  "items": [
+                    {
+                      "key": "worker.json",
+                      "path": "worker.json"
+                    }
+                  ],
+                  "secretName": "worker"
+                }
+              },
+              {
+                "emptyDir": {
+                  "sizeLimit": "64Mi"
+                },
+                "name": "tmp"
+              }
+            ]
+          },
+          "stop_recovery_passes": 1,
+          "stale_activation_status": 422,
+          "binding_after_delete_status": 409,
+          "deletion_barrier_verified": true,
+          "persist_before_finalizer": true,
+          "unstarted_receipt": {
+            "id": "5ecf517e-5805-59c0-83b7-caeccafa10b5",
+            "podUid": "8d418904-8728-4814-ae2e-a00237ee1288",
+            "resourceVersion": "724",
+            "deletionTimestamp": "2026-11-05T07:05:32Z",
+            "schedulingGate": "open-agent.io/execution-authorized",
+            "nodeUnbound": true,
+            "containerStatusesEmpty": true,
+            "evidenceSha256": "fef56885140aaeb15b179033b58c96920e35a5241ec0f7dd8e0af9c29d668ebb"
+          },
+          "no_pods_remaining": true,
+          "live_worker_environment_changed": false,
+          "physical_kubelet_or_kata_verified": false,
+          "checked_at": "2026-11-05T07:05:32.117279+00:00"
+        },
+        {
+          "version": "v1.36.6+k3s1",
+          "namespace": "oa-contract-3cc5097d",
+          "kubelet_present": false,
+          "source_sha256": "5f96edac8a63e28009f16067c6db147c4b4153dca33553e04491b4d82b5c0e38",
+          "gate_retained": false,
+          "pod_uid": "f3918db5-613b-440c-9b54-e6b7f0dbb40c",
+          "defaulted_spec": {
+            "activeDeadlineSeconds": 3610,
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "command": [
+                  "/opt/venv/bin/python",
+                  "-m",
+                  "agent.durable.cluster_child"
+                ],
+                "env": [
+                  {
+                    "name": "OPEN_AGENT_LEASE",
+                    "value": "{\"attempt\":1,\"fencingToken\":1,\"leaseId\":\"f21e265d-2c71-4c32-b30e-1ff5b64dbd2b\",\"runId\":\"361df55a-af37-4ddf-9334-d86dc5973eac\",\"scope\":{\"environment\":\"test\",\"tenant\":\"tenant\"},\"workerId\":\"executor\"}"
+                  },
+                  {
+                    "name": "OPEN_AGENT_POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "LANGSMITH_TRACING",
+                    "value": "false"
+                  },
+                  {
+                    "name": "LANGCHAIN_TRACING_V2",
+                    "value": "false"
+                  },
+                  {
+                    "name": "PYTHONDONTWRITEBYTECODE",
+                    "value": "1"
+                  }
+                ],
+                "image": "registry.invalid/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "executor",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "ephemeral-storage": "256Mi",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "ephemeral-storage": "128Mi",
+                    "memory": "256Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "readOnlyRootFilesystem": true,
+                  "runAsGroup": 10001,
+                  "runAsNonRoot": true,
+                  "runAsUser": 10001,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                  {
+                    "mountPath": "/run/open-agent/worker",
+                    "name": "worker",
+                    "readOnly": true
+                  },
+                  {
+                    "mountPath": "/tmp",
+                    "name": "tmp"
+                  }
+                ]
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "enableServiceLinks": false,
+            "nodeSelector": {
+              "kubernetes.io/arch": "amd64",
+              "kubernetes.io/os": "linux",
+              "open-agent.io/executor-pool": "trusted"
+            },
+            "preemptionPolicy": "PreemptLowerPriority",
+            "priority": 0,
+            "restartPolicy": "Never",
+            "schedulerName": "default-scheduler",
+            "schedulingGates": [
+              {
+                "name": "open-agent.io/execution-authorized"
+              }
+            ],
+            "securityContext": {
+              "fsGroup": 10001,
+              "fsGroupChangePolicy": "OnRootMismatch",
+              "runAsGroup": 10001,
+              "runAsNonRoot": true,
+              "runAsUser": 10001,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "serviceAccount": "executor",
+            "serviceAccountName": "executor",
+            "terminationGracePeriodSeconds": 30,
+            "tolerations": [
+              {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+              },
+              {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+              }
+            ],
+            "volumes": [
+              {
+                "name": "worker",
+                "secret": {
+                  "defaultMode": 288,
+                  "items": [
+                    {
+                      "key": "worker.json",
+                      "path": "worker.json"
+                    }
+                  ],
+                  "secretName": "worker"
+                }
+              },
+              {
+                "emptyDir": {
+                  "sizeLimit": "64Mi"
+                },
+                "name": "tmp"
+              }
+            ]
+          },
+          "stop_recovery_passes": 1,
+          "stale_activation_status": 422,
+          "binding_after_delete_status": 409,
+          "deletion_barrier_verified": true,
+          "persist_before_finalizer": true,
+          "unstarted_receipt": {
+            "id": "ac713cc6-116c-588c-9018-f732957c8b4d",
+            "podUid": "f3918db5-613b-440c-9b54-e6b7f0dbb40c",
+            "resourceVersion": "734",
+            "deletionTimestamp": "2026-11-05T07:05:32Z",
+            "schedulingGate": null,
+            "nodeUnbound": true,
+            "containerStatusesEmpty": true,
+            "evidenceSha256": "16eb3599f1f029a58a57340b2d6670b710d5a641c46f4a8d888a5d396f3863db"
+          },
+          "no_pods_remaining": true,
+          "live_worker_environment_changed": false,
+          "physical_kubelet_or_kata_verified": false,
+          "checked_at": "2026-11-05T07:05:32.393301+00:00"
+        }
+      ],
+      "passed": 2,
+      "scope": "real agentless API; local receipt journal; no kubelet/Kata or HTTP ledger integration"
+    },
+    "binding_barrier": {
+      "clear_assigned_node_status": 422,
+      "ungated_binding_after_delete_status": 409,
+      "real_api_unbound_barrier_verified": true
+    },
+    "cleanup": {
+      "container_removed": true,
+      "volume_removed": true,
+      "network_removed": true,
+      "admin_credentials_removed": true,
+      "checked_at": "2026-11-05T07:07:10.999943+00:00"
+    },
+    "provision_tool_recheck": {
+      "version": "v1.36.6+k3s1",
+      "container_id": "cd99fd5ba00849de2cefc3781f985f5da66e24fc52b73bf00c187af9336519ba",
+      "private_endpoint": "https://192.168.224.2:6443",
+      "startup_seconds": 0.56,
+      "memory_limit_mib": 768,
+      "agentless": true,
+      "privileged": false,
+      "host_network": false,
+      "public_port": false,
+      "capabilities_dropped": "ALL",
+      "phase": "ready"
+    },
+    "provision_tool_cleanup": {
+      "container_removed": true,
+      "volume_removed": true,
+      "network_removed": true,
+      "admin_credentials_removed": true,
+      "checked_at": "2026-11-05T07:19:16.478930+00:00"
+    }
+  },
+  "corrections_and_initial_failures": [
+    "Synthetic started fixture now has a bound node; an unbound fixture is explicit.",
+    "After not_started commit, ungated Pod revalidation initially rejected the new phase; added not_started to allowed validated phases.",
+    "Agentless K3s required /etc/rancher tmpfs, a private bridge endpoint and private docker exec capture of tmpfs kubeconfig; no public port was opened.",
+    "An initial verification script syntax error was fixed before API execution.",
+    "Cold fixture kubectl startup exceeded its HTTP timeout; the readiness probe now bounds the full process and can resume only the recorded owned starting fixture.",
+    "First live new-route denial probe used an invalid receipt and received validation rejection; retried with a structurally valid synthetic receipt and all 12 identity/route denials passed.",
+    "Skill execution succeeded but verification used system Python without temporalio; recovered the same recorded run with the worker venv and repeated the original idempotency key, with no new execution.",
+    "Actual scheduler updates caused a UID/resourceVersion DELETE conflict; verification now models bounded recovery with a fresh read, without changing the fail-closed driver."
+  ],
+  "spec_changes_passed": 11,
+  "artifact": {
+    "path": "console\\backend\\hub\\target\\hub-server.jar",
+    "bytes": 193445876,
+    "sha256": "9150b8159361c30a90f4995e50918dc89adc53b4d883519dc841c225a997a354",
+    "start_class": "com.iflytek.astron.platform.PlatformApplication",
+    "embedded_configuration_and_migration_present": true,
+    "migration": "1.63"
+  },
+  "deployment": {
+    "schema_version": "1.63",
+    "maintenance_seconds": 45.802,
+    "private_sql_backup_saved": true,
+    "cluster_admission_enabled": false,
+    "active_executor": "systemd/gvisor-demo"
+  },
+  "actual_skill_smoke": {
+    "checked_at": "2026-11-05T07:27:56.706862+00:00",
+    "run_id": "acf53093-eb1c-4413-8b06-a0114dd27bfa",
+    "state": "succeeded",
+    "duration_seconds": 47.298,
+    "event_count": 200,
+    "event_types": [
+      "execution.notice",
+      "message.delta",
+      "run.state",
+      "tool.finished",
+      "usage"
+    ],
+    "answer_characters": 414,
+    "answer_sha256": "8836a5e04c64c660c32a9f30f6c8b6ac44053f9e5a08aab5f688417deca8831d",
+    "idempotency_verified": true,
+    "script_output_verified": true,
+    "tools": [
+      "read_file",
+      "ls",
+      "read_file",
+      "execute"
+    ],
+    "real_model_configured": true,
+    "model_answer_received": true,
+    "sandbox_used": true,
+    "sandbox_phase": "released",
+    "attempt_lease_state": "released",
+    "supervision_phase": "released",
+    "cleanup": {
+      "evidence": {
+        "process": {
+          "after": null,
+          "before": {
+            "ActiveState": "active",
+            "ControlGroup": "/openagent.slice/oa-exec-f4920208d58641bd8b9ac1a9529f9afd.service",
+            "ControlPID": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "Id": "oa-exec-f4920208d58641bd8b9ac1a9529f9afd.service",
+            "InvocationID": "dd41fd2c5aaa4a2985daa8ef1f0d7c29",
+            "KillMode": "control-group",
+            "LoadState": "loaded",
+            "MainPID": "2587968",
+            "RemainAfterExit": "yes",
+            "Restart": "no",
+            "SubState": "running",
+            "Transient": "yes",
+            "User": "open-agent-worker"
+          },
+          "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+          "cgroup": {
+            "exists": false,
+            "path": "/openagent.slice/oa-exec-f4920208d58641bd8b9ac1a9529f9afd.service",
+            "populated": 0
+          },
+          "cgroupEmpty": true,
+          "invocationId": "dd41fd2c5aaa4a2985daa8ef1f0d7c29",
+          "kind": "stopped_unit",
+          "observedAt": "2026-11-05T07:23:52.220289+00:00",
+          "unitName": "oa-exec-f4920208d58641bd8b9ac1a9529f9afd.service",
+          "workerStopped": true
+        },
+        "sandbox": {
+          "creationSettled": true,
+          "observedAt": "2026-11-05T07:23:52.380562+00:00",
+          "reason": "acknowledged_creation_entity_absent",
+          "removedContainerId": null,
+          "sandboxAbsent": true,
+          "sandboxId": "ce5f4ecf-c501-4644-a802-2998abe035e7",
+          "serverImage": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1"
+        }
+      },
+      "proof": {
+        "bootId": "c73fcce8-200b-4196-a2cd-d063211edfc6",
+        "cgroupEmpty": true,
+        "creationSettled": true,
+        "evidenceSha256": "3f194df7929602509c2277ca281413c56fa6b18ebd5ff1bd534638ecb2a36677",
+        "invocationId": "dd41fd2c5aaa4a2985daa8ef1f0d7c29",
+        "kind": "stopped_unit",
+        "proofId": "1fed3760-1a56-4f2e-80e1-6db41ae10b98",
+        "sandboxAbsent": true,
+        "sandboxId": "ce5f4ecf-c501-4644-a802-2998abe035e7",
+        "unitName": "oa-exec-f4920208d58641bd8b9ac1a9529f9afd.service",
+        "workerStopped": true
+      }
+    },
+    "temporal": {
+      "status": "COMPLETED",
+      "result": {
+        "state": "succeeded"
+      }
+    },
+    "recovered_existing_verification": true,
+    "new_execution_on_recovery": false
+  },
+  "retained_step_content": {
+    "model_version": 2,
+    "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "verified_at": "2026-11-05T07:23:42.630595+00:00",
+    "steps": 58,
+    "model_calls": 6,
+    "tool_calls": 4,
+    "steps_with_think": 2,
+    "input_modes": [
+      "initial",
+      "append",
+      "append",
+      "append",
+      "append",
+      "context_changed"
+    ],
+    "totals": {
+      "steps": 58,
+      "modelCalls": 6,
+      "toolCalls": 4,
+      "unknownModelCalls": 0,
+      "inputTokens": 21274,
+      "outputTokens": 968
+    },
+    "actual_tool_results": true,
+    "output_text": true,
+    "synthetic_secret_redacted": true,
+    "other_tenant_denied": true,
+    "token_sum_matches_task": true,
+    "retained_files": 2,
+    "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+    "download_digests_verified": true,
+    "thinking_steps": [
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input_tokens": 3609,
+        "duration_ms": 1850
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input_tokens": 3865,
+        "duration_ms": 1928
+      }
+    ]
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T07:28:24.928343+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 20,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "cluster_route_denials": {
+    "checked_at": "2026-11-05T07:27:55.709918+00:00",
+    "schema_version": "1.63",
+    "cluster_admission_unconfigured": true,
+    "cluster_attempts_created": 0,
+    "http_denials": {
+      "unauthenticated:pending": 401,
+      "user_jwt:pending": 401,
+      "worker:pending": 403,
+      "reconciler:pending": 403,
+      "dispatcher:pending": 403,
+      "observer:pending": 403,
+      "unauthenticated:not-started": 401,
+      "user_jwt:not-started": 401,
+      "worker:not-started": 403,
+      "reconciler:not-started": 403,
+      "dispatcher:not-started": 403,
+      "observer:not-started": 403
+    }
+  },
+  "not_yet_delivered": [
+    "Complete Temporal cluster supervisor service and executor container images",
+    "Cluster RBAC, CNI, OpenSandbox/Kata integration and real kubelet/CRI/node fault verification",
+    "Ambiguous creation closure and bound Pods without actual termination evidence",
+    "Complete disconnected cold installation, production HA and capacity acceptance"
+  ]
+}

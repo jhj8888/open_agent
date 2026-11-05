@@ -111,12 +111,15 @@ def system(monkeypatch):
     api_client.close()
 
 
-async def started(system):
+async def started(system, *, bound=True):
     row, driver, server = system
     pod = await driver.launch(row)
     row = row.model_copy(update={'podUid': pod.metadata.uid, 'observedResourceVersion': pod.metadata.resource_version,
                                  'phase': 'observed'})
     await driver.activate(row)
+    if bound:
+        server.pod['spec']['nodeName'] = 'cpu-node-1'
+        server.pod['status']['phase'] = 'Running'
     row = row.model_copy(update={'state': 'failed', 'leaseState': 'cleanup_pending'})
     return row, driver, server
 
@@ -287,6 +290,11 @@ class Ledger:
         self.row = self.row.model_copy(update={'phase': 'terminated', 'termination': receipt})
         return self.row
 
+    async def not_started(self, lease, receipt):
+        if self.fail_receipt: raise RuntimeError('ledger unavailable')
+        self.row = self.row.model_copy(update={'phase': 'not_started', 'notStarted': receipt})
+        return self.row
+
 
 @pytest.mark.asyncio
 async def test_recovery_survives_crash_before_receipt_commit(system):
@@ -318,6 +326,58 @@ async def test_recovery_before_uid_commit_binds_but_never_activates_gated_pod(sy
     assert row.phase == 'observed' and not absent
     assert server.pod['spec']['schedulingGates'] == [{'name': SCHEDULING_GATE}]
     assert not any(call[0] == 'PATCH' for call in server.calls)
+
+
+@pytest.mark.asyncio
+async def test_unstarted_pod_delete_barrier_is_persisted_before_finalizer_removal(system):
+    row, driver, server = system
+    await driver.launch(row)
+    ledger = Ledger(row)
+    lifecycle = ClusterLifecycle(ledger, driver)
+    row, absent = await lifecycle.stop_once(row)
+    assert not absent and row.phase == 'observed'
+    assert server.pod['metadata']['deletionTimestamp']
+    ledger.fail_receipt = True
+    with pytest.raises(RuntimeError, match='ledger unavailable'):
+        await lifecycle.stop_once(row)
+    assert FINALIZER in server.pod['metadata']['finalizers']
+    with pytest.raises(ClusterProcessError, match='CLUSTER_ACTIVATION_UNCONFIRMED'):
+        await driver.activate(row.model_copy(update={'state': 'running', 'leaseState': 'held'}))
+    ledger.fail_receipt = False
+    row, absent = await lifecycle.stop_once(row)
+    assert absent and row.phase == 'not_started' and row.termination is None
+    assert row.notStarted.nodeUnbound and row.notStarted.containerStatusesEmpty
+    assert (await ClusterLifecycle(ledger, driver).stop_once(row))[1]
+    assert len([call for call in server.calls if call[0] == 'POST']) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['no_delete', 'bound_node', 'container_status', 'running'])
+async def test_unstarted_receipt_requires_unbound_state_and_deletion_barrier(system, change):
+    row, driver, server = system
+    pod = await driver.launch(row)
+    row = row.model_copy(update={'phase': 'observed', 'podUid': pod.metadata.uid, 'observedResourceVersion': '1',
+                                 'state': 'failed', 'leaseState': 'cleanup_pending'})
+    if change != 'no_delete': await driver.request_stop(row, pod)
+    if change == 'bound_node': server.pod['spec']['nodeName'] = 'cpu-node-1'
+    if change == 'running': server.pod['status']['phase'] = 'Running'
+    if change == 'container_status':
+        server.terminated()
+        server.pod['spec'].pop('nodeName')
+    with pytest.raises(ClusterProcessError, match='CLUSTER_(NOT_STARTED_UNCONFIRMED|POD_IDENTITY_MISMATCH)'):
+        driver.not_started_receipt(row, await driver.inspect(row))
+    assert not any(call[0] == 'PATCH' for call in server.calls)
+
+
+@pytest.mark.asyncio
+async def test_activated_but_never_bound_pod_has_same_positive_delete_barrier(system):
+    row, driver, server = await started(system, bound=False)
+    ledger = Ledger(row)
+    lifecycle = ClusterLifecycle(ledger, driver)
+    row, absent = await lifecycle.stop_once(row)
+    assert not absent and row.phase == 'observed'
+    row, absent = await lifecycle.stop_once(row)
+    assert absent and row.phase == 'not_started' and row.notStarted.schedulingGate is None
 
 
 @pytest.mark.asyncio

@@ -54,7 +54,7 @@ class PlatformRunInternalSecurityTest {
         String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
         var paths=java.util.List.of("runs/"+RUN+"/claim","runs/"+RUN+"/lookup","runs/"+RUN+"/abandon","pending",
                 "attempts/"+id+"/inspect","attempts/"+id+"/begin","attempts/"+id+"/observed","attempts/"+id+"/terminated",
-                "attempts/"+id+"/fence","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
+                "attempts/"+id+"/fence","attempts/"+id+"/not-started","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
         for(String path:paths) {
             String url="/internal/platform/reconcile/cluster/"+path;
             mvc.perform(post(url).header("Authorization","Bearer user").contentType("application/json").content("{}"))

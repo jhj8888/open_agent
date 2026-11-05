@@ -1,0 +1,8 @@
+{
+  "version": "v1.36.6+k3s1",
+  "sha256": "66ceb8e67edfa547195135d74783bfadc2ecc04a91059e90ae5f70a3dbc98c15",
+  "bytes": 79380642,
+  "url": "https://github.com/k3s-io/k3s/releases/download/v1.36.6%2Bk3s1/k3s",
+  "license": "Apache-2.0",
+  "license_sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+}

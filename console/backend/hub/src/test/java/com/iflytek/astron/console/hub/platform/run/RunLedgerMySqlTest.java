@@ -53,6 +53,7 @@ class RunLedgerMySqlTest {
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.62__bind_cluster_execution.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.63__record_unstarted_cluster_pods.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -341,7 +342,79 @@ class RunLedgerMySqlTest {
     }
     private RunClusterSupervision.Proof clusterProof(RunClusterSupervision.Snapshot value, String kind) {
         return new RunClusterSupervision.Proof(UUID.randomUUID().toString(),kind,value.target().clusterId(),value.target().namespaceUid(),
-                value.podName(),value.podUid(),value.termination()==null?null:value.termination().id(),value.sandboxId(),"f".repeat(64),true,true,true);
+                value.podName(),value.podUid(),value.termination()!=null?value.termination().id():value.notStarted()!=null?value.notStarted().id():null,
+                value.sandboxId(),"f".repeat(64),true,true,true);
+    }
+    private RunClusterSupervision.NotStarted notStarted(RunClusterSupervision.Snapshot value) {
+        return new RunClusterSupervision.NotStarted(UUID.randomUUID().toString(),value.podUid(),"201",
+                java.time.Instant.parse("2026-11-05T01:00:02Z"),"open-agent.io/execution-authorized",true,true,"e".repeat(64));
+    }
+
+    @Test void clusterUnstartedReceiptRequiresFenceAndIsReplayable() {
+        var value=observedCluster("cluster-not-started");String id=value.lease().leaseId();var receipt=notStarted(value);
+        code("cleanup_before_terminal",()->cluster().notStarted(id,CLUSTER_OWNER,receipt));
+        cluster().fence(id,CLUSTER_OWNER);
+        var stopped=cluster().notStarted(id,CLUSTER_OWNER,receipt);
+        assertEquals("not_started",stopped.phase());assertNull(stopped.termination());
+        assertEquals(receipt,cluster().notStarted(id,CLUSTER_OWNER,receipt).notStarted());
+        assertEquals(receipt,cluster().inspect(id,CLUSTER_OWNER).notStarted());
+        code("resource_unavailable",()->cluster().notStarted(id,"cluster-2",receipt));
+        code("cluster_stop_receipt_conflict",()->cluster().notStarted(id,CLUSTER_OWNER,notStarted(value)));
+        code("cleanup_unverified",()->cluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"terminated_pod")));
+        var proof=clusterProof(stopped,"never_started_pod");
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).phase());
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).leaseState());
+        assertEquals("released",cluster().notStarted(id,CLUSTER_OWNER,receipt).phase());
+        assertEquals(0,count("oa_skill_verification"));
+    }
+
+    @Test void clusterUnstartedEvidenceRejectsMissingBarrierAndConflictingReceipts() {
+        var value=observedCluster("cluster-not-started-invalid");String id=value.lease().leaseId();
+        cluster().fence(id,CLUSTER_OWNER);var receipt=notStarted(value);
+        var invalid=List.of(
+                new RunClusterSupervision.NotStarted(receipt.id(),value.podUid(),"201",null,receipt.schedulingGate(),true,true,receipt.evidenceSha256()),
+                new RunClusterSupervision.NotStarted(receipt.id(),value.podUid(),"201",receipt.deletionTimestamp(),"other/gate",true,true,receipt.evidenceSha256()),
+                new RunClusterSupervision.NotStarted(receipt.id(),value.podUid(),"201",receipt.deletionTimestamp(),receipt.schedulingGate(),false,true,receipt.evidenceSha256()),
+                new RunClusterSupervision.NotStarted(receipt.id(),value.podUid(),"201",receipt.deletionTimestamp(),receipt.schedulingGate(),true,false,receipt.evidenceSha256()));
+        for(var wrong:invalid) code("invalid_cluster_not_started",()->cluster().notStarted(id,CLUSTER_OWNER,wrong));
+        code("cluster_not_started_unverified",()->cluster().notStarted(id,CLUSTER_OWNER,
+                new RunClusterSupervision.NotStarted(receipt.id(),UUID.randomUUID().toString(),"201",receipt.deletionTimestamp(),receipt.schedulingGate(),true,true,receipt.evidenceSha256())));
+        cluster().notStarted(id,CLUSTER_OWNER,receipt);
+        code("cluster_termination_unverified",()->cluster().terminated(id,CLUSTER_OWNER,termination(value)));
+        var other=observedCluster("cluster-already-terminated");String otherId=other.lease().leaseId();cluster().fence(otherId,CLUSTER_OWNER);
+        cluster().terminated(otherId,CLUSTER_OWNER,termination(other));
+        code("cluster_not_started_unverified",()->cluster().notStarted(otherId,CLUSTER_OWNER,notStarted(other)));
+    }
+
+    @Test void clusterUnstartedReleaseAuditFailureKeepsBothReservations() {
+        bindSkill(scope,deployment);var value=observedCluster("cluster-unstarted-audit");var lease=value.lease();
+        journal().reserve(lease,"gvisor-demo",IMAGE);cluster().fence(lease.leaseId(),CLUSTER_OWNER);
+        var stopped=cluster().notStarted(lease.leaseId(),CLUSTER_OWNER,notStarted(value));
+        var proof=clusterProof(stopped,"never_started_pod");
+        jdbc.execute("CREATE TRIGGER fail_unstarted_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->cluster().release(lease.leaseId(),CLUSTER_OWNER,proof));
+        var retained=cluster().inspect(lease.leaseId(),CLUSTER_OWNER);
+        assertEquals("not_started",retained.phase());assertEquals("cleanup_pending",retained.leaseState());assertEquals("reserved",retained.sandboxPhase());
+        jdbc.execute("DROP TRIGGER fail_unstarted_audit");
+        var released=cluster().release(lease.leaseId(),CLUSTER_OWNER,proof);
+        assertEquals("released",released.leaseState());assertEquals("released",released.sandboxPhase());assertEquals(0,count("oa_skill_verification"));
+    }
+
+    @Test void clusterUnstartedRejectsAnyAuthorizedSandboxCreation() {
+        bindSkill(scope,deployment);var value=observedCluster("cluster-unstarted-sandbox");var lease=value.lease();
+        journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);cluster().fence(lease.leaseId(),CLUSTER_OWNER);
+        code("cluster_not_started_unverified",()->cluster().notStarted(lease.leaseId(),CLUSTER_OWNER,notStarted(value)));
+        assertEquals("observed",cluster().inspect(lease.leaseId(),CLUSTER_OWNER).phase());
+        assertEquals("cleanup_pending",cluster().inspect(lease.leaseId(),CLUSTER_OWNER).leaseState());
+    }
+
+    @Test void clusterUnboundPodCanPersistBarrierAfterGateWasRemoved() {
+        var value=observedCluster("cluster-ungated-unbound");String id=value.lease().leaseId();cluster().fence(id,CLUSTER_OWNER);
+        var receipt=notStarted(value);
+        receipt=new RunClusterSupervision.NotStarted(receipt.id(),receipt.podUid(),receipt.resourceVersion(),receipt.deletionTimestamp(),null,true,true,receipt.evidenceSha256());
+        var stopped=cluster().notStarted(id,CLUSTER_OWNER,receipt);
+        assertNull(stopped.notStarted().schedulingGate());
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,clusterProof(stopped,"never_started_pod")).phase());
     }
 
     @Test void clusterAdmissionAndBindingAreAtomicAndScoped() {
@@ -1336,11 +1409,15 @@ class RunLedgerMySqlTest {
 
     @Test @EnabledIfEnvironmentVariable(named = "OA_RUN_TEST_RESTART_SIGNAL", matches = ".+")
     void databaseCrashAndRestartPreserveRunOutboxAndIdempotency() throws Exception {
+        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=3 WHERE tenant_id=? AND environment='test'",A);
         String id = submit("restart").runId();
         var clusterExecution = observedCluster("restart-cluster");
         ledger.finish(clusterExecution.lease(),RunState.SUCCEEDED,null);
         var clusterTermination = termination(clusterExecution);
         var clusterStopped = cluster().terminated(clusterExecution.lease().leaseId(),CLUSTER_OWNER,clusterTermination);
+        var gated = observedCluster("restart-gated");cluster().fence(gated.lease().leaseId(),CLUSTER_OWNER);
+        var neverStarted = notStarted(gated);
+        var gatedStopped = cluster().notStarted(gated.lease().leaseId(),CLUSTER_OWNER,neverStarted);
         bindSkill(scope, deployment);
         var execution = supervised("restart-sandbox");
         var sandboxLease = execution.lease();
@@ -1355,11 +1432,15 @@ class RunLedgerMySqlTest {
         assertEquals("ready", java.nio.file.Files.readString(signal), "Isolated database restart did not complete");
         assertEquals("queued", instance().get(scope, id).get("state"));
         assertEquals(1, instance().events(scope, id, 0, 20).events().size());
-        assertEquals(3, count("oa_run_outbox"));
+        assertEquals(4, count("oa_run_outbox"));
         var clusterRestored = cluster().inspect(clusterExecution.lease().leaseId(),CLUSTER_OWNER);
         assertEquals("terminated",clusterRestored.phase());assertEquals(clusterTermination,clusterRestored.termination());
         assertEquals(clusterExecution.target(),clusterRestored.target());assertEquals(clusterExecution.podUid(),clusterRestored.podUid());
         cluster().release(clusterExecution.lease().leaseId(),CLUSTER_OWNER,clusterProof(clusterStopped,"terminated_pod"));
+        var gatedRestored = cluster().inspect(gated.lease().leaseId(),CLUSTER_OWNER);
+        assertEquals("not_started",gatedRestored.phase());assertEquals(neverStarted,gatedRestored.notStarted());
+        assertNull(gatedRestored.termination());
+        cluster().release(gated.lease().leaseId(),CLUSTER_OWNER,clusterProof(gatedStopped,"never_started_pod"));
         assertEquals(id, submit("restart").runId());
         assertTrue(ledger.claim(scope, id, "after-restart").isPresent());
         assertEquals("creating", sandboxPhase(sandboxLease));

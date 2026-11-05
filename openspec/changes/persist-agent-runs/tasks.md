@@ -60,3 +60,13 @@ V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑
 - [x] 7 个增量 wheel 与锁定摘要逐项核对、保留 LICENSE/NOTICE，在展示机独立目录离线安装验证；活动 worker 依赖前后不变。
 
 详见 `docs/platform/cluster-sdk-verification-20261105.json` 和 `deploy/platform/cluster/README.md`。完整集群服务/镜像、未启动 Pod 的正向证据与未知创建关闭、OpenSandbox/Kata/CNI 及真实集群故障矩阵仍待交付，以上未勾选的整项任务保持未完成。
+
+## 2026-11-05 未启动 Pod 正向证据增量
+
+- [x] V1.63 保存独立 `not_started` 证据，与实际终止证据互斥；先 fencing、核对未绑定节点与删除屏障，证据提交后才移除自身 finalizer。平台门禁可以尚在或已解除。
+- [x] 43 项 Java 检查通过，包含 15 项真实隔离 MySQL 检查；未启动证据跨 SIGKILL/重启保留，重放幂等、跨身份拒绝、实际终止冲突拒绝、已授权沙盒创建拒绝及审计失败回滚通过。
+- [x] Windows 定向 77 通过/1 项 Linux 专属跳过，Linux 78 通过/0 跳过；活动 worker 依赖未修改。
+- [x] 真实 K3s 1.36.6 API 验证有/无门禁两种未绑定节点的回收路径，过期激活拒绝、删除后绑定 409、清空已分配节点 422；fixture 无节点、kubelet、CRI 或 CNI，不能代表物理执行隔离。
+- [x] 展示 API 更新到 V1.63，维护前私有 SQL 备份已保存；真实 Skill 任务成功、200 条事件和资源回收核验通过。原任务 58 步、2 个文件及下载摘要保留，公网 TLS/权限/20 项列表详情 usage 一致性通过。验证脚本环境问题从原任务恢复，未重新执行模型或工具。
+
+详见 `docs/platform/cluster-unstarted-pods.md` 与 `docs/platform/cluster-unstarted-verification-20261105.json`。未知创建、已绑定节点但缺少实际终止记录、完整 Temporal 集群服务、Kata/CNI 与生产故障验收保持未完成，原有大项不据此勾选。

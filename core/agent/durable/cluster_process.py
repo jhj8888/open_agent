@@ -16,7 +16,7 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from urllib3.util.retry import Retry
 
-from agent.durable.cluster_control import ClusterSnapshot, ClusterTarget, PodTermination
+from agent.durable.cluster_control import ClusterSnapshot, ClusterTarget, PodTermination, PodNotStarted
 
 FINALIZER = "open-agent.io/executor-termination"
 SCHEDULING_GATE = "open-agent.io/execution-authorized"
@@ -167,7 +167,9 @@ class KubernetesProcesses:
                 raise ValueError()
             # Known API defaults/placement fields only. Unknown admission changes
             # (including sidecars, projected tokens, host mounts) fail closed.
-            spec.pop("nodeName", None)
+            node_name = spec.pop("nodeName", None)
+            if spec.get("schedulingGates") and node_name:
+                raise ValueError()
             priority = spec.pop("priority", 0)
             if type(priority) is not int or priority != 0 or spec.pop("preemptionPolicy", "PreemptLowerPriority") != "PreemptLowerPriority":
                 raise ValueError()
@@ -180,7 +182,7 @@ class KubernetesProcesses:
                 if (toleration.get("key") not in {"node.kubernetes.io/not-ready", "node.kubernetes.io/unreachable"}
                         or toleration != {"key": toleration["key"], "operator": "Exists", "effect": "NoExecute", "tolerationSeconds": 300}):
                     raise ValueError()
-            if not spec.get("schedulingGates") and row.podUid is not None and row.phase in {"observed", "terminated", "released"}:
+            if not spec.get("schedulingGates") and row.podUid is not None and row.phase in {"observed", "terminated", "not_started", "released"}:
                 spec.pop("schedulingGates", None)
                 expected["spec"].pop("schedulingGates")
             if spec != expected["spec"]:
@@ -260,18 +262,44 @@ class KubernetesProcesses:
         except (AttributeError, TypeError, ValueError):
             raise ClusterProcessError("CLUSTER_TERMINATION_UNCONFIRMED") from None
 
+    def unbound_unstarted(self, row: ClusterSnapshot, pod) -> bool:
+        self.validate_pod(row, pod)
+        status = pod.status
+        return (not pod.spec.node_name
+                and (status is None or (status.phase in {None, "Pending", "Failed"}
+                    and not status.container_statuses and not status.init_container_statuses
+                    and not status.ephemeral_container_statuses and not status.nominated_node_name)))
+
+    def not_started_receipt(self, row: ClusterSnapshot, pod) -> PodNotStarted:
+        if (row.podUid is None or row.state not in {"succeeded", "failed", "cancelled", "timed_out"}
+                or not self.unbound_unstarted(row, pod) or pod.metadata.deletion_timestamp is None):
+            raise ClusterProcessError("CLUSTER_NOT_STARTED_UNCONFIRMED")
+        values = {"podUid": row.podUid, "resourceVersion": pod.metadata.resource_version,
+                  "deletionTimestamp": pod.metadata.deletion_timestamp.isoformat(),
+                  "schedulingGate": SCHEDULING_GATE if pod.spec.scheduling_gates else None,
+                  "nodeUnbound": True, "containerStatusesEmpty": True}
+        digest = sha256(canonical(values)).hexdigest()
+        return PodNotStarted(id=str(uuid5(UUID(row.lease.leaseId), "not-started:" + digest)), evidenceSha256=digest, **values)
+
     async def finalize(self, row: ClusterSnapshot):
-        if row.phase != "terminated" or row.termination is None or row.termination.podUid != row.podUid:
+        receipt = row.termination if row.phase == "terminated" else row.notStarted if row.phase == "not_started" else None
+        if receipt is None or receipt.podUid != row.podUid:
             raise ClusterProcessError("CLUSTER_RECEIPT_NOT_PERSISTED")
         pod = await self.inspect(row, finalizer_required=False)
         if pod is None:
             return
-        receipt = row.termination
         # Later metadata changes may change resourceVersion, but never permit a
         # different container/node/exit identity than the durable receipt.
-        observed = await self.termination(row, pod) if FINALIZER in (pod.metadata.finalizers or []) else None
+        observed = None
+        if FINALIZER in (pod.metadata.finalizers or []):
+            if row.phase == "not_started":
+                observed = self.not_started_receipt(row, pod)
+            else:
+                observed = await self.termination(row, pod)
         if observed is not None:
             fields = {"id", "resourceVersion", "evidenceSha256"}
+            if row.phase == "not_started":
+                fields.add("deletionTimestamp")  # Deletion may be shortened, never undone.
             if observed.model_dump(exclude=fields) != receipt.model_dump(exclude=fields):
                 raise ClusterProcessError("CLUSTER_TERMINATION_CHANGED")
         if pod.metadata.deletion_timestamp is None:
@@ -287,6 +315,6 @@ class KubernetesProcesses:
                              body, _content_type="application/json-patch+json")
 
     async def absent_after_receipt(self, row: ClusterSnapshot) -> bool:
-        if row.phase != "terminated" or row.termination is None:
+        if not (row.phase == "terminated" and row.termination is not None or row.phase == "not_started" and row.notStarted is not None):
             raise ClusterProcessError("CLUSTER_RECEIPT_NOT_PERSISTED")
         return await self.inspect(row, finalizer_required=False) is None

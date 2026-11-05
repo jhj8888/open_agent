@@ -26,7 +26,9 @@ stateDiagram-v2
     prepared --> launching: 单次启动授权
     launching --> observed: 保存唯一 Pod UID
     observed --> terminated: 保存不可替换的容器终止证据
+    observed --> not_started: 保存未绑定节点及删除屏障证据
     terminated --> released: Pod 与沙盒回收证明及审计同一事务
+    not_started --> released: 未启动证据与独立回收证明同一事务
     prepared --> released: 从未授权启动且任务已终态
 ```
 
@@ -51,3 +53,5 @@ MySQL/API 检查覆盖并发领取、一次性启动、跨身份/环境拒绝、
 兼容回归 298 项通过；最终 SDK/入口定向检查在 Windows 为 64 通过、1 项 Linux 专属跳过，展示服务器 Linux 为 65 通过、0 跳过。Linux 使用校验过的增量 wheel 在专用 vendor 目录离线安装，活动 worker 的 aiohttp/aiosignal/yarl 版本前后相同。Pod/节点数据是合成 API 响应，真实本机 TLS 测试证明创建回复丢失时不自动重试、不跟随重定向；文件系统测试核验 Secret 投射形式的符号链接边界。不能将这些证据视为真实调度、容器停止、网络隔离或完整离线交付。见 [SDK 接入与依赖](../../deploy/platform/cluster/README.md)及[SDK 验证记录](cluster-sdk-verification-20261105.json)。
 
 迁移 V1.62 仅新增集群绑定表，保留现有 systemd 监督字段与接口；回退应用时保留新表和已有记录。控制面就绪检查要求新表存在，旧任务及文件不清理。应用镜像交付包的版本/摘要仍以各自验收清单为准，不能将此前控制面镜像自动视为包含本增量。
+
+V1.63 后续增量加入从未绑定节点的独立 `not_started` 证据。已有实际 K3s 1.36.6 API 的有/无调度门禁验证、删除后绑定拒绝及节点绑定不可清空验证；43 项 Java 和 Linux 78 项定向检查通过。展示 API 已应用 V1.63，集群任务准入仍未配置。详见[未启动 Pod 的协议与边界](cluster-unstarted-pods.md)；上文 V1.62/SDK 的记录保留其当时范围，不代表完整 Kubernetes/Kata 生产验收已完成。

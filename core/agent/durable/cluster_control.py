@@ -46,6 +46,17 @@ class PodTermination(WireModel):
         return self.finishedAt >= self.startedAt and (self.podPhase != "Succeeded" or self.exitCode == 0)
 
 
+class PodNotStarted(WireModel):
+    id: Identifier
+    podUid: Identifier
+    resourceVersion: Version
+    deletionTimestamp: AwareDatetime
+    schedulingGate: Literal["open-agent.io/execution-authorized"] | None
+    nodeUnbound: Annotated[bool, Field(strict=True)]
+    containerStatusesEmpty: Annotated[bool, Field(strict=True)]
+    evidenceSha256: Hash
+
+
 class ClusterSnapshot(WireModel):
     lease: SupervisedLease
     supervisorId: Identity
@@ -53,7 +64,7 @@ class ClusterSnapshot(WireModel):
     podName: PodName
     podUid: Identifier | None
     observedResourceVersion: Version | None
-    phase: Literal["prepared", "launching", "observed", "terminated", "released"]
+    phase: Literal["prepared", "launching", "observed", "terminated", "not_started", "released"]
     state: RunState
     leaseState: Literal["held", "cleanup_pending", "released"]
     heartbeatUntil: AwareDatetime
@@ -63,6 +74,7 @@ class ClusterSnapshot(WireModel):
     isolationProfile: Literal["kata", "gvisor-demo"] | None
     runtimeImage: Annotated[str, Field(max_length=512)] | None
     termination: PodTermination | None
+    notStarted: PodNotStarted | None = None
 
 
 class ClusterClaim(WireModel):
@@ -78,7 +90,7 @@ class ClusterLookup(WireModel):
 
 class ClusterCleanupProof(WireModel):
     proofId: Identifier
-    kind: Literal["never_launched", "terminated_pod"]
+    kind: Literal["never_launched", "terminated_pod", "never_started_pod"]
     clusterId: Identifier
     namespaceUid: Identifier
     podName: PodName
@@ -109,17 +121,23 @@ class ClusterSupervisorClient:
                 raise ValueError()
             if row.phase in {"prepared", "launching"} and (row.podUid is not None or row.observedResourceVersion is not None):
                 raise ValueError()
-            if row.phase in {"observed", "terminated"} and (row.podUid is None or row.observedResourceVersion is None):
+            if row.phase in {"observed", "terminated", "not_started"} and (row.podUid is None or row.observedResourceVersion is None):
                 raise ValueError()
             if (row.podUid is None) != (row.observedResourceVersion is None):
                 raise ValueError()
             if (row.phase == "terminated" and row.termination is None
-                    or row.phase in {"prepared", "launching", "observed"} and row.termination is not None):
+                    or row.phase in {"prepared", "launching", "observed", "not_started"} and row.termination is not None):
                 raise ValueError()
             if row.termination is not None and (row.termination.podUid != row.podUid or not row.termination.consistent()):
                 raise ValueError()
+            if row.phase == "not_started" and row.notStarted is None:
+                raise ValueError()
+            if row.notStarted is not None and (row.phase not in {"not_started", "released"} or row.termination is not None
+                    or row.notStarted.podUid != row.podUid or not row.notStarted.nodeUnbound or not row.notStarted.containerStatusesEmpty
+                    or row.state not in TERMINAL):
+                raise ValueError()
             if row.phase == "released":
-                if row.leaseState != "released" or row.state not in TERMINAL or (row.podUid is not None and row.termination is None):
+                if row.leaseState != "released" or row.state not in TERMINAL or (row.podUid is not None and row.termination is None and row.notStarted is None):
                     raise ValueError()
             elif row.leaseState == "released":
                 raise ValueError()
@@ -204,6 +222,14 @@ class ClusterSupervisorClient:
             raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
         return row
 
+    async def not_started(self, lease_id: str, receipt: PodNotStarted):
+        if not receipt.nodeUnbound or not receipt.containerStatusesEmpty:
+            raise ControlPlaneError("CONTROL_CLUSTER_INPUT_INVALID")
+        row = await self._post(lease_id, "not-started", receipt.model_dump(mode="json"))
+        if row.phase not in {"not_started", "released"} or row.notStarted != receipt:
+            raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
+        return row
+
     async def adopt_sandbox(self, lease_id: str, sandbox_id: str):
         row = await self._post(lease_id, "sandbox-observed", {"sandboxId": SupervisorClient._id(sandbox_id)})
         if row.podUid is None or row.sandboxId != sandbox_id or row.phase in {"prepared", "released"}:
@@ -215,11 +241,13 @@ class ClusterSupervisorClient:
                 or proof.clusterId != self.target.clusterId or proof.namespaceUid != self.target.namespaceUid
                 or proof.podName != "oa-exec-" + SupervisorClient._id(lease_id).replace("-", "")
                 or (proof.kind == "never_launched" and (proof.podUid is not None or proof.terminationId is not None))
-                or (proof.kind == "terminated_pod" and (proof.podUid is None or proof.terminationId is None))):
+                or (proof.kind in {"terminated_pod", "never_started_pod"} and (proof.podUid is None or proof.terminationId is None))):
             raise ControlPlaneError("CONTROL_CLUSTER_INPUT_INVALID")
         row = await self._post(lease_id, "release", proof.model_dump(mode="json"))
         if (row.phase != "released" or row.podUid != proof.podUid or row.sandboxId != proof.sandboxId
-                or (row.termination.id if row.termination else None) != proof.terminationId):
+                or (row.termination.id if row.termination else row.notStarted.id if row.notStarted else None) != proof.terminationId
+                or proof.kind == "terminated_pod" and row.termination is None
+                or proof.kind == "never_started_pod" and row.notStarted is None):
             raise ControlPlaneError("CONTROL_CLUSTER_INVALID")
         return row
 

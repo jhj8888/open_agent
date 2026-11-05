@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination
+from agent.durable.cluster_control import ClusterCleanupProof, ClusterSupervisorClient, ClusterTarget, PodTermination, PodNotStarted
 from agent.durable.contracts import RunRef
 from agent.durable.control import ControlPlaneClient, ControlPlaneError
 
@@ -46,6 +46,54 @@ def client(row, respond):
     control = ControlPlaneClient('https://control.internal', 'supervisor', 's' * 32,
                                  transport=httpx.MockTransport(respond))
     return control, ClusterSupervisorClient(control, 'supervisor', ClusterTarget.model_validate(row['target']))
+
+
+def unstarted():
+    row = snapshot()
+    row.update(phase='not_started', state='cancelled', leaseState='cleanup_pending', podUid=str(uuid4()), observedResourceVersion='100')
+    row['notStarted'] = {'id': str(uuid4()), 'podUid': row['podUid'], 'resourceVersion': '101',
+                         'deletionTimestamp': '2026-11-05T01:00:01Z', 'schedulingGate': 'open-agent.io/execution-authorized',
+                         'nodeUnbound': True, 'containerStatusesEmpty': True, 'evidenceSha256': 'e' * 64}
+    return row
+
+
+@pytest.mark.asyncio
+async def test_unstarted_receipt_and_release_use_matching_durable_identity():
+    row = unstarted()
+    paths = []
+    def respond(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith('/release'):
+            row.update(phase='released', leaseState='released')
+        return httpx.Response(200, json=row)
+    control, api = client(row, respond)
+    try:
+        receipt = PodNotStarted.model_validate(row['notStarted'])
+        result = await api.not_started(row['lease']['leaseId'], receipt)
+        assert result.notStarted == receipt
+        body = proof(row).model_copy(update={'kind': 'never_started_pod', 'terminationId': receipt.id})
+        assert (await api.release(row['lease']['leaseId'], body)).phase == 'released'
+        assert paths[0].endswith('/not-started')
+    finally:
+        await control.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['missing', 'wrong_uid', 'node_bound', 'statuses', 'running', 'two_receipts'])
+async def test_unstarted_responses_reject_contradictory_evidence(change):
+    row = unstarted()
+    if change == 'missing': row['notStarted'] = None
+    if change == 'wrong_uid': row['notStarted']['podUid'] = str(uuid4())
+    if change == 'node_bound': row['notStarted']['nodeUnbound'] = False
+    if change == 'statuses': row['notStarted']['containerStatusesEmpty'] = False
+    if change == 'running': row['state'] = 'running'
+    if change == 'two_receipts': row['termination'] = terminated(snapshot())['termination']
+    control, api = client(row, lambda request: httpx.Response(200, json=row))
+    try:
+        with pytest.raises(ControlPlaneError, match='CONTROL_CLUSTER_INVALID'):
+            await api.inspect(row['lease']['leaseId'])
+    finally:
+        await control.aclose()
 
 
 @pytest.mark.asyncio
