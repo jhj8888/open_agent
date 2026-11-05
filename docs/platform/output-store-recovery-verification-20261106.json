@@ -1,0 +1,62 @@
+{
+  "checked_at": "2026-11-05T16:46:31.696180+00:00",
+  "api_artifact_sha256": "75927e061935b5e05c5e77b871c464f6fd210b6ea372ae6163c2d4f741ff9c45",
+  "probe_sha256": "8996e46413f36aaacf0822d4247ce1f73482d2e8f1ae883ba8174e0912b8b303",
+  "s3_image": "m.daocloud.io/docker.io/chrislusf/seaweedfs@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+  "phases": [
+    "prepare",
+    "outage",
+    "candidate-present",
+    "post-write-client-sigkill",
+    "recover"
+  ],
+  "server_sigkill_and_restart": true,
+  "retained_content_verified": true,
+  "failure_codes_and_retry_verified": true,
+  "uploader_sigkill_after_object_commit_before_final_validation": true,
+  "independent_process_verified_candidate_before_sigkill": true,
+  "exact_candidate_cleanup_idempotent": true,
+  "network": "none; Java shares fixture namespace when S3 is running",
+  "fixture_container_volume_credentials_removed": true,
+  "production_data_modified": false,
+  "business_database_reconciliation_or_midstream_process_kill_verified": false,
+  "sources": {
+    "deploy/platform/control/OutputStoreRecoveryProbe.java": "f2fd4cbcb3c0bdf5ee05e1e1e9f844ab2aaabaffff777b991c27b64acb786708",
+    "deploy/platform/control/package_output_store_probe.py": "9a74b56c809ff3357164972292cdc651af53ba0b566737dbf17b9bceddab752d",
+    "deploy/platform/control/verify_output_store_recovery.py": "21020fc0b070a8840e0b6409ef609f55077a103caf4de89e29b243ede1f1d1b9"
+  },
+  "build": {
+    "platform_sha256": "75927e061935b5e05c5e77b871c464f6fd210b6ea372ae6163c2d4f741ff9c45",
+    "source_sha256": "f2fd4cbcb3c0bdf5ee05e1e1e9f844ab2aaabaffff777b991c27b64acb786708",
+    "probe_sha256": "8996e46413f36aaacf0822d4247ce1f73482d2e8f1ae883ba8174e0912b8b303",
+    "bytes": 4805
+  },
+  "volume_copy_diagnosis": {
+    "before": "65532:65532 755",
+    "after_default_copy": "1000:1000 755",
+    "after_volume_nocopy": "65532:65532 755",
+    "temporary_volume_removed": true
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T16:47:45.764735+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "scope": "Actual deployed storage class and official Minio SDK against disposable SeaweedFS; no business database or TaskOutputService reconciliation."
+}

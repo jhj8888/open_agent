@@ -1,5 +1,7 @@
 # 任务产物
 
+2026-11-06 补充存储故障验收：真实临时 S3 强杀/重启、上传/下载/删除错误映射，以及对象写入后上传 JVM 强杀均通过；独立进程确认候选对象存在、恢复后按精确键重复清理，保留样本仍完整。使用已部署存储类及官方 SDK，无业务数据变更。数据库自动对账与 multipart 中断未计入通过，详见[演练说明](output-store-recovery.md)。
+
 2026-11-06 补充并发修改验收：在测试服务器固定 worker 镜像内，以 UID 10001、只读根目录、无 capabilities 和断网运行实际收集器 reader。使用真实管道背压，使读取开始后仍停留在读取循环，再追加、截断或覆盖文件；覆盖场景恢复原 mtime，验证 ctime 复核仍拒绝。每类 10 次、共 30 次均拒绝，稳定 4 MiB 文件的内容和摘要一致。通过源码 SHA256 确认与已部署 gVisor 验收使用的 helper 相同；仅测试目录入口被替换，未 mock stat/read。4 项检查加入 CI，见[验收记录](output-races-verification-20261106.json)。此补充验证 reader 的竞态边界，不代替完整父进程、SDK、对象存储故障和 Kata 联调；生产代码没有改变。
 
 任务详情的“任务产物”展示已登记文件、大小、SHA256、生成步骤和归档状态。文本、Markdown、CSV、JSON、日志、YAML 可进行纯文本预览；其他格式作为附件下载。浏览器下载时再次核对 SHA256。HTML/SVG 不在平台源内执行。
@@ -22,4 +24,4 @@ Agent 将交付文件写到 `/workspace/outputs/`。DeepAgents 的工具完成�
 | 文本预览 | `GET /api/v1/runs/{runId}/outputs/{outputId}/preview` |
 | 授权下载 | `GET /api/v1/runs/{runId}/outputs/{outputId}/download` |
 
-备份需同时覆盖任务、`oa_run_output`、`oa_run_output_upload`、`oa_run_output_access` 及 S3 内容，恢复时重新校验摘要和引用。完整删除墓碑流程、备份恢复演练属于后续验收项；本功能不会自动删除任何已有任务或已发布文件。
+备份需同时覆盖任务、`oa_run_output`、`oa_run_output_upload`、`oa_run_output_access` 及 S3 内容，恢复时重新校验摘要和引用。展示机已完成联合冷备份和隔离恢复，12 个产物下载摘要及授权复查通过，见[备份手册](../../deploy/platform/backup/README.md)。完整删除墓碑流程与生产集群备份策略仍待验收；本功能不会自动删除任何已有任务或已发布文件。
