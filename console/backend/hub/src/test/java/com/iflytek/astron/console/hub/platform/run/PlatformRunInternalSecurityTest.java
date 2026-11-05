@@ -16,7 +16,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class,com.iflytek.astron.platform.OperationsMetricsController.class}, properties={
+@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class,PlatformClusterReconcileController.class,com.iflytek.astron.platform.OperationsMetricsController.class}, properties={
         "PLATFORM_SERVICE_KEYS={\"observer-one\":{\"role\":\"observer\",\"secret\":\"oooooooooooooooooooooooooooooooo\"},\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"},\"supervisor-one\":{\"role\":\"reconciler\",\"secret\":\"ssssssssssssssssssssssssssssssss\"}}"
 })
 @Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class,com.iflytek.astron.platform.OperationsMetricsController.class})
@@ -27,6 +27,7 @@ class PlatformRunInternalSecurityTest {
     @MockBean RunRuntimeService runtime;
     @MockBean RunSandboxJournal journal;
     @MockBean RunSupervision supervision;
+    @MockBean RunClusterSupervision clusters;
     @MockBean com.iflytek.astron.platform.OperationsMetrics metrics;
 
     @Test void metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes() throws Exception {
@@ -48,6 +49,34 @@ class PlatformRunInternalSecurityTest {
     private static final String RUN="34fd353e-6cb4-43fd-86a6-6e94c220421a";
     private static final String CLAIM="/internal/platform/worker/runs/"+RUN+"/claim";
     private static final String SCOPE="{\"tenant\":\"space-10\",\"environment\":\"test\"}";
+
+    @Test void clusterRoutesRejectUserWorkerDispatcherAndObserverIdentities() throws Exception {
+        String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
+        var paths=java.util.List.of("runs/"+RUN+"/claim","runs/"+RUN+"/lookup","runs/"+RUN+"/abandon","pending",
+                "attempts/"+id+"/inspect","attempts/"+id+"/begin","attempts/"+id+"/observed","attempts/"+id+"/terminated",
+                "attempts/"+id+"/fence","attempts/"+id+"/sandbox-observed","attempts/"+id+"/release");
+        for(String path:paths) {
+            String url="/internal/platform/reconcile/cluster/"+path;
+            mvc.perform(post(url).header("Authorization","Bearer user").contentType("application/json").content("{}"))
+                    .andExpect(status().isUnauthorized());
+            for(var identity:java.util.Map.of("worker-one","w","dispatcher-one","d","observer-one","o").entrySet())
+                mvc.perform(post(url).header("X-Platform-Key-Id",identity.getKey()).header("X-Platform-Service-Key",identity.getValue().repeat(32))
+                        .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(clusters,ledger,journal);
+    }
+
+    @Test void clusterControllerUsesVerifiedServicePrincipalAndRejectsInvalidScope() throws Exception {
+        String route="/internal/platform/reconcile/cluster/runs/"+RUN+"/claim";
+        when(clusters.claim(any(),eq(RUN),eq("supervisor-one"))).thenReturn(new RunClusterSupervision.Claim(null,"queued",null));
+        mvc.perform(post(route).header("X-Platform-Key-Id","supervisor-one").header("X-Platform-Service-Key","s".repeat(32))
+                .header("X-User-Id","forged").contentType("application/json").content(SCOPE)).andExpect(status().isOk());
+        verify(clusters).claim(new RunLedger.Scope("space-10","test"),RUN,"supervisor-one");
+        mvc.perform(post(route).header("X-Platform-Key-Id","supervisor-one").header("X-Platform-Service-Key","s".repeat(32))
+                .contentType("application/json").content("{\"tenant\":\"space-10\",\"environment\":\"anything\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoMoreInteractions(clusters);
+    }
 
     @Test void workerDispatcherAndUserCannotEnterAnyReconcilerOperation() throws Exception {
         String id="fc42b1dd-3f87-400c-a38b-2161cfdd988a";

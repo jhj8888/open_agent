@@ -52,6 +52,7 @@ class RunLedgerMySqlTest {
                 "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql", "V1.58__observe_agent_steps.sql", "V1.59__add_model_reasoning_adapter.sql", "V1.60__bound_observation_content.sql", "V1.61__add_observation_outbox.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.62__bind_cluster_execution.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -313,6 +314,151 @@ class RunLedgerMySqlTest {
                 execution.sandboxId(),"e".repeat(64),true,true,true,true);
     }
     private static final String IMAGE = "registry.invalid/skill@sha256:" + "a".repeat(64);
+    private static final String CLUSTER_OWNER = "cluster-1", NAMESPACE_UID = "a9388d6f-67c0-4d99-ae2c-75b6bb924154";
+    private RunClusterSupervision cluster() { return cluster(BOOT); }
+    private RunClusterSupervision cluster(String clusterId) {
+        var keys = Map.of("cluster-1",Map.of("role","reconciler","secret","s".repeat(32)),
+                "cluster-2",Map.of("role","reconciler","secret","t".repeat(32)),
+                "executor-1",Map.of("role","worker","secret","w".repeat(32)),
+                "executor-2",Map.of("role","worker","secret","v".repeat(32)));
+        var targets = Map.of("cluster-1",new RunClusterSupervision.Target("executor-1","test",clusterId,"executors-test",NAMESPACE_UID,IMAGE),
+                "cluster-2",new RunClusterSupervision.Target("executor-2","test",clusterId,"executors-test",NAMESPACE_UID,IMAGE));
+        var config = new org.springframework.mock.env.MockEnvironment()
+                .withProperty("PLATFORM_SERVICE_KEYS",json.valueToTree(keys).toString())
+                .withProperty("PLATFORM_CLUSTER_RECONCILERS",json.valueToTree(targets).toString());
+        return new RunClusterSupervision(instance(),journal(),new JdbcTemplate(source),new DataSourceTransactionManager(source),
+                new ObjectMapper().findAndRegisterModules(),config);
+    }
+    private RunClusterSupervision.Snapshot clustered(String key) { return cluster().claim(scope,submit(key).runId(),CLUSTER_OWNER).execution(); }
+    private RunClusterSupervision.Termination termination(RunClusterSupervision.Snapshot value) {
+        return new RunClusterSupervision.Termination(UUID.randomUUID().toString(),value.podUid(),"200","cpu-node-1",NAMESPACE_UID,
+                "Succeeded","executor","containerd://"+"a".repeat(64),0,
+                java.time.Instant.parse("2026-11-05T01:00:00Z"),java.time.Instant.parse("2026-11-05T01:00:01Z"),"e".repeat(64));
+    }
+    private RunClusterSupervision.Snapshot observedCluster(String key) {
+        var value=clustered(key);cluster().begin(value.lease().leaseId(),CLUSTER_OWNER);
+        return cluster().observed(value.lease().leaseId(),CLUSTER_OWNER,new RunClusterSupervision.Observation(UUID.randomUUID().toString(),"100"));
+    }
+    private RunClusterSupervision.Proof clusterProof(RunClusterSupervision.Snapshot value, String kind) {
+        return new RunClusterSupervision.Proof(UUID.randomUUID().toString(),kind,value.target().clusterId(),value.target().namespaceUid(),
+                value.podName(),value.podUid(),value.termination()==null?null:value.termination().id(),value.sandboxId(),"f".repeat(64),true,true,true);
+    }
+
+    @Test void clusterAdmissionAndBindingAreAtomicAndScoped() {
+        String run=submit("cluster-atomic").runId();
+        code("action_forbidden",()->cluster().claim(new RunLedger.Scope(A,"prod"),run,CLUSTER_OWNER));
+        jdbc.execute("CREATE TRIGGER fail_cluster BEFORE INSERT ON oa_run_cluster_execution FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->cluster().claim(scope,run,CLUSTER_OWNER));
+        assertEquals("queued",state(run));assertEquals(0,count("oa_run_attempt"));
+        jdbc.execute("DROP TRIGGER fail_cluster");
+        var value=cluster().claim(scope,run,CLUSTER_OWNER).execution();
+        assertEquals("oa-exec-"+value.lease().leaseId().replace("-",""),value.podName());
+        assertEquals(0,count("oa_run_supervision"));assertEquals(1,count("oa_run_cluster_execution"));
+        code("resource_unavailable",()->cluster().inspect(value.lease().leaseId(),"cluster-2"));
+        code("resource_unavailable",()->cluster().lookup(new RunLedger.Scope(B,"test"),run,CLUSTER_OWNER));
+        code("resource_unavailable",()->supervision().lookup(scope,run,SUPERVISOR));
+        code("cluster_binding_changed",()->cluster(UUID.randomUUID().toString()).inspect(value.lease().leaseId(),CLUSTER_OWNER));
+    }
+
+    @Test void clusterConcurrentAdmissionAndBeginAreOneShot() throws Exception {
+        String run=submit("cluster-race").runId();
+        List<RunClusterSupervision.Claim> claims=concurrent(List.of(()->cluster().claim(scope,run,CLUSTER_OWNER),()->cluster().claim(scope,run,"cluster-2")));
+        assertEquals(1,claims.stream().filter(c->c.lease()!=null).count());
+        var value=claims.stream().filter(c->c.lease()!=null).findFirst().orElseThrow().execution();
+        Callable<String> begin=()->{try{return cluster().begin(value.lease().leaseId(),value.supervisorId()).phase();}catch(RunFailure e){return e.code();}};
+        var results=concurrent(List.of(begin,begin));
+        assertEquals(1,results.stream().filter("launching"::equals).count());
+        assertEquals(1,results.stream().filter("cluster_execution_conflict"::equals).count());
+        assertEquals(1,count("oa_run_attempt"));assertEquals(1,count("oa_run_cluster_execution"));
+    }
+
+    @Test void clusterPreparedCancellationReleasesOnceAndStillSupportsLookup() {
+        var value=clustered("cluster-never-started");String id=value.lease().leaseId();
+        ledger.cancel(scope,value.lease().runId(),"alice",()->{});cluster().fence(id,CLUSTER_OWNER);
+        var proof=clusterProof(value,"never_launched");
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).leaseState());
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).phase());
+        assertEquals("cancelled",cluster().lookup(scope,value.lease().runId(),CLUSTER_OWNER).state());
+        assertTrue(cluster().pending(CLUSTER_OWNER,null,100).isEmpty());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='execution.release.verified'",Integer.class));
+        code("cleanup_proof_conflict",()->cluster().release(id,CLUSTER_OWNER,clusterProof(value,"never_launched")));
+    }
+
+    @Test void clusterUnknownLaunchAndUnterminatedPodNeverReleaseQuota() {
+        var value=clustered("cluster-unknown");String id=value.lease().leaseId();cluster().begin(id,CLUSTER_OWNER);cluster().fence(id,CLUSTER_OWNER);
+        code("cleanup_unverified",()->cluster().release(id,CLUSTER_OWNER,clusterProof(value,"never_launched")));
+        var pod=cluster().observed(id,CLUSTER_OWNER,new RunClusterSupervision.Observation(UUID.randomUUID().toString(),"100"));
+        code("cleanup_unverified",()->cluster().release(id,CLUSTER_OWNER,clusterProof(pod,"terminated_pod")));
+        assertEquals("cleanup_pending",cluster().inspect(id,CLUSTER_OWNER).leaseState());
+        assertEquals(1,cluster().pending(CLUSTER_OWNER,null,100).size());
+    }
+
+    @Test void clusterPodUidAndTerminationCannotBeReplacedOrForgedAcrossAttempts() {
+        var value=observedCluster("cluster-observed");String id=value.lease().leaseId();
+        code("cluster_execution_conflict",()->cluster().observed(id,CLUSTER_OWNER,new RunClusterSupervision.Observation(UUID.randomUUID().toString(),"200")));
+        assertEquals(value.podUid(),cluster().observed(id,CLUSTER_OWNER,new RunClusterSupervision.Observation(value.podUid(),"201")).podUid());
+        var other=observedCluster("cluster-other");
+        code("cluster_termination_unverified",()->cluster().terminated(id,CLUSTER_OWNER,termination(other)));
+        var report=termination(value);var terminated=cluster().terminated(id,CLUSTER_OWNER,report);
+        assertEquals(report,cluster().terminated(id,CLUSTER_OWNER,report).termination());
+        code("cluster_termination_conflict",()->cluster().terminated(id,CLUSTER_OWNER,termination(value)));
+        code("cleanup_before_terminal",()->cluster().release(id,CLUSTER_OWNER,clusterProof(terminated,"terminated_pod")));
+        cluster().fence(id,CLUSTER_OWNER);var proof=clusterProof(terminated,"terminated_pod");
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).phase());
+        assertEquals(report,cluster().lookup(scope,value.lease().runId(),CLUSTER_OWNER).execution().termination());
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).leaseState());
+    }
+
+    @Test void clusterTerminationRequiresActualContainerIdentityAndTerminalPhase() {
+        var value=observedCluster("cluster-invalid-termination");String id=value.lease().leaseId();var report=termination(value);
+        var invalid=new RunClusterSupervision.Termination(report.id(),report.podUid(),report.resourceVersion(),report.nodeName(),report.nodeUid(),
+                "Unknown",report.containerName(),report.containerId(),report.exitCode(),report.startedAt(),report.finishedAt(),report.evidenceSha256());
+        code("invalid_cluster_termination",()->cluster().terminated(id,CLUSTER_OWNER,invalid));
+        var noContainer=new RunClusterSupervision.Termination(report.id(),report.podUid(),report.resourceVersion(),report.nodeName(),report.nodeUid(),
+                "Failed","executor",null,137,report.startedAt(),report.finishedAt(),report.evidenceSha256());
+        code("invalid_cluster_termination",()->cluster().terminated(id,CLUSTER_OWNER,noContainer));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_run_cluster_execution SET phase='terminated' WHERE lease_id=?",id));
+        assertEquals("observed",cluster().inspect(id,CLUSTER_OWNER).phase());
+    }
+
+    @Test void clusterReleaseAndAuditRollbackTogetherAndSkillEvidenceUsesSharedPath() {
+        actors();deployment=skillDeployment();
+        var value=observedCluster("cluster-skill-release");var lease=value.lease();String id=lease.leaseId();
+        journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);
+        journal().created(lease,UUID.randomUUID().toString());
+        ledger.finish(lease,RunState.SUCCEEDED,null);
+        var terminated=cluster().terminated(id,CLUSTER_OWNER,termination(value));
+        var proof=clusterProof(terminated,"terminated_pod");
+        jdbc.execute("CREATE TRIGGER fail_cluster_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->cluster().release(id,CLUSTER_OWNER,proof));
+        assertEquals("terminated",cluster().inspect(id,CLUSTER_OWNER).phase());assertEquals("cleanup_pending",cluster().inspect(id,CLUSTER_OWNER).leaseState());
+        assertEquals(0,count("oa_skill_verification"));
+        jdbc.execute("DROP TRIGGER fail_cluster_audit");
+        assertEquals("released",cluster().release(id,CLUSTER_OWNER,proof).leaseState());
+        assertEquals("released",cluster().inspect(id,CLUSTER_OWNER).sandboxPhase());assertEquals(1,count("oa_skill_verification"));
+        assertEquals("succeeded",state(lease.runId()));
+    }
+
+    @Test void clusterUnknownSandboxCreationRetainsBothQuotas() {
+        bindSkill(scope,deployment);var value=observedCluster("cluster-unknown-sandbox");var lease=value.lease();
+        journal().reserve(lease,"gvisor-demo",IMAGE);journal().creating(lease);cluster().fence(lease.leaseId(),CLUSTER_OWNER);
+        var terminated=cluster().terminated(lease.leaseId(),CLUSTER_OWNER,termination(value));
+        code("cleanup_unverified",()->cluster().release(lease.leaseId(),CLUSTER_OWNER,clusterProof(terminated,"terminated_pod")));
+        assertEquals("cleanup_pending",cluster().inspect(lease.leaseId(),CLUSTER_OWNER).leaseState());
+        assertEquals("creating",cluster().inspect(lease.leaseId(),CLUSTER_OWNER).sandboxPhase());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_sandbox WHERE phase<>'released'",Integer.class));
+    }
+
+    @Test void clusterPendingCursorDoesNotHideNewWorkAndLegacyBindingsCannotBeAdopted() {
+        var one=clustered("cluster-one");var two=clustered("cluster-two");
+        var first=cluster().pending(CLUSTER_OWNER,null,1);assertEquals(1,first.size());
+        var next=cluster().pending(CLUSTER_OWNER,first.getFirst().lease().leaseId(),1);assertEquals(1,next.size());
+        assertNotEquals(first.getFirst().lease().leaseId(),next.getFirst().lease().leaseId());
+        code("invalid_cursor",()->cluster().pending(CLUSTER_OWNER,null,101));
+        cluster().fence(one.lease().leaseId(),CLUSTER_OWNER);cluster().release(one.lease().leaseId(),CLUSTER_OWNER,clusterProof(one,"never_launched"));
+        String old=supervised("legacy-third").lease().runId();
+        code("resource_unavailable",()->cluster().lookup(scope,old,CLUSTER_OWNER));
+    }
     private void bindSkill(RunLedger.Scope target, String deploymentId) {
         String release = UUID.randomUUID().toString();
         jdbc.update("""
@@ -1191,6 +1337,10 @@ class RunLedgerMySqlTest {
     @Test @EnabledIfEnvironmentVariable(named = "OA_RUN_TEST_RESTART_SIGNAL", matches = ".+")
     void databaseCrashAndRestartPreserveRunOutboxAndIdempotency() throws Exception {
         String id = submit("restart").runId();
+        var clusterExecution = observedCluster("restart-cluster");
+        ledger.finish(clusterExecution.lease(),RunState.SUCCEEDED,null);
+        var clusterTermination = termination(clusterExecution);
+        var clusterStopped = cluster().terminated(clusterExecution.lease().leaseId(),CLUSTER_OWNER,clusterTermination);
         bindSkill(scope, deployment);
         var execution = supervised("restart-sandbox");
         var sandboxLease = execution.lease();
@@ -1205,7 +1355,11 @@ class RunLedgerMySqlTest {
         assertEquals("ready", java.nio.file.Files.readString(signal), "Isolated database restart did not complete");
         assertEquals("queued", instance().get(scope, id).get("state"));
         assertEquals(1, instance().events(scope, id, 0, 20).events().size());
-        assertEquals(2, count("oa_run_outbox"));
+        assertEquals(3, count("oa_run_outbox"));
+        var clusterRestored = cluster().inspect(clusterExecution.lease().leaseId(),CLUSTER_OWNER);
+        assertEquals("terminated",clusterRestored.phase());assertEquals(clusterTermination,clusterRestored.termination());
+        assertEquals(clusterExecution.target(),clusterRestored.target());assertEquals(clusterExecution.podUid(),clusterRestored.podUid());
+        cluster().release(clusterExecution.lease().leaseId(),CLUSTER_OWNER,clusterProof(clusterStopped,"terminated_pod"));
         assertEquals(id, submit("restart").runId());
         assertTrue(ledger.claim(scope, id, "after-restart").isPresent());
         assertEquals("creating", sandboxPhase(sandboxLease));

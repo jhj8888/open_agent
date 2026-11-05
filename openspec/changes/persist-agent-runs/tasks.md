@@ -40,3 +40,13 @@ V1.52、RunLedger/RunOutbox 与状态转换层已通过 21 项真实 MySQL 8.4.1
 V1.55 和独立 reconciler HTTP 已部署到展示机，包含准入与监督绑定同事务、一次性启动授权、按 supervisor 限定访问、未知创建保留配额、核验材料与两类配额/审计原子提交。80 项 Java 检查通过；随后扩展数据库 SIGKILL/重启用例验证 boot/unit/InvocationID 保留并禁止重复启动，该变更用例单独重跑通过。Python 监督/传输 24 项通过。实机 systemd 非 root 进程及子进程已核实停止，且无 Docker/system bus 权限；使用合成子程序，未重启共享服务器。证据见 `docs/platform/supervision-verification-20261105.json`、`run-supervision.md` 及链接的实机记录。真实 activity、物理沙盒回收、双租户与浏览器完整联调仍未完成，因此 1.3、2.1–2.3 保持未勾选。
 
 真实模型任务接线已完成首轮闭环，见 `docs/platform/model-run-verification-20261105.json`：实际用户 OIDC、HTTP 提交/幂等、MySQL、Temporal、非 root executor、DeepSeek、消息事件及独立 cgroup 回收均联通。新增 lookup/未准入失败事务通过 3 项真实 MySQL 和 10 项内部 HTTP 权限测试。首次两轮启动权限错误已保留失败记录并修复；本阶段不含 Skill 沙盒、双租户故障演练或真实浏览器验收，因此上述整项任务仍未勾选。
+
+## 2026-11-05 集群执行控制协议增量
+
+- [x] V1.62 将 Kubernetes 目标、namespace UID、Pod 名/UID 与同一 attempt 原子绑定，启动授权仅可成功一次；单机和集群监督身份不混用，跨身份/环境与配置漂移拒绝。
+- [x] 终止证据先于最终释放持久保存，证据不替换且重放幂等；创建未知或无终止证据继续占额，不能凭 404/删除成功释放。
+- [x] 单机与集群通过各自核验后，复用同一个配额、Skill 验证和审计事务；审计失败整体回滚。104 项 Java 检查最终通过，含真实隔离 MySQL 与 SIGKILL/重启，首轮两项测试准备/断言修正后定向复验。
+- [x] Python 集群传输核对目标、租约与状态，不重试丢失的启动授权；与单机传输合计 27 项通过。新增检查纳入 CI，远端 CI 结果另行确认。
+- [x] 展示 API 更新到 V1.62，更新前保存私有 SQL 备份；真实 Skill 任务和物理回收、旧步骤/文件与 HTTPS 入口复查通过。集群身份保持未配置，6 类实际 HTTP 访问拒绝通过。
+
+实现边界见 `docs/platform/cluster-execution.md`，证据见 `docs/platform/cluster-control-verification-20261105.json`。Pod 元数据测试为合成契约数据；Kubernetes SDK 执行适配器、Pod/finalizer、OpenSandbox/Kata 物理核验、节点/未知创建恢复及生产集群验收仍待完成。专用 chart 继续关闭集群任务准入，原 1.3、2.1–2.3 与系统验收大项保持未勾选。

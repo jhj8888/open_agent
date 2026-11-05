@@ -25,7 +25,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           mvn -B -ntp -f console/backend/pom.xml -pl hub -am \
-            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest,PlatformRunInternalSecurityTest,ObservationExportSecurityTest,AgentRunHttpTest,RunEventStreamsTest,PlatformApplicationTest,HostMetricsControllerTest,OperationsMetricsTest' \
+            '-Dtest=TenantAccess*Test,TenantGovernanceSecurityTest,ModelSecurityTest,ModelContractTest,AgentStreamCancellationTest,SkillArchiveValidatorTest,SkillReleaseServiceTest,LegacySkillReleaseImporterTest,RunContractTest,RunClusterConfigurationTest,RunSupervisionConfigurationTest,PlatformRunInternalSecurityTest,ObservationExportSecurityTest,AgentRunHttpTest,RunEventStreamsTest,PlatformApplicationTest,HostMetricsControllerTest,OperationsMetricsTest' \
             -Dsurefire.failIfNoSpecifiedTests=false test
   mysql-migration:
     runs-on: ubuntu-24.04
@@ -133,5 +133,6 @@ jobs:
           core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py \
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
             core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py \
+            core/agent/tests/test_durable_supervision.py core/agent/tests/test_cluster_control.py \
             core/agent/tests/test_task_outputs.py core/agent/tests/test_execution_observations.py \
             core/agent/tests/test_deepseek_reasoning.py core/agent/tests/test_observation_exporter.py tests/backup -q -p no:cacheprovider

@@ -28,6 +28,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+集群执行使用独立 `oa_run_cluster_execution` 资源绑定，复用同一 RunLedger、租约、终态、SandboxJournal 与最终释放事务，不把 Pod 名或 UID 填进 boot/unit/cgroup 字段。调用链为 Temporal → 集群监督器 → 独立 reconciler HTTP → 账本 → Kubernetes 官方客户端 → 单次 executor Pod → 既有模型/Skill 执行器。集群身份、namespace UID、环境、worker 身份和固定镜像由管理员配置，不能来自租户请求；systemd 与集群监督身份不得混用。一次性 launch 授权在创建 Pod 前提交，Pod UID 只绑定一次；重启读取持久绑定，不重放创建或工具。记录可信监督器观察到的容器终止状态并持久化后才允许删除 Pod、提交独立回收证明和释放配额。删除请求成功、API 404、TTL、NodeLost、空列表和未经核验的强删均不能代替物理终止证据；未知创建继续占额。已有单机协议和部署保持兼容，集群 chart 在执行适配器及目标集群验证完成前仍关闭准入。
+
+集群控制面分增量交付：先实现资源/终止证据账本和严格身份接口，随后接官方 Kubernetes 客户端、finalizer 生命周期、Pod 运行配置和 OpenSandbox/Kata 核验。前一增量的 MySQL/API 检查只证明账本契约，不代表 Pod、Kata、CNI 或完整执行已验收。共同的 Skill 验证、资源释放和审计逻辑提取为同一个事务内实现，单机与集群都必须先通过各自的核验门禁，不能增加第二条 worker 自行释放通道。
+
 2026-11-05 运行配置读取诊断：展示机两次在模型/沙盒调用前出现 CONTROL_UNAVAILABLE；现有日志抹除了网络异常类别。仅在受信日志记录固定分类（连接、读取、总时限、传输、响应格式），不记录异常文本、URL、响应或凭据。只读 runtime 读取允许一次传输故障重试；重试前必须续约成功，HTTP 拒绝、响应格式错误和取消均不得重试。该机制不重放模型、工具、沙盒创建或任意有副作用操作，不把缓解视为已经证明根因。
 
 [跨数据库/调度器一致性] → outbox+唯一 ID+reconciler；[重复副作用] → operation_id、下游幂等与未知结果失败；[配额泄漏/旧 worker 继续执行] → fencing+心跳+回收；[Temporal 运维成本] → 限定任务用途并纳入离线备份恢复。
