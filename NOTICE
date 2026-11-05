@@ -27,6 +27,12 @@ OS packages retain their own licenses; see docs/platform/components.md and the
 versioned deployment manifest. This notice does not relicense those components
 or constitute a complete distribution SBOM.
 
+The private workbench image includes Caddy 2.11.8
+(https://github.com/caddyserver/caddy), licensed under Apache License 2.0.
+Its license is retained in deploy/platform/images/LICENSE-caddy and the image.
+The deployment checks use Helm 4.3.1 (https://github.com/helm/helm), also licensed
+under Apache License 2.0; its official distribution retains its LICENSE file.
+
 The optional DeepSeek model adapter uses langchain-deepseek 1.1.1 from
 LangChain (https://github.com/langchain-ai/langchain), licensed under MIT.
 Its package license is retained in the frozen Python environment. The small

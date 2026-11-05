@@ -4,7 +4,7 @@
 
 模型由专门团队通过内网接口提供。本项目负责 Agent、Skill、租户、任务、沙盒、HTTP API、聊天调试和应用可观测性；不负责模型网关、调度、推理部署及运维。
 
-当前状态：已导入上游源码并建立规格开发流程；规划中的企业能力尚未完成，不能把此快照当作已验收的生产版本。
+当前状态：单机展示版已运行真实 Agent/Skill、租户授权、HTTP/聊天任务、步骤观测、文件归档和备份恢复。企业离线交付、集群执行器及完整生产验收仍在推进；不能把展示版或 Helm 模板校验当作已验收的生产版本。
 
 - [范围与边界](docs/platform/scope.md)
 - [Astron 源码评估](docs/platform/baseline-assessment.md)
@@ -13,6 +13,8 @@
 - [OpenSpec 开发方法](docs/platform/development.md)
 - [上游来源与首次导入说明](docs/platform/upstream.md)
 - [开源组件选型记录](docs/platform/components.md)
+- [当前实现与验证记录](docs/platform/implementation-progress.md)
+- [专用平台 Helm 部署边界](helm/open-agent-platform/README.md)
 
 开发工具：Node.js >= 22.12，`npm ci --ignore-scripts`，`npm run spec:validate`。
 生产离线环境不需要运行 OpenSpec CLI；离线开发机通过内网 npm 镜像或预备缓存安装锁定依赖。

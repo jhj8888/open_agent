@@ -1,0 +1,8 @@
+FROM scratch
+LABEL org.opencontainers.image.title="Open Agent private workbench"
+COPY --chown=65531:65531 caddy /usr/bin/caddy
+COPY --chown=65531:65531 console/ /srv/console/
+COPY LICENSE NOTICE LICENSE-caddy /licenses/
+USER 65531:65531
+EXPOSE 8080
+ENTRYPOINT ["/usr/bin/caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

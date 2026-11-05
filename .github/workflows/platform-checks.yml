@@ -104,6 +104,16 @@ jobs:
           core/agent/.venv/bin/python -m pytest tests/model_contract
           core/agent/tests/test_base_builder.py core/agent/tests/test_llm_completion.py
           core/agent/tests/test_deepagents_harness.py -q -p no:cacheprovider
+      - name: Prepare the checksum-pinned Helm CLI
+        run: |
+          mkdir -p .helm-test
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz -o .helm-test/helm.tar.gz
+          printf '%s\n' '0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b  .helm-test/helm.tar.gz' | sha256sum -c -
+          tar -xzf .helm-test/helm.tar.gz -C .helm-test --strip-components=1 linux-amd64/helm linux-amd64/LICENSE
+          echo "HELM_BINARY=$PWD/.helm-test/helm" >> "$GITHUB_ENV"
+      - name: Check environment isolation, private image records and hardened manifests
+        run: core/agent/.venv/bin/python -m pytest tests/deployment -q -p no:cacheprovider
       - name: Check private sandbox contracts and explicit legacy development gate
         run: >-
           core/agent/.venv/bin/python -m pytest core/agent/tests/test_platform_sandbox.py

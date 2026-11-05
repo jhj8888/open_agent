@@ -1,0 +1,499 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "enum": [
+        "test",
+        "prod"
+      ]
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "$ref": "#/definitions/image"
+        },
+        "web": {
+          "$ref": "#/definitions/image"
+        }
+      },
+      "required": [
+        "api",
+        "web"
+      ]
+    },
+    "existingSecret": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "publicHost": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upstream": {
+          "type": "string",
+          "pattern": "^https?://[a-zA-Z0-9][a-zA-Z0-9.-]*(?::[0-9]{1,5})?$"
+        },
+        "issuer": {
+          "type": "string",
+          "pattern": "^https://[a-z0-9][a-z0-9.-]*/identity$"
+        },
+        "clientId": {
+          "const": "open-agent-console"
+        }
+      },
+      "required": [
+        "upstream",
+        "issuer",
+        "clientId"
+      ]
+    },
+    "executionAdmission": {
+      "const": false
+    },
+    "modelOrigins": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^https?://[a-zA-Z0-9][a-zA-Z0-9.-]*(?::[0-9]{1,5})?$"
+      }
+    },
+    "runtimeImages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9.:_/-]+@sha256:[a-f0-9]{64}$"
+      }
+    },
+    "prometheusUrl": {
+      "type": "string",
+      "pattern": "^(?:|https?://[a-zA-Z0-9][a-zA-Z0-9.-]*(?::[0-9]{1,5})?)$"
+    },
+    "trustBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "configMapName": {
+          "type": "string",
+          "pattern": "^(?:|[a-z0-9][-a-z0-9]*[a-z0-9])$"
+        }
+      },
+      "required": [
+        "configMapName"
+      ]
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "$ref": "#/definitions/quantities"
+            },
+            "limits": {
+              "$ref": "#/definitions/quantities"
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "disruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minAvailable": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            }
+          },
+          "required": [
+            "enabled",
+            "minAvailable"
+          ]
+        },
+        "autoscaling": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "maxReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "targetCPUUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 95
+            }
+          },
+          "required": [
+            "enabled",
+            "minReplicas",
+            "maxReplicas",
+            "targetCPUUtilizationPercentage"
+          ]
+        }
+      },
+      "required": [
+        "replicas",
+        "resources",
+        "disruptionBudget",
+        "autoscaling"
+      ]
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "$ref": "#/definitions/quantities"
+            },
+            "limits": {
+              "$ref": "#/definitions/quantities"
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "disruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minAvailable": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            }
+          },
+          "required": [
+            "enabled",
+            "minAvailable"
+          ]
+        }
+      },
+      "required": [
+        "replicas",
+        "resources",
+        "disruptionBudget"
+      ]
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dns": {
+          "$ref": "#/definitions/podPeer"
+        },
+        "gateway": {
+          "$ref": "#/definitions/podPeer"
+        },
+        "apiClients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/podPeer"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "$ref": "#/definitions/dependency"
+          }
+        }
+      },
+      "required": [
+        "dns",
+        "gateway",
+        "apiClients",
+        "dependencies"
+      ]
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "properties": {
+        "kubernetes.io/os": {
+          "const": "linux"
+        },
+        "kubernetes.io/arch": {
+          "const": "amd64"
+        }
+      },
+      "required": [
+        "kubernetes.io/os",
+        "kubernetes.io/arch"
+      ]
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "Equal",
+              "Exists"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "effect": {
+            "enum": [
+              "NoSchedule",
+              "PreferNoSchedule",
+              "NoExecute"
+            ]
+          },
+          "tolerationSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          }
+        },
+        "required": [
+          "key",
+          "operator",
+          "effect"
+        ]
+      }
+    }
+  },
+  "required": [
+    "environment",
+    "namespace",
+    "imagePullSecrets",
+    "images",
+    "existingSecret",
+    "publicHost",
+    "identity",
+    "executionAdmission",
+    "modelOrigins",
+    "runtimeImages",
+    "prometheusUrl",
+    "trustBundle",
+    "api",
+    "web",
+    "network",
+    "nodeSelector",
+    "tolerations"
+  ],
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]+(?::[0-9]{1,5})?/[a-z0-9][a-z0-9._/-]*$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "repository",
+        "digest"
+      ]
+    },
+    "quantities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "pattern": "^(?:[1-9][0-9]*m|[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]+)$"
+        },
+        "memory": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(?:Mi|Gi)$"
+        }
+      },
+      "required": [
+        "cpu",
+        "memory"
+      ]
+    },
+    "podPeer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "podLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          }
+        }
+      },
+      "required": [
+        "namespace",
+        "podLabels"
+      ]
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "purpose",
+        "ports"
+      ],
+      "properties": {
+        "component": {
+          "enum": [
+            "api",
+            "web"
+          ]
+        },
+        "purpose": {
+          "enum": [
+            "database",
+            "storage",
+            "identity",
+            "model",
+            "metrics"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "podLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          }
+        },
+        "cidr": {
+          "type": "string",
+          "pattern": "^(?:10\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/(?:[89]|[12][0-9]|3[0-2])|172\\.(?:1[6-9]|2[0-9]|3[01])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/(?:1[2-9]|2[0-9]|3[0-2])|192\\.168\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/(?:1[6-9]|2[0-9]|3[0-2]))$"
+        },
+        "ports": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "namespace",
+            "podLabels"
+          ],
+          "not": {
+            "required": [
+              "cidr"
+            ]
+          }
+        },
+        {
+          "required": [
+            "cidr"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "namespace"
+                ]
+              },
+              {
+                "required": [
+                  "podLabels"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

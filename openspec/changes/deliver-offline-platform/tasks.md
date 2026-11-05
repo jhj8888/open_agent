@@ -49,3 +49,12 @@
 - [x] 从原冷快照导出约 16 MB 的独立加密数据/配置仓库，原完整快照保留；恢复校验、重复导出、授权工作站复制摘要及独立 DPAPI 密钥托管往返验证通过。软件制品需另行导入。
 
 证据见 `docs/platform/backup-recovery-verification-20261105.json` 与 `deploy/platform/backup/README.md`。此增量为已有制品的单机数据恢复验证；定时/异地/WORM、生产 PITR、恢复执行器的全故障矩阵、K8S/HA、完整离线冷启动和容量测试仍待完成，原 2.2、3.2 大项保持未勾选。
+
+## 2026-11-05 控制面镜像与专用 Helm 增量
+
+- [x] 固定 JAR、工作台、Caddy/JRE 输入摘要并保留许可证；构建不安装依赖、不访问网络、不携带配置/密钥，导出约 537 MB API/web 镜像包并校验 Docker load 与非 root 运行。
+- [x] 独立 test/prod chart 使用固定 digest、独立 namespace/Secret、只读容器、探针、资源限制、PDB/可选 HPA 和精确依赖 NetworkPolicy；默认配置及开启执行准入均拒绝，Helm lint/template 与输入/镜像引用共 29 项检查通过。
+- [x] 在新数据副本和专用无公网出口网络运行新 API/web 镜像，真实 OIDC 登录代理、3 个静态资源、12 个产物摘要与 197 个步骤验证通过；越权、内部路由、伪造身份头均拒绝，准入关闭不创建任务。
+- [x] 提供私有 registry manifest digest 核对工具，明确区分本地 config ID、归档摘要与可拉取 manifest digest；缺基础镜像、错误输入或错误引用失败关闭。
+
+证据见 `docs/platform/platform-delivery-verification-20261105.json`。本轮是控制面交付增量，没有在实际 Kubernetes 集群安装，没有导入企业私有仓库或切换线上运行部署。现有 systemd 执行监督器不能直接充当集群执行器，chart 强制关闭新任务准入。集群执行、Kata/CNI/CA、全部依赖 SBOM、完整离线冷启动和容量验收继续实施，原 1.1–3.2 大项保持未勾选。

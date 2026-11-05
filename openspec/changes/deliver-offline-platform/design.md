@@ -27,6 +27,8 @@ helm 已存在，但默认引用 ghcr.io 和 latest，部分服务单副本；La
 
 ## Risks / Trade-offs
 
+集群交付按已实现组件逐步接入独立 `helm/open-agent-platform`，不复用旧 Astron chart 的云插件/知识库/推理依赖。控制面与工作台先独立容器化，镜像只复制已校验的 JAR、静态资源和固定 Caddy 二进制，不在启动时安装依赖。test/prod 使用不同 namespace/release、Secret 引用和专属数据库/存储账号；现有上游迁移要求数据库名 `astron_console`，因此当前两环境必须使用独立 MySQL 实例，不能仅换 schema 名共用实例。Chart 默认拒绝可变镜像 tag，默认拒绝全部出入站，仅开放同环境组件、指定网关和显式依赖端点；不挂载 Kubernetes 服务账号 token，不授予集群权限。控制面/工作台有请求与限制、探针、PDB/可选 HPA，外部企业网关负责 TLS。独立数据库/身份/S3、Temporal/OpenSandbox/Kata、执行监督器及镜像仓库为明确依赖；当前 systemd supervisor 不能包装成一个声称可在 K8S 运行的 Pod。集群执行器接通前，专用 chart 强制关闭任务准入，持续追踪后续实现与实机验收。
+
 [隐藏公网依赖] → 网络审计+冷启动断网验收；[依赖许可差异] → 版本级 SBOM 和许可证清单；[日志泄露与高基数] → 脱敏/授权/label 限制；[单副本与备份不可用] → 拓扑校验和实际恢复演练。
 
 ## Migration Plan

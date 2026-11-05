@@ -1,0 +1,33 @@
+# REVIEW AND REPLACE names/endpoints. Images are supplied by the private registry import record.
+environment: test
+namespace: open-agent-test
+existingSecret: open-agent-test-control
+publicHost: agents-test.internal.invalid
+identity:
+  upstream: http://identity.open-agent-test-data.svc:8000
+  issuer: https://agents-test.internal.invalid/identity
+network:
+  gateway:
+    namespace: enterprise-gateway
+    podLabels: {app.kubernetes.io/name: enterprise-gateway}
+  dependencies:
+    - component: api
+      purpose: database
+      namespace: open-agent-test-data
+      podLabels: {app.kubernetes.io/name: mysql, open-agent.io/environment: test}
+      ports: [3306]
+    - component: api
+      purpose: storage
+      namespace: open-agent-test-data
+      podLabels: {app.kubernetes.io/name: seaweedfs, open-agent.io/environment: test}
+      ports: [8333]
+    - component: api
+      purpose: identity
+      namespace: open-agent-test-data
+      podLabels: {app.kubernetes.io/name: casdoor, open-agent.io/environment: test}
+      ports: [8000]
+    - component: web
+      purpose: identity
+      namespace: open-agent-test-data
+      podLabels: {app.kubernetes.io/name: casdoor, open-agent.io/environment: test}
+      ports: [8000]

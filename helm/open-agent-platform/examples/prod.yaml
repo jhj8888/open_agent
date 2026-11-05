@@ -1,0 +1,40 @@
+# REVIEW AND REPLACE names/endpoints. No Secret data or image digests are invented here.
+environment: prod
+namespace: open-agent-prod
+existingSecret: open-agent-prod-control
+publicHost: agents.internal.invalid
+identity:
+  upstream: http://identity.open-agent-prod-data.svc:8000
+  issuer: https://agents.internal.invalid/identity
+api:
+  replicas: 2
+  disruptionBudget: {enabled: true, minAvailable: 1}
+  autoscaling: {enabled: true, minReplicas: 2, maxReplicas: 4, targetCPUUtilizationPercentage: 70}
+web:
+  replicas: 2
+  disruptionBudget: {enabled: true, minAvailable: 1}
+network:
+  gateway:
+    namespace: enterprise-gateway
+    podLabels: {app.kubernetes.io/name: enterprise-gateway}
+  dependencies:
+    - component: api
+      purpose: database
+      namespace: open-agent-prod-data
+      podLabels: {app.kubernetes.io/name: mysql, open-agent.io/environment: prod}
+      ports: [3306]
+    - component: api
+      purpose: storage
+      namespace: open-agent-prod-data
+      podLabels: {app.kubernetes.io/name: seaweedfs, open-agent.io/environment: prod}
+      ports: [8333]
+    - component: api
+      purpose: identity
+      namespace: open-agent-prod-data
+      podLabels: {app.kubernetes.io/name: casdoor, open-agent.io/environment: prod}
+      ports: [8000]
+    - component: web
+      purpose: identity
+      namespace: open-agent-prod-data
+      podLabels: {app.kubernetes.io/name: casdoor, open-agent.io/environment: prod}
+      ports: [8000]

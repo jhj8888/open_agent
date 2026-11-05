@@ -1,0 +1,68 @@
+{{- include "oa.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oa.name" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "oa.labels" . | nindent 4 }}
+data:
+  PLATFORM_BIND_ADDRESS: "0.0.0.0"
+  PLATFORM_PORT: "18082"
+  PLATFORM_OIDC_ISSUER: {{ .Values.identity.issuer | quote }}
+  PLATFORM_OIDC_JWKS: {{ printf "%s/.well-known/jwks" .Values.identity.upstream | quote }}
+  PLATFORM_OIDC_AUDIENCE: {{ .Values.identity.clientId | quote }}
+  PLATFORM_RUN_ADMISSION_ENABLED: "false"
+  MODEL_ALLOWED_ORIGINS: {{ .Values.modelOrigins | toJson | quote }}
+  MODEL_PUBLIC_DEMO_ORIGINS: "[]"
+  SKILL_RUNTIME_IMAGES: {{ .Values.runtimeImages | toJson | quote }}
+  PLATFORM_PROMETHEUS_URL: {{ .Values.prometheusUrl | quote }}
+  LANGSMITH_TRACING: "false"
+  LANGCHAIN_TRACING_V2: "false"
+  {{- if .Values.trustBundle.configMapName }}
+  JDK_JAVA_OPTIONS: "-Djavax.net.ssl.trustStore=/etc/open-agent-ca/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit"
+  MODEL_CA_FILES: '{"enterprise":"/etc/open-agent-ca/ca.pem"}'
+  {{- end }}
+  Caddyfile: |
+    {
+      admin off
+      auto_https off
+      persist_config off
+    }
+    :8080 {
+      header X-Content-Type-Options nosniff
+      header Referrer-Policy no-referrer
+      respond /health/live "ok" 200
+      redir /open-agent /open-agent/ 308
+      handle_path /open-agent/* {
+        root * /srv/console
+        try_files {path} /index.html
+        header Cache-Control "no-store"
+        header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        file_server
+      }
+      @platform path /platform/* /api/v1/*
+      handle @platform {
+        header Cache-Control no-store
+        reverse_proxy {{ include "oa.name" . }}-api:18082 {
+          flush_interval -1
+          header_up -X-Platform-*
+          header_up -X-User-Id
+          header_up -X-Tenant-Id
+          header_up X-Forwarded-Proto https
+          header_up X-Forwarded-Host {{ .Values.publicHost }}
+        }
+      }
+      @identity path /identity /identity/*
+      handle @identity {
+        reverse_proxy {{ .Values.identity.upstream }} {
+          header_up X-Forwarded-Proto https
+          header_up X-Forwarded-Host {{ .Values.publicHost }}
+          {{- if hasPrefix "https://" .Values.identity.upstream }}
+          transport http {
+            tls_trust_pool file /etc/open-agent-ca/ca.pem
+          }
+          {{- end }}
+        }
+      }
+      respond "Not found" 404
+    }

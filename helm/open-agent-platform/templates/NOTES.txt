@@ -1,0 +1,11 @@
+Control plane/workbench manifests rendered for {{ .Values.namespace }}.
+
+This chart does not yet deploy the Kubernetes execution supervisor. Task admission
+is intentionally disabled until that adapter and Kata/CNI isolation pass real cluster
+verification. Helm rendering is not evidence of a working production Agent runtime.
+
+Provision the separate database, OIDC and S3 services and the existing Secret first.
+Route the existing enterprise HTTPS gateway to {{ include "oa.name" . }}-web:8080.
+Keep /internal/* and /health/ready inaccessible at the gateway. The web proxy exposes
+only /open-agent/*, /platform/*, /api/v1/* and the reviewed /identity upstream.
+Both image references must be digests returned by the private registry after import.

@@ -1,0 +1,9 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+LABEL org.opencontainers.image.title="Open Agent platform API"
+WORKDIR /app
+COPY --chown=65531:65531 platform.jar /app/platform.jar
+COPY LICENSE NOTICE /licenses/
+USER 65531:65531
+EXPOSE 18082
+ENTRYPOINT ["java", "-Xms64m", "-Xmx448m", "-XX:MaxMetaspaceSize=192m", "-XX:MaxDirectMemorySize=96m", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/platform.jar"]

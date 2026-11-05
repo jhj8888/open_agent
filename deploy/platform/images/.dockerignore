@@ -1,0 +1,10 @@
+*
+!Dockerfile.api
+!Dockerfile.web
+!platform.jar
+!caddy
+!console/
+!console/**
+!LICENSE
+!NOTICE
+!LICENSE-caddy

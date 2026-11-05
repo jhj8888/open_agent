@@ -1,0 +1,64 @@
+# Fill reviewed deployment values; defaults intentionally fail validation.
+# Each environment requires its OWN MySQL instance named astron_console inside it.
+environment: test
+namespace: open-agent-test
+imagePullSecrets: []
+images:
+  api:
+    repository: ""
+    digest: ""
+  web:
+    repository: ""
+    digest: ""
+existingSecret: ""
+publicHost: ""
+identity:
+  upstream: ""
+  issuer: ""
+  clientId: open-agent-console
+# Runtime API creates tasks only after the Kubernetes supervisor is implemented
+# and verified. The chart schema currently rejects true.
+executionAdmission: false
+modelOrigins: []
+runtimeImages: []
+prometheusUrl: ""
+trustBundle:
+  configMapName: ""
+  # Public CA certificates only: ca.pem and truststore.p12 (password changeit).
+api:
+  replicas: 1
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 1Gi}
+  disruptionBudget:
+    enabled: false
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+web:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {cpu: 500m, memory: 128Mi}
+  disruptionBudget:
+    enabled: false
+    minAvailable: 1
+network:
+  dns:
+    namespace: kube-system
+    podLabels: {k8s-app: kube-dns}
+  # Namespace AND pod selector form one peer, not two OR'ed peers.
+  gateway:
+    namespace: ""
+    podLabels: {}
+  # Future supervisor/executor/exporter/observer clients require explicit peers
+  # and their existing independent API service credentials.
+  apiClients: []
+  # Each dependency: component api|web, exactly one pod peer or private CIDR,
+  # and explicit TCP ports. Never 0.0.0.0/0, ::/0, metadata or loopback ranges.
+  dependencies: []
+nodeSelector: {kubernetes.io/os: linux, kubernetes.io/arch: amd64}
+tolerations: []

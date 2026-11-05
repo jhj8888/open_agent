@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "platform": "linux/amd64",
+  "base_image": "m.daocloud.io/docker.io/library/eclipse-temurin@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269",
+  "api_jar_sha256": "842599b4451bf7b4a31babaf76ddea7a3513811f4cb0a4d1b871de066e2a1abf",
+  "caddy_version": "2.11.8",
+  "caddy_binary_sha256": "f03ce34da49d6d68e506792a81d86cbea99182c2dab9078709bf7861a5433b71",
+  "caddy_license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+  "workbench_archive_sha256": "d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad",
+  "workbench_files": {
+    "assets/index-B8zKP4PY.css": "e6a171b5bc6d5387b708d7b18e58a67653307c0cf8a20c8d96e99a70ab60269d",
+    "assets/index-CXraugh1.js": "e795523db4897244cf3ce59b25fcc35746907d5f2b89332d20d44a490a4fc2ac",
+    "index.html": "542237f3a294e97b2eeab2ea3fef5dc46d590102d35a9cb608fe24214aafad78"
+  },
+  "helm": {
+    "version": "4.3.1",
+    "linux_amd64_archive_sha256": "0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b",
+    "windows_amd64_archive_sha256": "fcfd7b796dcf0f225abc40b5636a3b01f55f3de2fb1dfb18475df94e62c14112"
+  }
+}
