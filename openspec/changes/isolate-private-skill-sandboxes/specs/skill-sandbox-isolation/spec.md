@@ -110,6 +110,16 @@
 - **WHEN** 取消或终态后收到同一 worker 的创建或销毁回调
 - **THEN** 仅允许记录同一租约资源，禁止恢复执行、替换已绑定沙盒或复活已释放记录
 
+### Requirement: 独立 Kubernetes 资源核验
+
+系统 SHALL 由 reconciler 独立读取并核验沙盒的实际资源后提交不可变身份绑定。
+
+#### Scenario: 独立读取实际 Kubernetes 沙盒资源
+
+- **WHEN** reconciler 在持久准备后观察 OpenSandbox 返回的沙盒 ID
+- **THEN** 使用官方 Kubernetes SDK 验证固定目标 namespace/RuntimeClass 身份、唯一受限网络策略、无 token 账号和已初始化配额，以及实际 CR/Pod 的完整租约标签、固定镜像、单 Pod ownerReference、finalizer 与批准的权限/挂载；存在额外资源、未知字段、分页未完整或身份变化时不得提交绑定
+- **AND** 重复观察不得覆盖首次资源身份或版本，execd token 不进入日志与持久凭据；绑定不等于执行准入或停止证明，取消后的观察不得恢复任务
+
 ### Requirement: 制品与输出校验
 
 系统 SHALL 只装载经验证且固定摘要的 Skill 制品，并限制输出和产物路径、大小及类型。

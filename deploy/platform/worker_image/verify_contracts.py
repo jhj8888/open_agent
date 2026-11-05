@@ -28,6 +28,8 @@ TEST_FILES = (
     "test_execution_observations.py",
     "test_deepseek_reasoning.py",
     "test_platform_sandbox.py",
+    "test_cluster_sandbox.py",
+    "kata_profile_fixture.py",
 )
 
 

@@ -1,5 +1,13 @@
 # Tasks
 
+## 2026-11-05 独立资源核验增量
+
+- [x] 使用官方 SDK 独立检查实际沙盒目标/策略/配额和 CR/Pod，接到持久准备/绑定事务；未知字段、身份变化、额外资源或不完整列表拒绝，重复观察不覆盖首次凭据。
+- [x] 完成 203 项 Linux overlay、261 项最终镜像及 16 项打包验证；真实零节点 Kubernetes API 的四类策略/标签/额外资源变更均拒绝，固定 CRD 默认值兼容后复验通过并清理 fixture。
+- [x] 新镜像归档交付至测试服务器，原任务 58 步/2 个产物/缓存 Token 与公网授权重新核验通过，提交可复核证据。
+
+上述仅完成独立资源核验组件，HTTPS admission、controller 创建收敛、物理停止/回收和真实 Kata/CNI 尚未交付。证据见 `docs/platform/cluster-sandbox-verification-20261105.json`，原复合任务保持未勾选。
+
 本文件中的未勾选项均为待实现工作；规格校验通过不代表功能完成。前置关系见 docs/platform/roadmap.md。
 
 ## 1. 隔离后端

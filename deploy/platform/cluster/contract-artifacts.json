@@ -1,7 +1,7 @@
 {
   "scope": "Linux contract verification overlay only; not a complete worker image or Kubernetes deployment",
-  "sha256": "4918c5529458c458036c20fa92b10a2b52bd722a3605156a00c225df9e08435f",
-  "bytes": 6559483,
+  "sha256": "01c0ded9f3af3477a93e260fc2650e99fc19c4dd3ec8ea50bced8e9a32b7dd7f",
+  "bytes": 6578705,
   "base": "Existing demo worker Python 3.11 frozen environment; unchanged",
   "files": [
     {
@@ -36,8 +36,8 @@
     },
     {
       "path": "source/agent/durable/cluster_control.py",
-      "size": 15242,
-      "sha256": "6471d15337814dc87bff769b902c4f7f2c1c57329d2aadfc4a57eb077699ef90"
+      "size": 18195,
+      "sha256": "cc36b63f83478dd0c6cd96ee2aff4a7109dab7745852bd99e1b1497922c1a9bb"
     },
     {
       "path": "source/agent/durable/cluster_lifecycle.py",
@@ -50,9 +50,14 @@
       "sha256": "94ddc00d0cc2f7515a3e1f99693d9dcc933ee783a272da9949b3aaae404edc9a"
     },
     {
+      "path": "source/agent/durable/cluster_sandbox.py",
+      "size": 20931,
+      "sha256": "316fae0e25e9180e0b19ba431005e143bdb19b5867d436216efd985d9796e489"
+    },
+    {
       "path": "source/agent/durable/cluster_service.py",
-      "size": 11252,
-      "sha256": "1cf9b64a257b37f1f20c15ce322e9487dfb37aa266928047f7143df406935e17"
+      "size": 11620,
+      "sha256": "3efcc42f1d332f5c9d2c511269873c57e841c98655723bb8409800ba2604eae8"
     },
     {
       "path": "source/agent/durable/cluster_supervisor.py",
@@ -90,9 +95,29 @@
       "sha256": "63603cf23ff37e29cdb01b390547c02180f9a4071f74b7179170bc80c37bddf9"
     },
     {
+      "path": "source/agent/platform_runtime/__init__.py",
+      "size": 90,
+      "sha256": "06d3843112256751f3bfa8fa9f5df741a071c99760c945642e7f15577803e4b8"
+    },
+    {
+      "path": "source/agent/platform_runtime/artifacts.py",
+      "size": 5005,
+      "sha256": "ed400a4000c7de96cc52900c49544818640da9922fadc12054c94c30c64b0f13"
+    },
+    {
+      "path": "source/agent/platform_runtime/sandbox.py",
+      "size": 19937,
+      "sha256": "7106fb55f7d50066cdac52af99a733afd224b0c98f67edf2b080df34fb8b2801"
+    },
+    {
       "path": "source/agent/tests/__init__.py",
       "size": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "source/agent/tests/kata_profile_fixture.py",
+      "size": 5159,
+      "sha256": "4a03bfa7a80423128a7d9e1c375f945f38419663b1e8a294415f264648aa139e"
     },
     {
       "path": "source/agent/tests/test_cluster_child.py",
@@ -101,8 +126,8 @@
     },
     {
       "path": "source/agent/tests/test_cluster_control.py",
-      "size": 13247,
-      "sha256": "667c116af0d9815785b097c46baa0e16276548cad826adcd7afb4919e413496b"
+      "size": 18107,
+      "sha256": "df20b27a8b4cacdfcf23d051fddc4166a09d60c35a3edcc9f129cccda5645134"
     },
     {
       "path": "source/agent/tests/test_cluster_process.py",
@@ -110,9 +135,14 @@
       "sha256": "4df81d59880ddae51757b4fe1312f3392dd5ab88747fde4cae2fd1580f108224"
     },
     {
+      "path": "source/agent/tests/test_cluster_sandbox.py",
+      "size": 17792,
+      "sha256": "ca8c16dbc5b61b593815c6997aa0729692bdecd92db263d155f551ec266a2da8"
+    },
+    {
       "path": "source/agent/tests/test_cluster_service.py",
-      "size": 7873,
-      "sha256": "522de7d95e7f7d11d13e33f4d9cc7e9069a24f569dca1bc70de6bd944e33fa9e"
+      "size": 8572,
+      "sha256": "450643242a74798bb6cb9ef9dd2272e769b216476e2513fc29f6835665f46564"
     },
     {
       "path": "source/agent/tests/test_cluster_supervisor.py",

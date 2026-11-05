@@ -20,6 +20,7 @@ def main():
         "agent.durable.executor",
         "agent.durable.cluster_child",
         "agent.durable.cluster_service",
+        "agent.durable.cluster_sandbox",
         "agent.engine.observations",
     ]
     for name in imports:

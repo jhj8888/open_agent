@@ -89,7 +89,7 @@ def main(bundle, manifest):
             raise RuntimeError('cluster_contract_dependency_mismatch')
         tests = [str(folder / 'source/agent/tests' / name) for name in
                  ['test_cluster_control.py', 'test_cluster_process.py', 'test_cluster_child.py', 'test_cluster_transport.py',
-                  'test_cluster_supervisor.py', 'test_cluster_service.py']]
+                  'test_cluster_supervisor.py', 'test_cluster_service.py', 'test_cluster_sandbox.py']]
         xml = folder / 'pytest.xml'
         result = subprocess.run([str(PYTHON), '-m', 'pytest', *tests, '-q', '-p', 'no:cacheprovider', '--tb=short', '--junitxml=' + str(xml)],
                                 env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)

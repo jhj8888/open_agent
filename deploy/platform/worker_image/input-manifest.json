@@ -32,7 +32,7 @@
       "2.36"
     ]
   },
-  "source_commit": "07179d5fe6c28f7e748a46171e64a1d796b63d9b",
+  "source_commit": "9533d91e54b9e205aa1869b5d2e4486975d8d67d",
   "source_note": "Source hashes below are authoritative; builder changes may be uncommitted at packaging time.",
   "files": {
     ".dockerignore": {
@@ -906,6 +906,10 @@
     "source/core/agent/durable/cluster_process.py": {
       "sha256": "94ddc00d0cc2f7515a3e1f99693d9dcc933ee783a272da9949b3aaae404edc9a",
       "bytes": 22848
+    },
+    "source/core/agent/durable/cluster_sandbox.py": {
+      "sha256": "316fae0e25e9180e0b19ba431005e143bdb19b5867d436216efd985d9796e489",
+      "bytes": 20931
     },
     "source/core/agent/durable/cluster_service.py": {
       "sha256": "3efcc42f1d332f5c9d2c511269873c57e841c98655723bb8409800ba2604eae8",

@@ -1,6 +1,6 @@
 # Kubernetes 沙盒资源绑定
 
-V1.66 为生产 Skill 沙盒增加持久资源身份。目标、BatchSandbox CR 和不可信 Pod 与受信 executor Pod 分开记录。此增量提供账本与严格传输接口；独立 Kubernetes 核验服务、停止证据和完整准入尚未接通，集群 Skill 入口继续关闭。
+V1.66 为生产 Skill 沙盒增加持久资源身份。目标、BatchSandbox CR 和不可信 Pod 与受信 executor Pod 分开记录。此增量提供账本与严格传输接口；后续的[独立 Kubernetes 资源核验适配器](cluster-sandbox-verification.md)已接到准备/绑定事务，但 HTTPS 准入服务、停止证据和完整生命周期尚未接通，集群 Skill 入口继续关闭。
 
 ## 调用与权限
 

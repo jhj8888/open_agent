@@ -1,5 +1,7 @@
 # 集群 Python 运行镜像
 
+当前交付快照包含独立 Kubernetes 沙盒资源核验器与持久绑定协调器，261 项最终镜像检查通过。输入、镜像和约 706 MB 离线归档摘要见 `artifacts.json`；实际 API 与未完成的准入/回收边界见[本轮验证](../../../docs/platform/cluster-sandbox-verification.md)。下文带日期或旧计数的段落保留对应增量记录。
+
 此目录构建受信 executor / supervisor 的 CPU 镜像。模型由已有 HTTP API 提供；租户脚本必须通过独立沙盒执行。镜像默认入口为 `agent.durable.cluster_child`，监督器使用同一镜像并覆盖命令为 `-m agent.durable.cluster_service`。运行时配置由固定 Secret 挂载提供，不进入交付包。
 
 调用关系：当前 `core/agent/uv.lock` + cluster extra → 官方 uv 导出 → PyPA marker/官方 pip 选择 Linux wheel → 包名、版本、文件名和 SHA256 与 uv.lock 逐项核对 → 显式 Git 源码/许可证输入包 → 无网络 Docker 构建 → 非 root 镜像验证。没有修改共享模型、存储、认证或观测接口，也不切换正在运行的展示 worker。

@@ -21,6 +21,8 @@ SOURCES = [
     'agent/durable/workflow.py', 'agent/durable/dispatcher.py',
     'agent/tests/test_cluster_supervisor.py', 'agent/tests/test_cluster_service.py',
     'agent/tests/test_durable_workflow.py',
+    'agent/durable/cluster_sandbox.py', 'agent/tests/test_cluster_sandbox.py', 'agent/tests/kata_profile_fixture.py',
+    'agent/platform_runtime/__init__.py', 'agent/platform_runtime/sandbox.py', 'agent/platform_runtime/artifacts.py',
 ]
 ADDITIONAL = {'aiohttp', 'aiosignal', 'yarl', 'durationpy', 'kubernetes', 'oauthlib', 'requests-oauthlib'}
 LICENSES = {'aiohttp': 'Apache-2.0 AND MIT', 'aiosignal': 'Apache-2.0', 'yarl': 'Apache-2.0',

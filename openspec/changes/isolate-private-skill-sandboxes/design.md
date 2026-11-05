@@ -31,6 +31,8 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 
 ### 持久资源预留与独立回收
 
+独立核验器使用固定官方 Kubernetes SDK，读取原始 JSON 以保留模型尚未识别的字段；不重新实现 HTTP 或鉴权。核验调用链为 `ClusterSandboxBinding` → `KubernetesSandboxes` → 同一已校验 API client → `ClusterSupervisorClient` 的准备/绑定事务。核验目标 namespace UID、RuntimeClass UID/handler、无 token ServiceAccount、已初始化配额及命名空间内唯一网络策略；核验固定版本实际生成的 CR/Pod、完整租约标签、镜像、ownerReference、finalizer 和 Pod 权限/挂载/环境，拒绝同租约多个资源及不完整分页。execd token 仅用于内存比较，不能进入凭据摘要或日志。重复观察仍重新检查配置，但保留首次持久 UID/resourceVersion；取消后补记不授予执行许可。该组件只提供资源身份观察，不提供租户代码入口、物理运行/停止证明或配额释放；Kata/CNI 实机与完整回收服务仍是后续准入前置。该增量不修改模型、公共认证、单机 provider 或数据库模式。
+
 集群绑定的调用方向为独立核验服务 → reconciler 专属 `sandbox-prepare` → `RunClusterSupervision` → 同一任务许可锁内的 `RunSandboxJournal.reserve` 和沙盒目标快照；创建后经 `sandbox-resource` 原子绑定官方 BatchSandbox UID 与其唯一 Pod UID。沙盒 namespace UID/RuntimeClass 只来自 `PLATFORM_CLUSTER_SANDBOXES`，与受信 executor namespace 分离；运行镜像仍必须匹配已发布 Skill。V1.66 保存目标及资源观察，模型、Redis、Kafka 和单机接口不变。取消后允许记录已经发生的创建，不恢复执行许可；绑定后不允许同名不同 UID 替换。没有独立停止证据前，已绑定资源不能通过旧的 sandboxId-only 释放证明释放配额。此持久绑定是准入和回收服务的前置，不能单独开启集群 Skill。
 
 沙盒创建之前在同一租户/环境锁下预留 `max_sandboxes`，记录一次性的创建意图；SDK 操作在事务之外执行。创建确认丢失不重试创建，所有未知/清理中记录继续占用配额。worker 的创建/删除观察绑定认证身份及完整租约，取消后允许补报资源但不恢复执行许可。只有独立核验执行进程终止、物理沙盒不存在且没有在途创建后，受信回收器才能在同一事务释放沙盒/执行槽并写审计；worker 没有配额释放接口。详见 `docs/platform/sandbox-journal.md`。

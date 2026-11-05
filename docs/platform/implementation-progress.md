@@ -2,6 +2,8 @@
 
 ## 2026-11-05 当前状态
 
+沙盒独立资源核验适配器已接到 V1.66 准备/绑定事务：实际 namespace/RuntimeClass 身份、唯一网络策略、配额、CR/Pod 标签/ownerReference/权限和固定镜像均检查；重复观察保留首次 UID/版本，取消后不恢复执行。203 项 Linux overlay、261 项新离线镜像和 16 项打包检查通过。真实零节点 K3s 验证实际 UID 和四类资源变更拒绝，发现并显式兼容固定官方 CRD 的 Retain 默认值，临时集群已清理。镜像交付至测试服务器，旧 58 步/2 文件/Token 与公网授权复查通过。HTTPS admission、controller 收敛/物理停止、真实 Kata/CNI 和完整离线/容量验收仍待完成，活动展示执行链未切换。见[独立核验说明](cluster-sandbox-verification.md)和[本轮证据](cluster-sandbox-verification-20261105.json)。
+
 集群创建明确拒绝恢复已加入，展示 API 更新至 V1.65：完整核心 401/403/422 与 Audit-ID 可形成不可替换的拒绝凭据，任务失败和执行许可撤销原子提交，独立核验资源不存在后释放。46 项 Java、Linux overlay 138 项及新离线镜像 163 项检查通过；真实零节点 K3s 验证三类拒绝，使用合成账本并已清理夹具。原任务 58 步、2 文件下载、缓存 Token 和公网权限复查通过。集群身份仍未配置，未知创建、Kata/CNI 与生产联合验收仍待完成。见[恢复边界](cluster-create-rejection.md)和[验证记录](cluster-rejection-verification-20261105.json)。
 
 缓存 Token 明细已部署：模型步骤折叠摘要、详情、任务汇总和周/月每日表格区分缓存与新增，CSV 增加对应列；未知保留为未知，原总量不变。7 项真实 MySQL、5 项 Spring、3 项前端格式检查及构建通过。旧任务 20 页、四个自然周期、越权与公网用量复查通过；真实浏览器已确认任务和周报显示，CSV 下载事件超时未计入实测通过。见[缓存明细证据](cache-tokens-verification-20261105.json)。
