@@ -49,7 +49,7 @@ class RunLedgerMySqlTest {
         scripts.addScript(table("V1.3__init_space.sql", "agent_space"));
         scripts.addScript(table("V1.3__init_space.sql", "agent_space_user"));
         for (String migration : List.of("V1.49__add_platform_tenant_boundaries.sql", "V1.50__add_scoped_model_connections.sql",
-                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql"))
+                "V1.51__add_immutable_skill_releases.sql", "V1.52__add_durable_agent_runs.sql", "V1.53__add_run_sandbox_journal.sql", "V1.54__add_deployment_access.sql", "V1.55__add_run_supervision.sql", "V1.56__add_monitoring_query_indexes.sql", "V1.57__retain_task_outputs.sql"))
             scripts.addScript(new ClassPathResource("db/migration/" + migration));
         scripts.execute(source);
         for (String tenant : List.of(A, B)) {
@@ -69,6 +69,77 @@ class RunLedgerMySqlTest {
         return new DriverManagerDataSource(url, System.getenv("OA_RUN_TEST_DB_USER"), System.getenv("OA_RUN_TEST_DB_PASSWORD"));
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
+    private static class OutputStore implements TaskOutputStore {
+        final Map<String,byte[]> objects=new java.util.concurrent.ConcurrentHashMap<>();
+        boolean fail;
+        Runnable afterPut=()->{};
+        @Override public void put(String key,java.io.InputStream input,long size,String sha) {
+            if(fail)throw new RunFailure("output_storage_unavailable");
+            try {var bytes=input.readAllBytes();assertEquals(size,bytes.length);assertEquals(sha,com.iflytek.astron.console.hub.platform.skill.SkillArchiveValidator.sha256(bytes));objects.put(key,bytes);afterPut.run();}
+            catch(java.io.IOException invalid){throw new RuntimeException(invalid);}
+        }
+        @Override public org.springframework.core.io.Resource verified(String key,long size,String sha) {return new ByteArrayResource(objects.get(key));}
+        @Override public void remove(String key) {objects.remove(key);}
+    }
+    private TaskOutputService outputs(OutputStore store) {
+        return new TaskOutputService(ledger,jdbc,store,authorization(),deployments(),new DataSourceTransactionManager(source),new org.springframework.mock.env.MockEnvironment());
+    }
+    @Test void outputsPersistAcrossCleanupRestartRetentionAndRequireCurrentTaskAccess() throws Exception {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("outputs").runId());
+        byte[] bytes="任务交付物\n".repeat(10000).getBytes(StandardCharsets.UTF_8);
+        String sha=com.iflytek.astron.console.hub.platform.skill.SkillArchiveValidator.sha256(bytes);
+        var descriptor=new TaskOutputService.Descriptor("/workspace/outputs/报告.csv",bytes.length,sha,"tool:write-1");
+        var reserved=service.reserve(lease,descriptor);String id=(String)reserved.get("output_id");
+        assertEquals(id,service.reserve(lease,descriptor).get("output_id"));
+        code("output_not_available",()->service.download(caller("alice"),lease.runId(),id,false));
+        service.upload(lease,id,new java.io.ByteArrayInputStream(bytes),bytes.length);
+        assertEquals("available",service.reserve(lease,descriptor).get("state"));
+        code("output_already_published",()->service.upload(lease,id,new java.io.ByteArrayInputStream(bytes),bytes.length));
+        code("action_forbidden",()->service.list(caller("viewer"),lease.runId()));
+        code("resource_unavailable",()->service.download(caller("alice"),submit("other-task").runId(),id,false));
+        ledger.cancel(scope,lease.runId(),"alice",()->{});ledger.finish(lease,RunState.FAILED,"execution_failed");ledger.resourcesReleased(lease);
+        code("lease_fenced",()->service.reserve(lease,descriptor));
+        jdbc.update("UPDATE oa_agent_run SET retain_until=TIMESTAMPADD(DAY,-10,CURRENT_TIMESTAMP(3)) WHERE run_id=?",lease.runId());
+        var restarted=outputs(store);restarted.reconcile();
+        assertEquals(1,restarted.list(caller("alice"),lease.runId()).size());
+        try(var input=restarted.download(caller("alice"),lease.runId(),id,false).content().getInputStream()) {assertArrayEquals(bytes,input.readAllBytes());}
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_access WHERE action='download'",Integer.class));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        code("resource_unavailable",()->restarted.download(caller("alice"),lease.runId(),id,false));
+        assertEquals(1,store.objects.size());
+    }
+    @Test void outputsRejectUnsafePathsEnforceVersionsAndReconcileOnlyUnpublishedObjects() throws Exception {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("output-limits").runId());
+        for(String path:List.of("/etc/passwd","/workspace/outputs/../secret","/workspace/outputs//bad","/workspace/outputs/a\\b","/workspace/outputs/a\nb"))
+            code("invalid_output",()->service.reserve(lease,new TaskOutputService.Descriptor(path,1,RunJson.hash("x"),"final")));
+        var one=service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/a.html",1,RunJson.hash("a"),"tool:1"));
+        String id=(String)one.get("output_id");store.fail=true;
+        code("output_storage_unavailable",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'a'}),1));
+        assertEquals("failed",service.list(caller("alice"),lease.runId()).getFirst().get("state"));
+        store.fail=false;service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'a'}),1);
+        code("output_preview_unavailable",()->service.download(caller("alice"),lease.runId(),id,true));
+        var two=service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/a.html",1,RunJson.hash("b"),"tool:2"));
+        assertNotEquals(id,two.get("output_id"));
+        for(int i=0;i<30;i++)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/f"+i,0,RunJson.hash(""),"final"));
+        code("output_quota_exceeded",()->service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/excess",0,RunJson.hash(""),"final")));
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        service.reconcile();assertEquals(1,store.objects.size());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='cleared'",Integer.class));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output_upload WHERE state='published'",Integer.class));
+    }
+    @Test void outputsConcurrentReservationAndRevocationDuringIoAreFenced() throws Exception {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("output-concurrent").runId());
+        var descriptor=new TaskOutputService.Descriptor("/workspace/outputs/a.txt",1,RunJson.hash("a"),"tool:1");
+        List<Map<String,Object>> rows=concurrent(List.of(()->service.reserve(lease,descriptor),()->service.reserve(lease,descriptor),()->service.reserve(lease,descriptor)));
+        assertEquals(1,rows.stream().map(row->row.get("output_id")).distinct().count());
+        String id=(String)rows.getFirst().get("output_id");
+        store.afterPut=()->ledger.cancel(scope,lease.runId(),"alice",()->{});
+        code("lease_fenced",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{'a'}),1));
+        assertEquals("failed",service.list(caller("alice"),lease.runId()).getFirst().get("state"));
+        code("output_not_available",()->service.download(caller("alice"),lease.runId(),id,false));
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        service.reconcile();assertTrue(store.objects.isEmpty());
+    }
     private RunOutbox outbox() { return new RunOutbox(new JdbcTemplate(source), new DataSourceTransactionManager(source)); }
     private RunSandboxJournal journal() { return new RunSandboxJournal(instance(), new JdbcTemplate(source)); }
     private static final String SUPERVISOR = "supervisor-1", OTHER_SUPERVISOR = "supervisor-2";

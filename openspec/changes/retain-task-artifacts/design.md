@@ -16,4 +16,12 @@
 
 ## Verification
 
+### Implementation boundary and defaults
+
+调用链为 `TaskOutputs → TaskOutputController → TaskOutputService → DeploymentAuthorization/RunLedger → MinioTaskOutputStore`；执行侧为 `RuntimeExecutor → DeepAgents official middleware → output publisher → OpenSandbox official command/range-file APIs → private worker output endpoint`。复用现有 S3 bucket 的独立 `task-outputs/v1/` 前缀，不修改 bucket policy、Skill 删除契约、Redis 或 Kafka。凭据仅在已有可信控制面/worker，沙盒内没有对象存储密钥。
+
+当前 DeepAgents StateBackend 官方 FileData 支持字符串及旧版行数组，使用官方转换函数。OpenSandbox 1.1.0 文件 SDK 以 execd 身份读文件，不提供非特权 no-follow 快照；因此只补充该缺失边界：UID 1000 子进程用 openat/no-follow 读取限定输出目录，可信父进程按字节/数量界限接收管道数据并写入 root 私有快照。随后官方文件 SDK 按 1 MiB Range 分段传输，避免扩大已有 8 MiB SDK 响应限制和 32 KiB 模型文本通道。
+
+交付目录 `/workspace/outputs/`；每文件 32 MiB，每任务 32 个不可变内容版本、累计 128 MiB，每租户每环境默认 2 GiB（`platform.outputs.max-tenant-bytes`）。超限明确失败，已归档文件不删除。每次物理上传新建对象键；完整 SHA256 校验及租约复核后发布。15 分钟以上、仍未引用的失败上传才由确切记录回收，已发布对象无 TTL。单实例限 2 个上传、1 个校验下载；下载以最多 32 MiB 临时文件完成校验后发送，避免将大文件全部载入 Java 堆。文本预览 256 KiB，HTML/SVG 等只作为附件下载。公开 API 不接受对象键。
+
 分别验证成功/失败/取消文件、非沙盒输出、同名版本、幂等、并发任务、存储中断恢复、租约失效、路径/链接攻击、超大文件、越权/撤权。真实生成 TXT/CSV/PDF 等文件，完成物理沙盒回收与平台重启后仍能授权下载且 SHA256 一致。自然任务保留期内产物不受监控 3 天保留配置影响。完整备份同时包括对象、索引、任务引用与待发布状态。

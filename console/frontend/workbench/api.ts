@@ -103,6 +103,23 @@ export class ApiScope {
     if (!response.ok) throw new ApiError(response.status, '');
     return response.text();
   }
+  async downloadOutput(run: string, id: string, name: string): Promise<void> {
+    const response = await fetch(`/api/v1/runs/${encodeURIComponent(run)}/outputs/${encodeURIComponent(id)}/download`, {
+      headers: { Authorization: `Bearer ${await accessToken()}` },
+      credentials: 'omit', cache: 'no-store', signal: this.controller.signal,
+    });
+    if (!response.ok) throw new ApiError(response.status, '');
+    const blob = await response.blob();
+    const expected = response.headers.get('X-Content-SHA256');
+    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+    const actual = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (!expected || actual !== expected) throw new Error('文件完整性校验失败，请重新下载。');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = name; link.rel = 'noopener';
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   async stream(
     id: string,
     signal: AbortSignal,

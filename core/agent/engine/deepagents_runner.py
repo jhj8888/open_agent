@@ -1,7 +1,9 @@
 """The single Agent execution engine: official Deep Agents + platform adapters."""
 
 import asyncio
+import base64
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import aclosing
 from typing import (
     Any,
@@ -81,6 +83,32 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
         self.trace = trace
         self.decisions = 0
         self.answer_mode = not runner.has_execution_tools
+        self.output_tool_lock = asyncio.Lock()
+
+    async def awrap_tool_call(self, request: Any, handler: Any) -> Any:
+        if self.runner._outputs is None:
+            return await handler(request)
+        # Within one attempt, finish publication before the next tool can replace
+        # a file. Independent tasks retain their existing concurrent execution.
+        async with self.output_tool_lock:
+            result = await handler(request)
+            step = "tool:" + str(request.tool_call["id"])[:120]
+            if self.runner._attempt is not None:
+                await self.runner._outputs(step, None)
+            else:
+                backend = StateBackend()
+                listing = await backend.aglob("**", "/workspace/outputs/")
+                if listing.error or listing.truncated or len(listing.matches or []) > 32:
+                    raise RuntimeError("output_listing_failed")
+                for item in listing.matches or []:
+                    if item.get("is_dir"):
+                        continue
+                    downloaded = (await backend.adownload_files([item["path"]]))[0]
+                    if downloaded.error or downloaded.content is None or len(downloaded.content) > 32 * 1024 * 1024:
+                        raise RuntimeError("output_read_failed")
+                    await self.runner._outputs(step, {item["path"]: {
+                        "content": base64.b64encode(downloaded.content).decode("ascii"), "encoding": "base64"}})
+            return result
 
     async def awrap_model_call(
         self, request: ModelRequest, handler: Any
@@ -237,6 +265,18 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
             return {"astron_finalizing": True, "jump_to": "model"}
         return None
 
+    async def abefore_model(self, state: HarnessState, runtime: Any) -> None:
+        if self.runner._outputs is not None:
+            # A graph checkpoint contains completed tool writes, including StateBackend files.
+            messages=state.get("messages",[])
+            tool=next((m for m in reversed(messages) if isinstance(m,ToolMessage)),None)
+            if tool is not None:
+                await self.runner._outputs("tool:"+str(tool.tool_call_id)[:120],state.get("files",{}))
+
+    async def aafter_agent(self, state: HarnessState, runtime: Any) -> None:
+        if self.runner._outputs is not None:
+            await self.runner._outputs("final",state.get("files",{}))
+
 
 class DeepAgentsRunner(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -250,10 +290,21 @@ class DeepAgentsRunner(BaseModel):
     question: str = ""
     max_loop: int = Field(default=30, ge=1)
     _attempt: AttemptSandbox | None = PrivateAttr(default=None)
+    _outputs: Callable[[str,dict | None],Awaitable[None]] | None = PrivateAttr(default=None)
+    _tool_step: str = PrivateAttr(default="")
+
+    @property
+    def tool_step(self) -> str:
+        return self._tool_step
 
     @property
     def has_execution_tools(self) -> bool:
-        return bool(self.plugins) or self._attempt is not None
+        return bool(self.plugins) or self._attempt is not None or self._outputs is not None
+
+    def bind_outputs(self, publisher: Callable[[str,dict | None],Awaitable[None]]) -> None:
+        if self._outputs is not None:
+            raise ValueError("Output publisher already bound")
+        self._outputs=publisher
 
     def bind_attempt(self, attempt: AttemptSandbox) -> None:
         """Only the trusted worker binds an admitted attempt, never HTTP/model input.
@@ -364,6 +415,8 @@ class DeepAgentsRunner(BaseModel):
             skills=["/skills/"] if self._attempt is not None else None,
             system_prompt=(
                 "You are the Astron Agent assistant. Use the available tools when needed.\n"
+                + ("Save all deliverable files under /workspace/outputs/. Files there are archived after completed tool steps and can be downloaded from the task. Do not claim a file was delivered unless you created it.\n" if self._outputs is not None else "")
+                +
                 "Decision instructions:\n"
                 + self.reasoning_instruction
                 + "\nFinal answer instructions:\n"
@@ -480,6 +533,7 @@ class DeepAgentsRunner(BaseModel):
     def _tool_response(
         self, message: ToolMessage, tool_arguments: dict[str, dict[str, Any]]
     ) -> AgentResponse:
+        self._tool_step="tool:"+str(message.tool_call_id)[:120]
         execution = message.artifact
         if not isinstance(execution, ToolExecution):
             execution = ToolExecution(

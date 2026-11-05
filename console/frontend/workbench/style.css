@@ -513,3 +513,14 @@
     line-height: 1.7;
   }
 }
+/* Task files share the console's existing card and green action language. */
+.task-outputs { margin: 20px 0; padding: 16px; border: 1px solid #dce8e0; border-radius: 12px; background: #fafcfb; }
+.output-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.output-heading > span { color: #67776d; font-size: 12px; }
+.output-file { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #e4ebe6; padding: 14px 0; }
+.output-description { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.output-description > span, .output-description details { font-size: 12px; color: #65766a; }
+.output-description code { display: block; font-size: 11px; margin-top: 6px; }
+.output-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.output-preview { margin-top: 16px; border: 1px solid #dce8e0; border-radius: 8px; padding: 12px; background: white; }
+.output-preview pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }

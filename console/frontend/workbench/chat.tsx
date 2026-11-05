@@ -11,6 +11,7 @@ import {
   useDialogFocus,
 } from './components';
 import type { AgentRun, Deployment, RunEvent } from './types';
+import { TaskOutputs } from './outputs';
 
 export function RunConsole({
   api,
@@ -321,6 +322,7 @@ export function RunConsole({
                       '本次任务没有文本输出。'
                     )}
                   </div>
+                  {run && <TaskOutputs key={run.run_id} api={api} run={run} />}
                   <details className="execution-details">
                     <summary>
                       <Icon name="terminal" size={14} />

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from typing import Any
+from collections.abc import AsyncIterator
 from urllib.parse import urlsplit
 import ipaddress
 import json
@@ -189,6 +190,38 @@ class ControlPlaneClient:
             )
             for row in data
         ]
+
+    async def output(self, lease: AttemptLease, descriptor: dict, content: AsyncIterator[bytes]) -> dict:
+        """Reserve metadata then stream bytes; model/tenant code never gets this credential."""
+        row = await self.request(f"/internal/platform/worker/runs/{lease.run.run_id}/outputs",
+                                 {"lease":lease.body(), **descriptor})
+        if row.get("state")=="available":
+            return row
+        identifier=str(UUID(row["output_id"]))
+        headers={"Content-Type":"application/octet-stream", "Content-Length":str(descriptor["size"]),
+                 "X-Output-Tenant":lease.run.tenant, "X-Output-Environment":lease.run.environment,
+                 "X-Output-Attempt":str(lease.attempt), "X-Output-Lease":lease.lease_id,
+                 "X-Output-Fence":str(lease.fencing_token)}
+        try:
+            async with asyncio.timeout(90), self.http.stream("POST",
+                    f"/internal/platform/worker/runs/{lease.run.run_id}/outputs/{identifier}/content",
+                    headers=headers,content=content,timeout=httpx.Timeout(60,connect=5)) as response:
+                if response.status_code!=200:
+                    raise ControlPlaneError(f"CONTROL_HTTP_{response.status_code}")
+                data=bytearray()
+                if response.headers.get("content-encoding","identity") not in {"","identity"}:
+                    raise ControlPlaneError("CONTROL_RESPONSE_INVALID")
+                async for chunk in response.aiter_bytes():
+                    data.extend(chunk)
+                    if len(data)>16384:
+                        raise ControlPlaneError("CONTROL_RESPONSE_LIMIT")
+                result=json.loads(data)
+                if result.get("output_id")!=identifier or result.get("state")!="available":
+                    raise ControlPlaneError("CONTROL_RESPONSE_INVALID")
+                return result
+        except (httpx.HTTPError,ValueError,TimeoutError):
+            # The next reserve may discover an already committed publication.
+            raise ControlPlaneError("OUTPUT_UPLOAD_UNAVAILABLE") from None
 
     async def acknowledge(self, delivery: Delivery) -> bool:
         result = await self.request(

@@ -68,6 +68,8 @@ Java 默认仍为上游 HubApplication，部署必须检查 manifest 为 Platfor
 
 ## 依赖与边界
 
+2026-11-05 增量：任务详情已提供“任务产物”列表、纯文本预览和授权下载。真实模型任务 `32dc1633`、`b2f7e47f` 分别演示 StateBackend 与沙盒归档，后者包含 2 MiB 文件。沙盒回收和 API 重启后下载摘要一致；取消任务 `d67faffe`、故意触发链接拒绝的失败任务 `83a68350` 都保留前一步文件。用法与配额见 [任务产物](task-outputs.md)，证据见 [验收记录](task-output-verification-20261105.json)。
+
 - 新增 [oidc-client-ts 3.5.0](https://github.com/authts/oidc-client-ts)，Apache-2.0，官方 UserManager/内存存储实现标准 OIDC。2026-11-05 查询超过 1K stars。
 - 复用已有 [react-markdown](https://github.com/remarkjs/react-markdown) 与 remark-gfm，MIT；安全 Markdown 禁用原始 HTML、自动图片请求并保留 URL 校验。
 - [Caddy 2.11.8](https://github.com/caddyserver/caddy)，Apache-2.0，官方发行包校验摘要；只用于展示机独立 HTTPS 入口。

@@ -170,6 +170,7 @@ class AttemptSandbox:
                             owner="agent",
                             group="agent",
                         ),
+                        WriteEntry(path="/workspace/outputs", mode=700, owner="agent", group="agent"),
                         WriteEntry(
                             path="/opt/open-agent/transfers",
                             mode=711,

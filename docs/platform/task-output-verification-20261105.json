@@ -1,0 +1,155 @@
+{
+  "verified_at": "2026-11-05T00:09:06.865286+00:00",
+  "public_url": "https://120.26.81.83/open-agent/",
+  "artifacts": {
+    "api_sha256": "02f58e74595e953b65a37d786240c60e304e30a6106e93acd414826e6d695bea",
+    "worker_sha256": "bf4785b9455b871184a7ea7bdceae807d329b36ca0e98a8aaa0eaea677019e28",
+    "console_sha256": "0ae7c049182f950df370def76ac8dbe3ef5f3a3b137189959961929e6a3c176f"
+  },
+  "migration": "V1.57__retain_task_outputs.sql",
+  "java": [
+    {
+      "class": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "class": "com.iflytek.astron.console.hub.platform.run.PlatformRunInternalSecurityTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "class": "com.iflytek.astron.platform.PlatformApplicationTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0
+    }
+  ],
+  "python": {
+    "passed": 37,
+    "scope": [
+      "durable executor",
+      "task output transport",
+      "DeepAgents harness"
+    ]
+  },
+  "gvisor_snapshot": {
+    "checks": 10,
+    "binary_bytes": 1048841,
+    "root_secret_unreadable": true,
+    "network": "none",
+    "helper_sha256": "7612f6edb43740eea034f6b76e9afa1796d1bdb28dbae2433e06ce0f1628c97e"
+  },
+  "real_tasks": {
+    "runs": {
+      "state": "32dc1633-75f2-4915-9c89-85495fe25051",
+      "sandbox": "b2f7e47f-b45b-4277-b53d-040e0755c765"
+    },
+    "outputs": {
+      "state": [
+        {
+          "output_id": "5f45841e-98e0-44b4-83a3-7d4a491ae90d",
+          "file_name": "项目周报.csv",
+          "size_bytes": 95,
+          "sha256": "bec5f8e2430582ad8d629eef34502910711578b622e244ad547f546bfc73bbb4",
+          "step_id": "tool:call_00_ET_Oz2QrsK0sYD8UzuAYyt16087"
+        },
+        {
+          "output_id": "b2283dd7-0504-421f-b3b7-486978783634",
+          "file_name": "交付说明.md",
+          "size_bytes": 381,
+          "sha256": "6f9d500e2bb866b6fc11f7f4588a777151feb60ce12c68a8c015e193824c80ab",
+          "step_id": "tool:call_01_ET_H3qOoC0GCubV219iyDoo0631"
+        }
+      ],
+      "sandbox": [
+        {
+          "output_id": "1d66f471-e744-4e28-bb03-f01f8842d2ad",
+          "file_name": "交付摘要.txt",
+          "size_bytes": 397,
+          "sha256": "d1dd405d59b535b0d32698c249247c8e10d0d748d39978fc3324141665ebe641",
+          "step_id": "tool:call_00_6dZoqFUCQecwKkS6415k1478"
+        },
+        {
+          "output_id": "4b46cff9-361e-4d06-af83-7d6256e8d047",
+          "file_name": "交付清单.csv",
+          "size_bytes": 214,
+          "sha256": "40e1a63097981aa0079ca0078a7a84ee7c1fcfb3d70e2a3ca1170ab9f09b8712",
+          "step_id": "tool:call_00_6dZoqFUCQecwKkS6415k1478"
+        },
+        {
+          "output_id": "47bb2cdb-a446-449d-8412-807d3495c9f4",
+          "file_name": "交付数据.bin",
+          "size_bytes": 2097152,
+          "sha256": "91d3beb88a9b2f778a6c44a1c53b63d3c79931845a9aef84b3fb414610bd1938",
+          "step_id": "tool:call_00_6dZoqFUCQecwKkS6415k1478"
+        }
+      ]
+    },
+    "verified_at": "2026-11-04T23:56:58.240767+00:00",
+    "cross_tenant_denied": true,
+    "api_restart_verified": true,
+    "physical_sandbox_cleanup_verified": true
+  },
+  "partial_tasks": {
+    "runs": {
+      "cancelled": "d67faffe-e7bf-4750-ac14-16ba9830917e",
+      "failed": "83a68350-78e4-4420-8ce3-0a9b08bd0055"
+    },
+    "outputs": {
+      "cancelled": [
+        {
+          "output_id": "63ae8410-3ee4-475e-968d-b89b3d07bc8c",
+          "file_name": "已完成部分.txt",
+          "sha256": "676b059bd6ac5ccd3100761123b82518bb6d094e3d9193ebdd4195ed6163e665",
+          "size_bytes": 45
+        }
+      ],
+      "failed": [
+        {
+          "output_id": "f9f63e09-2001-433d-bf3b-c6e95cc628d2",
+          "file_name": "已交付.txt",
+          "sha256": "4f28a9cd16ad8df1227e9da312ecfa97f24dfddd4949d6686722f99daaff5af8",
+          "size_bytes": 21
+        }
+      ]
+    }
+  },
+  "public_https": {
+    "checked_at": "2026-11-05T00:03:26.557797+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "0ae7c049182f950df370def76ac8dbe3ef5f3a3b137189959961929e6a3c176f",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 13,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "browser": {
+    "file_list": true,
+    "csv_preview": true,
+    "download_bytes": 2097152,
+    "download_sha256": "91d3beb88a9b2f778a6c44a1c53b63d3c79931845a9aef84b3fb414610bd1938",
+    "screenshot_sha256": "4dcd13034f9bac041222ed82d1b7ad7a77e09d719b9c23eb25ed7fe8afb12d6c"
+  },
+  "remaining": [
+    "real S3 outage/process-kill reconciliation drill",
+    "continuous-write race stress",
+    "complete production credential/access matrix",
+    "explicit task deletion tombstones",
+    "combined object/database backup restore"
+  ]
+}

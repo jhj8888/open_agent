@@ -7,6 +7,7 @@ User inputs cannot select plugins, transports, host commands or connection crede
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from collections.abc import Callable, Mapping
 from contextlib import aclosing
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ from agent.durable.runtime_config import RuntimeBundle, RuntimeReleaseSource
 from agent.engine.deepagents_runner import DeepAgentsRunner
 from agent.platform_runtime.artifacts import ReleaseRef, load_release
 from agent.platform_runtime.sandbox import OpenSandboxProvider, RunScope
+from agent.platform_runtime.outputs import OUTPUT_ROOT, snapshot, read_snapshot, state_bytes
 
 
 class HistoryMessage(BaseModel):
@@ -185,6 +187,45 @@ class RuntimeExecutor:
                 )
                 if attempt is not None:
                     runner.bind_attempt(attempt)
+                archived: set[tuple[str,str]] = set()
+
+                async def archive(step: str, state: dict | None = None):
+                    await permit.check()
+                    snapshots=[]
+                    try:
+                        if attempt is not None:
+                            snapshots=await snapshot(attempt)
+                            for row in snapshots:
+                                key=(row["path"],row["sha256"])
+                                if key not in archived:
+                                    await self.control.output(lease,{"path":row["path"],"size":row["size"],"sha256":row["sha256"],"step":step},read_snapshot(attempt,row))
+                                    archived.add(key)
+                        elif state:
+                            candidates=[(path,value) for path,value in state.items() if path.startswith(OUTPUT_ROOT) and value is not None]
+                            if len(candidates)>32:
+                                raise RuntimeError("output_count_limit")
+                            for path,value in candidates:
+                                data=state_bytes(value)
+                                sha=hashlib.sha256(data).hexdigest();key=(path,sha)
+                                if key in archived:
+                                    continue
+                                async def chunks(data=data):
+                                    for offset in range(0,len(data),65536):
+                                        await permit.check()
+                                        yield data[offset:offset+65536]
+                                await self.control.output(lease,{"path":path,"size":len(data),"sha256":sha,"step":step},chunks())
+                                archived.add(key)
+                    except Exception:
+                        await emit("execution.notice",{"phase":"output_archive_failed"})
+                        raise RuntimeError("output_archive_failed") from None
+                    finally:
+                        if attempt is not None and snapshots:
+                            try:
+                                await attempt.sandbox.files.delete_directories([snapshots[0]["snapshot"].rsplit("/",1)[0]])
+                            except Exception:
+                                pass # Destruction also removes private temporary snapshots.
+                if bundle.model.supportsTools:
+                    runner.bind_outputs(archive)
                 await emit(
                     "execution.notice", {"phase": "executing", "engine": "deepagents"}
                 )
@@ -205,7 +246,7 @@ class RuntimeExecutor:
                         ):
                             # Tool arguments and outputs can contain private business data.
                             await emit(
-                                "tool.finished", {"name": response.content.action[:120]}
+                                "tool.finished", {"name": response.content.action[:120], "step":runner.tool_step}
                             )
                 nodes = trace.trace[initial_trace:]
                 usage = {
