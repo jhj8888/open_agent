@@ -1,0 +1,53 @@
+# Review and replace the API addresses, namespace peers and imported image digest.
+environment: test
+namespace: open-agent-test
+executorNamespace: open-agent-executors-test
+configurationRevision: review-required
+image:
+  repository: ''
+  digest: ''
+imagePullSecrets:
+- open-agent-test-registry
+supervisor:
+  replicas: 1
+  existingSecret: open-agent-test-supervisor
+  temporalSecret: open-agent-test-temporal
+  caConfigMap: open-agent-test-ca
+  disruptionBudget:
+    enabled: false
+    minAvailable: 1
+executor:
+  workerSecret: open-agent-test-worker
+  caConfigMap: open-agent-test-ca
+  imagePullSecrets:
+  - open-agent-test-registry
+  maximumPods: 4
+network:
+  control:
+    namespace: open-agent-test
+    podLabels:
+      app.kubernetes.io/component: api
+      open-agent.io/environment: test
+    ports:
+    - 18082
+  temporal:
+    namespace: open-agent-test-data
+    podLabels:
+      app.kubernetes.io/name: temporal
+      app.kubernetes.io/component: frontend
+      open-agent.io/environment: test
+    ports:
+    - 7233
+  kubernetes:
+    addresses:
+    - 10.96.0.1
+    - 10.20.0.10
+    ports:
+    - 443
+    - 6443
+  models:
+  - namespace: model-serving
+    podLabels:
+      app.kubernetes.io/name: internal-model-api
+    ports:
+    - 8443

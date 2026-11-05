@@ -1,0 +1,8 @@
+apiVersion: v2
+name: open-agent-execution
+description: Private Temporal supervisor and restricted executor namespaces for Open Agent.
+type: application
+version: 0.1.0
+appVersion: "2026.11.05"
+kubeVersion: ">=1.32.0-0"
+home: https://github.com/jhj8888/open_agent

@@ -415,3 +415,33 @@ def test_transport_rejects_unsafe_tls_debug_proxy_or_retry(system, field, value)
 def test_program_requires_valid_operator_names(secret, account, pool):
     with pytest.raises(ClusterProcessError, match='CLUSTER_PROGRAM_INVALID'):
         ClusterProgram(secret, account, pool)
+
+
+@pytest.mark.parametrize('names', [('bad/name',), ('registry', 'registry'), tuple('abcde'), 'registry', (None,)])
+def test_registry_secret_names_are_bounded_operator_references(names):
+    with pytest.raises(ClusterProcessError, match='CLUSTER_PROGRAM_INVALID'):
+        ClusterProgram('worker', 'executor', 'trusted', image_pull_secrets=names)
+
+
+@pytest.mark.asyncio
+async def test_private_registry_references_are_explicit_and_tamper_checked(system):
+    row, driver, server = system
+    plain = driver.manifest(row)
+    driver.program = ClusterProgram('executor-worker', 'executor', 'trusted',
+                                    image_pull_secrets=('registry-primary', 'registry-secondary'))
+    pod = await driver.launch(row)
+    assert [item.name for item in pod.spec.image_pull_secrets] == ['registry-primary', 'registry-secondary']
+    assert pod.metadata.annotations['open-agent.io/binding-sha256'] != plain['metadata']['annotations']['open-agent.io/binding-sha256']
+    assert all('/secrets' not in request[1] for request in server.calls)
+    pod.spec.image_pull_secrets.reverse()
+    with pytest.raises(ClusterProcessError, match='CLUSTER_POD_IDENTITY_MISMATCH'):
+        driver.validate_pod(row, pod)
+
+
+@pytest.mark.asyncio
+async def test_implicit_registry_secret_injection_is_rejected(system):
+    row, driver, _ = system
+    pod = await driver.launch(row)
+    pod.spec.image_pull_secrets = [client.V1LocalObjectReference(name='unexpected-registry')]
+    with pytest.raises(ClusterProcessError, match='CLUSTER_POD_IDENTITY_MISMATCH'):
+        driver.validate_pod(row, pod)

@@ -1,0 +1,33 @@
+# Fill reviewed private image and dependency endpoints. Defaults fail validation.
+environment: test
+namespace: open-agent-test
+executorNamespace: open-agent-executors-test
+configurationRevision: ""
+image: {repository: "", digest: ""}
+imagePullSecrets: []
+supervisor:
+  replicas: 1
+  existingSecret: ""
+  temporalSecret: ""
+  caConfigMap: ""
+  nodePool: trusted
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 768Mi}
+  disruptionBudget: {enabled: false, minAvailable: 1}
+executor:
+  serviceAccount: open-agent-executor
+  workerSecret: ""
+  caConfigMap: ""
+  nodePool: trusted
+  imagePullSecrets: []
+  maximumPods: 4
+network:
+  dns:
+    namespace: kube-system
+    podLabels: {k8s-app: kube-dns}
+  control: {}
+  temporal: {}
+  # Fixed private /32 API endpoint and Service addresses; CNI/NAT behavior needs validation.
+  kubernetes: {addresses: [], ports: [443, 6443]}
+  models: []

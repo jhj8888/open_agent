@@ -1,0 +1,130 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ include "oae.name" . }}-{{ .Values.environment }}-executors
+  labels: {{- include "oae.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    matchPolicy: Exact
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, pods/ephemeralcontainers]
+  variables:
+    - {name: c, expression: "object.spec.containers[0]"}
+  validations:
+    - expression: >-
+        request.userInfo.username == 'system:serviceaccount:{{ .Release.Namespace }}:{{ include "oae.name" . }}-supervisor'
+      message: Only the bound execution supervisor may create or modify executor Pods
+    - expression: >-
+        object.metadata.name.matches('^oa-exec-[a-f0-9]{32}$') &&
+        object.metadata.labels['app.kubernetes.io/name'] == 'open-agent-executor' &&
+        object.metadata.labels['open-agent.io/environment'] == '{{ .Values.environment }}' &&
+        object.metadata.labels['open-agent.io/lease'].matches('^[a-f0-9-]{36}$') &&
+        object.metadata.annotations['open-agent.io/binding-sha256'].matches('^[a-f0-9]{64}$') &&
+        (!has(object.metadata.ownerReferences) || size(object.metadata.ownerReferences) == 0)
+      message: Executor metadata must contain the fixed lease binding
+    - expression: >-
+        request.operation != 'CREATE' ||
+        (has(object.metadata.finalizers) && object.metadata.finalizers == ['open-agent.io/executor-termination'] &&
+         has(object.spec.schedulingGates) && size(object.spec.schedulingGates) == 1 &&
+         object.spec.schedulingGates[0].name == 'open-agent.io/execution-authorized' &&
+         (!has(object.spec.nodeName) || object.spec.nodeName == ''))
+      message: New executors must be gated and unbound until their UID is journaled
+    - expression: >-
+        size(object.spec.containers) == 1 &&
+        (!has(object.spec.initContainers) || size(object.spec.initContainers) == 0) &&
+        (!has(object.spec.ephemeralContainers) || size(object.spec.ephemeralContainers) == 0) &&
+        object.spec.serviceAccountName == '{{ .Values.executor.serviceAccount }}' &&
+        object.spec.automountServiceAccountToken == false && object.spec.enableServiceLinks == false &&
+        (!has(object.spec.hostNetwork) || object.spec.hostNetwork == false) &&
+        (!has(object.spec.hostPID) || object.spec.hostPID == false) &&
+        (!has(object.spec.hostIPC) || object.spec.hostIPC == false) &&
+        (!has(object.spec.shareProcessNamespace) || object.spec.shareProcessNamespace == false) &&
+        !has(object.spec.runtimeClassName)
+      message: Executors may not obtain host access, extra containers or Kubernetes tokens
+    - expression: >-
+        object.spec.restartPolicy == 'Never' && object.spec.schedulerName == 'default-scheduler' &&
+        object.spec.dnsPolicy == 'ClusterFirst' && object.spec.activeDeadlineSeconds == 3610 &&
+        object.spec.terminationGracePeriodSeconds == 30 &&
+        object.spec.nodeSelector == {'kubernetes.io/os':'linux', 'kubernetes.io/arch':'amd64', 'open-agent.io/executor-pool':'{{ .Values.executor.nodePool }}'}
+      message: Executors must use the reviewed CPU node pool and lifetime limits
+    - expression: >-
+        variables.c.name == 'executor' &&
+        variables.c.image == '{{ .Values.image.repository }}@{{ .Values.image.digest }}' &&
+        variables.c.imagePullPolicy == 'IfNotPresent' &&
+        variables.c.command == ['/opt/venv/bin/python', '-m', 'agent.durable.cluster_child'] &&
+        (!has(variables.c.args) || size(variables.c.args) == 0) &&
+        (!has(variables.c.envFrom) || size(variables.c.envFrom) == 0) &&
+        (!has(variables.c.ports) || size(variables.c.ports) == 0) &&
+        (!has(variables.c.stdin) || variables.c.stdin == false) &&
+        (!has(variables.c.tty) || variables.c.tty == false)
+      message: Executor image, command and exposed interfaces are fixed
+    - expression: >-
+        has(variables.c.env) && size(variables.c.env) == 5 &&
+        variables.c.env[0].name == 'OPEN_AGENT_LEASE' && size(variables.c.env[0].value) <= 4096 &&
+        variables.c.env[1].name == 'OPEN_AGENT_POD_UID' &&
+        variables.c.env[1].valueFrom.fieldRef.apiVersion == 'v1' &&
+        variables.c.env[1].valueFrom.fieldRef.fieldPath == 'metadata.uid' &&
+        variables.c.env[2].name == 'LANGSMITH_TRACING' && variables.c.env[2].value == 'false' &&
+        variables.c.env[3].name == 'LANGCHAIN_TRACING_V2' && variables.c.env[3].value == 'false' &&
+        variables.c.env[4].name == 'PYTHONDONTWRITEBYTECODE' && variables.c.env[4].value == '1'
+      message: Only lease metadata and fixed tracing settings are accepted as environment input
+    - expression: >-
+        {{ if .Values.executor.imagePullSecrets }}has(object.spec.imagePullSecrets) && object.spec.imagePullSecrets.map(s, s.name) == {{ .Values.executor.imagePullSecrets | toJson }}{{ else }}(!has(object.spec.imagePullSecrets) || size(object.spec.imagePullSecrets) == 0){{ end }}
+      message: Registry references must exactly match the reviewed names and order
+    - expression: >-
+        object.spec.securityContext.runAsNonRoot == true && object.spec.securityContext.runAsUser == 10001 &&
+        object.spec.securityContext.runAsGroup == 10001 && object.spec.securityContext.fsGroup == 10001 &&
+        object.spec.securityContext.fsGroupChangePolicy == 'OnRootMismatch' &&
+        object.spec.securityContext.seccompProfile.type == 'RuntimeDefault' &&
+        variables.c.securityContext.runAsNonRoot == true && variables.c.securityContext.runAsUser == 10001 &&
+        variables.c.securityContext.runAsGroup == 10001 && variables.c.securityContext.allowPrivilegeEscalation == false &&
+        variables.c.securityContext.readOnlyRootFilesystem == true &&
+        variables.c.securityContext.seccompProfile.type == 'RuntimeDefault' &&
+        (!has(variables.c.securityContext.privileged) || variables.c.securityContext.privileged == false) &&
+        (!has(variables.c.securityContext.procMount) || variables.c.securityContext.procMount == 'Default') &&
+        variables.c.securityContext.capabilities.drop == ['ALL'] &&
+        (!has(variables.c.securityContext.capabilities.add) || size(variables.c.securityContext.capabilities.add) == 0)
+      message: The executor requires a read-only non-root container with all capabilities dropped
+    - expression: >-
+        variables.c.resources.requests == {'cpu':'100m', 'memory':'256Mi', 'ephemeral-storage':'128Mi'} &&
+        variables.c.resources.limits == {'cpu':'1', 'memory':'512Mi', 'ephemeral-storage':'256Mi'}
+      message: Executor resource requests and limits are fixed
+    # Kubernetes Quantity has an OpenAPI oneOf; dyn avoids a false CEL type
+    # warning while retaining the exact bound. Real API checks cover 64Mi,
+    # an oversized value and an omitted limit.
+    - expression: >-
+        size(object.spec.volumes) == 3 &&
+        object.spec.volumes[0].name == 'worker' &&
+        object.spec.volumes[0].secret.secretName == '{{ .Values.executor.workerSecret }}' &&
+        object.spec.volumes[0].secret.defaultMode == 288 &&
+        size(object.spec.volumes[0].secret.items) == 1 &&
+        object.spec.volumes[0].secret.items[0].key == 'worker.json' && object.spec.volumes[0].secret.items[0].path == 'worker.json' &&
+        object.spec.volumes[1].name == 'tmp' && dyn(object.spec.volumes[1].emptyDir).sizeLimit == '64Mi' &&
+        (!has(object.spec.volumes[1].emptyDir.medium) || object.spec.volumes[1].emptyDir.medium == '') &&
+        object.spec.volumes[2].name == 'certs' &&
+        object.spec.volumes[2].configMap.name == '{{ .Values.executor.caConfigMap }}' &&
+        object.spec.volumes[2].configMap.defaultMode == 292
+      message: Executors may mount only their worker config, public CA and bounded temporary directory
+    - expression: >-
+        size(variables.c.volumeMounts) == 3 &&
+        variables.c.volumeMounts[0].name == 'worker' && variables.c.volumeMounts[0].mountPath == '/run/open-agent/worker' && variables.c.volumeMounts[0].readOnly == true &&
+        variables.c.volumeMounts[1].name == 'tmp' && variables.c.volumeMounts[1].mountPath == '/tmp' &&
+        variables.c.volumeMounts[2].name == 'certs' && variables.c.volumeMounts[2].mountPath == '/run/open-agent/certs' && variables.c.volumeMounts[2].readOnly == true &&
+        variables.c.volumeMounts.all(v, !has(v.subPath) && !has(v.subPathExpr) && !has(v.mountPropagation))
+      message: Volume mount paths are fixed and cannot expose additional credentials
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ include "oae.name" . }}-{{ .Values.environment }}-executors
+  labels: {{- include "oae.labels" . | nindent 4 }}
+spec:
+  policyName: {{ include "oae.name" . }}-{{ .Values.environment }}-executors
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels: {kubernetes.io/metadata.name: {{ .Values.executorNamespace }}}

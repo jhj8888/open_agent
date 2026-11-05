@@ -33,6 +33,8 @@ helm 已存在，但默认引用 ghcr.io 和 latest，部分服务单副本；La
 
 ## Migration Plan
 
+独立 `helm/open-agent-execution` 将 supervisor 部署到环境控制 namespace，将 executor 限于另一个专用 namespace。使用官方短时投射 ServiceAccount token，仅 supervisor 可 get/create/patch/delete Pods、get 固定 namespace 和节点身份；不授予 Secret/exec/log 权限。executor 无 token，仓库 Secret 引用显式进入绑定摘要。默认拒绝 NetworkPolicy 分别开放 supervisor 的控制/Temporal/K8S 和 executor 的控制/模型路径。ValidatingAdmissionPolicy 约束创建者、初始门禁、固定镜像/命令/资源/只读卷和非 root 身份；策略与 RBAC 使用真实零节点 API 校验，不能替代节点/CNI/Kata 物理验收。控制 API 使用 Spring Boot 原生 PKCS12 TLS、Caddy CA 验证和 HTTPS 探针；密钥由独立环境 Secret 投射，不进入 values。Secret/CA 更新通过配置版本触发滚动更新。集群沙盒和剩余恢复协议完成前，控制 chart 仍拒绝开启总准入。
+
 集群 Python 运行镜像同时提供受信 executor 和 supervisor 入口，使用固定 Linux amd64 Python 基础镜像和当前 `uv.lock` 的完整 cluster extra。官方 uv 导出带哈希 requirements 与 CycloneDX 清单；准备阶段由官方 PyPA marker 根据已探测的目标环境过滤依赖，再由官方 pip 指定 Python/ABI/manylinux 平台下载 wheel，禁止安装 sdist 或未锁定依赖。构建时在实际 Linux Python 中消费完整原始 requirements 再核验。构建阶段只使用已核验的基础镜像、wheel、显式 Git 源码清单与许可证，Docker 构建网络关闭、pip no-index/require-hashes，缺包不得在线补齐。宿主构建目录私有，COPY 进入镜像的公开源码/许可目录可由非 root 遍历。最终镜像不包含 wheel 缓存、业务配置、账号、模型密钥或 Kubernetes token，默认 UID/GID 10001，启动不安装依赖。基础镜像配置 ID 与官方 Registry manifest 交叉核验；制品记录区分 registry manifest digest、本地 image/config ID 和导出归档摘要。单机导入、模块/权限检查、空节点冷启动与真实 Kata/CNI/业务全链路验收分别追踪，不互相替代。
 
 监控增量调用路径：工作台 → Java 租户授权 → MySQL 窗口聚合；平台管理员 → Java 固定查询 → 内部 Prometheus → node_exporter / Java Micrometer 指标。窗口为 1h/24h/7d，起止时刻固定，不受部署列表分页影响，缺少 usage 的任务不按零计量。当前排队、执行租约占用及未释放沙盒与窗口历史统计区分。仅 LOG_READ 角色可读取租户聚合；主机指标要求平台管理员，生产执行委托不自动获得租户聚合。

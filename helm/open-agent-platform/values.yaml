@@ -25,6 +25,10 @@ prometheusUrl: ""
 trustBundle:
   configMapName: ""
   # Public CA certificates only: ca.pem and truststore.p12 (password changeit).
+apiTls:
+  enabled: false
+  # PKCS12 tls.p12 and tls.password; certificate SAN must cover the API service DNS.
+  existingSecret: ""
 api:
   replicas: 1
   resources:

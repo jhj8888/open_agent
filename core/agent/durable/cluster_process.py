@@ -46,9 +46,15 @@ class ClusterProgram:
     service_account: str
     node_pool: str
     ca_config_map: str | None = None
+    image_pull_secrets: tuple[str, ...] = ()
 
     def __post_init__(self):
         values = (self.worker_secret, self.service_account, self.node_pool)
+        if (not isinstance(self.image_pull_secrets, tuple) or len(self.image_pull_secrets) > 4
+                or any(not isinstance(value, str) for value in self.image_pull_secrets)
+                or len(set(self.image_pull_secrets)) != len(self.image_pull_secrets)):
+            raise ClusterProcessError("CLUSTER_PROGRAM_INVALID")
+        values += self.image_pull_secrets
         if self.ca_config_map is not None:
             values += (self.ca_config_map,)
         for value in values:
@@ -141,6 +147,8 @@ class KubernetesProcesses:
                 "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "runAsGroup": 10001,
                                     "fsGroup": 10001, "fsGroupChangePolicy": "OnRootMismatch",
                                     "seccompProfile": {"type": "RuntimeDefault"}}}
+        if self.program.image_pull_secrets:
+            spec["imagePullSecrets"] = [{"name": name} for name in self.program.image_pull_secrets]
         binding = {"lease": row.lease.model_dump(), "target": row.target.model_dump(), "supervisor": row.supervisorId,
                    "spec": spec}
         return {"apiVersion": "v1", "kind": "Pod", "metadata": {

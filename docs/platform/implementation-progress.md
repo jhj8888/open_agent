@@ -2,6 +2,8 @@
 
 ## 2026-11-05 当前状态
 
+集群执行部署接线已加入：独立 test/prod supervisor/executor 身份、RBAC、网络策略、Pod 准入和原生 API TLS；42 项 Helm 与 8 项 Java 检查通过。真实零节点 K3s API 的双环境共 48 个越权/不合规请求被拒绝，两个正常未启动 Pod 回收路径通过且夹具已清理。新版离线镜像 137 项检查通过，演示站旧 58 步/2 文件/Token 与授权复查通过。镜像和部署包作为独立交付制品保存在测试服务器，活动演示执行链未切换。真实节点/CNI/Kata、未知创建恢复、企业证书与完整离线/容量验收仍未完成，集群准入关闭。见[安装接线](../../helm/open-agent-execution/README.md)和[验证记录](execution-chart-verification-20261105.json)。
+
 集群 Python 镜像已完成独立构建与验证：155 个 Linux wheel 按锁文件核验并断网安装，官方基础镜像与 Registry 对应，生成约 706 MB 镜像归档。最终镜像在 UID 10001、只读根目录、无网络条件下通过 130 项回归；缺包/错误哈希的实际 pip 安装均拒绝。原任务 58 步及 2 个文件、公开入口再次核验通过。交付制品位于展示服务器，活动 worker 未切换；实际 K8S/CNI/Kata、空节点冷启动、最小运行依赖及完整许可审查继续推进。见[镜像说明](../../deploy/platform/worker_image/README.md)和[验证证据](worker-image-verification-20261105.json)。
 
 常驻集群监督服务与 Temporal 活动已实现，在测试服务器独立 overlay 中 105 项检查通过。真实 Temporal + 零节点 K3s API 验证创建、第二副本保留健康任务、取消、未启动证据、finalizer 和释放；API 实验使用合成账本，不代表完整业务数据库/K8S 联调或物理隔离。临时容器、卷、网络和 admin 凭据已清理，展示入口复查通过。集群镜像/Helm/RBAC/NetworkPolicy、Kata admission/独立回收和真实节点验收仍未交付，集群总准入保持关闭。见[监督服务实现与证据](cluster-supervisor.md)。

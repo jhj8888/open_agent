@@ -44,8 +44,13 @@ data:
       @platform path /platform/* /api/v1/*
       handle @platform {
         header Cache-Control no-store
-        reverse_proxy {{ include "oa.name" . }}-api:18082 {
+        reverse_proxy {{ if .Values.apiTls.enabled }}https://{{ end }}{{ include "oa.name" . }}-api.{{ .Release.Namespace }}.svc:18082 {
           flush_interval -1
+          {{- if .Values.apiTls.enabled }}
+          transport http {
+            tls_trust_pool file /etc/open-agent-ca/ca.pem
+          }
+          {{- end }}
           header_up -X-Platform-*
           header_up -X-User-Id
           header_up -X-Tenant-Id

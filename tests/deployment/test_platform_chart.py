@@ -134,3 +134,36 @@ def test_long_valid_release_name_stays_within_kubernetes_resource_name_limits(tm
     result = helm(tmp_path, values('prod'), release='a' * 53)
     assert result.returncode == 0, result.stderr
     assert all(len(d['metadata']['name']) <= 63 for d in yaml.safe_load_all(result.stdout) if d)
+
+
+def test_internal_api_tls_is_end_to_end_and_runtime_mounted(tmp_path):
+    data = values('test')
+    data['apiTls'] = {'enabled': True, 'existingSecret': 'open-agent-test-api-tls'}
+    data['trustBundle'] = {'configMapName': 'open-agent-test-ca'}
+    result = helm(tmp_path, data)
+    assert result.returncode == 0, result.stderr
+    docs = list(yaml.safe_load_all(result.stdout))
+    api = next(d for d in docs if d['kind'] == 'Deployment' and d['metadata']['name'].endswith('-api'))
+    container = api['spec']['template']['spec']['containers'][0]
+    env = {value['name']: value for value in container['env']}
+    assert env['SERVER_SSL_ENABLED']['value'] == 'true'
+    assert env['SERVER_SSL_KEY_STORE_PASSWORD']['valueFrom']['secretKeyRef'] == {'name': 'open-agent-test-api-tls', 'key': 'tls.password'}
+    assert 'PLATFORM_RUN_ADMISSION_ENVIRONMENTS' in env and 'PLATFORM_CLUSTER_RECONCILERS' in env
+    assert all(container[key]['httpGet']['scheme'] == 'HTTPS' for key in ['startupProbe', 'readinessProbe', 'livenessProbe'])
+    tls = next(v for v in api['spec']['template']['spec']['volumes'] if v['name'] == 'api-tls')
+    assert tls['secret']['defaultMode'] == 0o440
+    config = next(d['data'] for d in docs if d['kind'] == 'ConfigMap')
+    assert 'https://fixture-platform-api.open-agent-test.svc:18082' in config['Caddyfile']
+    assert 'tls_trust_pool file /etc/open-agent-ca/ca.pem' in config['Caddyfile']
+    assert 'tls_insecure_skip_verify' not in config['Caddyfile']
+    assert config['PLATFORM_RUN_ADMISSION_ENABLED'] == 'false'
+
+
+@pytest.mark.parametrize('case', ['missing_ca', 'wrong_environment_secret'])
+def test_tls_requires_ca_and_environment_specific_server_secret(tmp_path, case):
+    data = values('test')
+    data['apiTls'] = {'enabled': True, 'existingSecret': 'open-agent-test-api-tls'}
+    if case == 'wrong_environment_secret':
+        data['apiTls']['existingSecret'] = 'open-agent-prod-api-tls'
+        data['trustBundle'] = {'configMapName': 'open-agent-test-ca'}
+    assert helm(tmp_path, data).returncode != 0

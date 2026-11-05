@@ -1,0 +1,53 @@
+# Review and replace the API addresses, namespace peers and imported image digest.
+environment: prod
+namespace: open-agent-prod
+executorNamespace: open-agent-executors-prod
+configurationRevision: review-required
+image:
+  repository: ''
+  digest: ''
+imagePullSecrets:
+- open-agent-prod-registry
+supervisor:
+  replicas: 2
+  existingSecret: open-agent-prod-supervisor
+  temporalSecret: open-agent-prod-temporal
+  caConfigMap: open-agent-prod-ca
+  disruptionBudget:
+    enabled: true
+    minAvailable: 1
+executor:
+  workerSecret: open-agent-prod-worker
+  caConfigMap: open-agent-prod-ca
+  imagePullSecrets:
+  - open-agent-prod-registry
+  maximumPods: 16
+network:
+  control:
+    namespace: open-agent-prod
+    podLabels:
+      app.kubernetes.io/component: api
+      open-agent.io/environment: prod
+    ports:
+    - 18082
+  temporal:
+    namespace: open-agent-prod-data
+    podLabels:
+      app.kubernetes.io/name: temporal
+      app.kubernetes.io/component: frontend
+      open-agent.io/environment: prod
+    ports:
+    - 7233
+  kubernetes:
+    addresses:
+    - 10.96.0.1
+    - 10.20.0.10
+    ports:
+    - 443
+    - 6443
+  models:
+  - namespace: model-serving
+    podLabels:
+      app.kubernetes.io/name: internal-model-api
+    ports:
+    - 8443

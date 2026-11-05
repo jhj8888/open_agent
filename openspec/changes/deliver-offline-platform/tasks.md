@@ -2,6 +2,16 @@
 
 本文件中的未勾选项均为待实现工作；规格校验通过不代表功能完成。前置关系见 docs/platform/roadmap.md。
 
+## 2026-11-05 集群执行部署与 TLS 增量
+
+- [x] 独立执行 chart 提供环境专用 supervisor/executor 身份、受限 RBAC、默认拒绝 NetworkPolicy、短时投射 token、固定 Pod 声明准入策略；Secret/CA 与内网仓库引用由操作者预置，仓库引用进入执行绑定摘要。
+- [x] 真实零节点 K3s 1.36.6 API 对 test/prod 分别拒绝 8 类 RBAC 越权和 16 类不合规 Pod，并通过官方 SDK 的创建、解除门禁、停止、未启动证据和 finalizer 删除；CEL 无类型警告，所有自建容器/网络/卷及管理凭据已清理。
+- [x] 控制 chart 接入 Spring Boot 原生 PKCS12 TLS、Caddy CA 验证和 HTTPS 探针；8 项 Java 启动/TLS 检查通过，42 项 Helm 渲染/配置检查通过。
+- [x] 更新运行镜像和锁定输入，155 个包校验、真实缺包/错误哈希拒绝及 137 项镜像内检查通过，无跳过；独立 Linux overlay 112 项通过，与镜像用例重叠不相加。
+- [x] 演示站原任务的 58 步、2 份产物、实际 think/工具结果、Token 汇总、跨租户拒绝及公网 HTTPS 再次核验通过；没有重放任务或替换活动执行链。
+
+证据见 `docs/platform/execution-chart-verification-20261105.json`，安装接线见 `helm/open-agent-execution/README.md`。API 夹具无节点/kubelet/CNI/Kata，未用其证明物理隔离或生产 HA；完整企业证书链联调、私有仓库导入、冷启动、Kata admission/回收和容量仍待完成。原大项保持未勾选，集群准入继续关闭。下列日期增量保留各自当时的边界。
+
 ## 1. 离线制品
 
 - [ ] 1.1 盘点 Helm、Docker、前后端和插件的公网依赖，生成必需/可选组件清单；验证核心流程的资源全部可从内网获得。

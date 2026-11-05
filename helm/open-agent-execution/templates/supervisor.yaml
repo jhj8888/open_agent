@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "oae.name" . }}-supervisor
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.supervisor.replicas }}
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+      app.kubernetes.io/component: cluster-supervisor
+  template:
+    metadata:
+      labels:
+        {{- include "oae.labels" . | nindent 8 }}
+        app.kubernetes.io/component: cluster-supervisor
+      annotations:
+        open-agent.io/configuration-revision: {{ .Values.configurationRevision | quote }}
+    spec:
+      serviceAccountName: {{ include "oae.name" . }}-supervisor
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.imagePullSecrets }}
+        - {name: {{ . }}}
+        {{- end }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+        open-agent.io/control-pool: {{ .Values.supervisor.nodePool | quote }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name | quote }}
+              app.kubernetes.io/component: cluster-supervisor
+      containers:
+        - name: supervisor
+          image: {{ printf "%s@%s" .Values.image.repository .Values.image.digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [/opt/venv/bin/python, -m, agent.durable.cluster_service]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources: {{- toYaml .Values.supervisor.resources | nindent 12 }}
+          startupProbe:
+            exec: {command: [/opt/venv/bin/python, -m, agent.durable.cluster_service, --check]}
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec: {command: [/opt/venv/bin/python, -m, agent.durable.cluster_service, --check]}
+            periodSeconds: 10
+            timeoutSeconds: 10
+          # Process liveness only: external outages must not cause restart loops.
+          livenessProbe:
+            exec: {command: [/opt/venv/bin/python, -c, "import os; os.kill(1, 0)"]}
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - {name: config, mountPath: /run/open-agent/supervisor, readOnly: true}
+            - {name: temporal, mountPath: /run/open-agent/temporal, readOnly: true}
+            - {name: ca, mountPath: /run/open-agent/certs, readOnly: true}
+            - {name: kube-access, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ .Values.supervisor.existingSecret }}
+            defaultMode: 0440
+            items: [{key: service.json, path: service.json}]
+        - name: temporal
+          secret:
+            secretName: {{ .Values.supervisor.temporalSecret }}
+            defaultMode: 0440
+            items: [{key: ca.pem, path: ca.pem}, {key: tls.crt, path: tls.crt}, {key: tls.key, path: tls.key}]
+        - name: ca
+          configMap: {name: {{ .Values.supervisor.caConfigMap }}, defaultMode: 0444}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        - name: kube-access
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken: {expirationSeconds: 3600, path: token}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+              - downwardAPI:
+                  items: [{path: namespace, fieldRef: {apiVersion: v1, fieldPath: metadata.namespace}}]
+{{- if .Values.supervisor.disruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "oae.name" . }}-supervisor
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.supervisor.disruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+      app.kubernetes.io/component: cluster-supervisor
+{{- end }}

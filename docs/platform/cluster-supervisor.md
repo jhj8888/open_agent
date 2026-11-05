@@ -18,7 +18,7 @@
 
 固定入口：`/opt/venv/bin/python -m agent.durable.cluster_service`。以 UID/GID 10001 运行，从 `/run/open-agent/supervisor/service.json` 的 Secret 投射读取配置。参考 [配置结构](../../deploy/platform/cluster/service.example.json) 中的占位值必须在安装时替换；实际 Secret 不入仓库。supervisor、dispatcher、worker 三个身份必须不同，且与控制 API 的集群目标配置完全一致。
 
-Kubernetes 使用官方 in-cluster loader，保留 CA 校验、服务账号 token 刷新和不自动重试创建的行为。监督器需要的 RBAC 范围如下，尚待最终 Helm/镜像交付接线：
+Kubernetes 使用官方 in-cluster loader，保留 CA 校验、服务账号 token 刷新和不自动重试创建的行为。监督器需要的 RBAC 范围如下，已在[独立执行 chart](../../helm/open-agent-execution/README.md)接线并通过真实零节点 API 检查：
 
 | 资源 | 权限 | 范围与用途 |
 |---|---|---|
@@ -31,7 +31,7 @@ executor 使用另一个无 token 的 ServiceAccount，不能复用监督器账�
 
 Temporal 非 literal loopback 地址强制 mTLS；固定 `/run/open-agent/temporal` 提供 `ca.pem`、`tls.crt`、`tls.key`。地址不接受 URL、嵌入凭据或端口越界。Kubernetes/control/Temporal 依赖、已注册 Temporal namespace 与调度身份验证通过后才写入 `/tmp/open-agent-cluster-ready.json`。探针命令为 `python -m agent.durable.cluster_service --check`，过期、异常 PID、链接或无效文件失败关闭；停止时先移除就绪记录，再等待 Worker 退出。外部依赖故障撤销就绪，不据此推断物理资源已消失。
 
-API/Temporal/模型/沙盒网络必须在最终 NetworkPolicy 中分别放行内网目标，不能给 executor 或不可信代码授予监督器的 Kubernetes API 路径。完整镜像、RBAC/NetworkPolicy/Helm 与 Kata admission/回收仍未交付，现有 chart 保持任务准入关闭。
+API/Temporal/模型网络已由独立 NetworkPolicy 分别配置内网目标，executor 没有监督器的 Kubernetes API 路径。运行镜像、RBAC/NetworkPolicy/Helm 与原生 API TLS 接线已交付；实际 CNI/节点、Kata admission/回收仍未验收，控制 chart 保持任务准入关闭。镜像拉取 Secret 引用显式写入 Pod 绑定摘要，不依赖 ServiceAccount 自动注入。
 
 ## 证据与限制
 

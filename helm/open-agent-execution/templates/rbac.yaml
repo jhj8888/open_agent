@@ -1,0 +1,70 @@
+{{- include "oae.validate" . -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "oae.name" . }}-supervisor
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.executor.serviceAccount }}
+  namespace: {{ .Values.executorNamespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "oae.name" . }}-pods
+  namespace: {{ .Values.executorNamespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, create, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "oae.name" . }}-pods
+  namespace: {{ .Values.executorNamespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ include "oae.name" . }}-pods}
+subjects:
+  - {kind: ServiceAccount, name: {{ include "oae.name" . }}-supervisor, namespace: {{ .Release.Namespace }}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "oae.name" . }}-{{ .Values.environment }}-observe
+  labels: {{- include "oae.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [kube-system, {{ .Values.executorNamespace }}]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "oae.name" . }}-{{ .Values.environment }}-observe
+  labels: {{- include "oae.labels" . | nindent 4 }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ include "oae.name" . }}-{{ .Values.environment }}-observe}
+subjects:
+  - {kind: ServiceAccount, name: {{ include "oae.name" . }}-supervisor, namespace: {{ .Release.Namespace }}}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "oae.name" . }}-capacity
+  namespace: {{ .Values.executorNamespace }}
+  labels: {{- include "oae.labels" . | nindent 4 }}
+spec:
+  hard:
+    count/pods: {{ .Values.executor.maximumPods | quote }}

@@ -152,6 +152,11 @@
 
 系统 SHALL 通过官方 Kubernetes SDK 创建固定配置的受信 executor Pod，使用租约绑定与 UID 前置条件操作，且在终止证据持久提交前保留平台 finalizer。
 
+#### Scenario: 私有镜像仓库凭据绑定
+
+- **WHEN** 操作者配置执行器的镜像拉取 Secret 名称列表
+- **THEN** 将该列表显式纳入固定 Pod spec 与绑定摘要；只使用执行 namespace 内的 Secret 引用，不读取凭据正文；实际 Pod 被注入、删改或重排为不同配置时拒绝解除调度门禁
+
 #### Scenario: 启动前的资源核验
 
 - **WHEN** 新 Pod 已创建但安全配置尚未核验，或 UID 尚未确认写入账本

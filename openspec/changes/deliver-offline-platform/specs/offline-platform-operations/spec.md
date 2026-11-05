@@ -44,6 +44,21 @@
 - **WHEN** 同一版本从测试推广生产
 - **THEN** 保留摘要、测试证据、发布人和回滚目标
 
+#### Scenario: 集群监督身份最小权限
+
+- **WHEN** 监督器通过 Kubernetes API 创建和回收执行 Pod
+- **THEN** 只能操作同环境专用 namespace 的 Pod 和读取所需 namespace/节点身份，不可读取 Secret、执行容器命令或进入另一环境；executor 不获得 Kubernetes token 或监督器服务凭据
+
+#### Scenario: 执行 Pod 声明偏离
+
+- **WHEN** 创建请求修改受信 executor 的镜像、命令、拉取凭据、资源上限、卷、身份或初始调度门禁
+- **THEN** 集群准入策略拒绝不符合环境声明的请求，不能通过默认 ServiceAccount 或临时容器绕过
+
+#### Scenario: 集群控制接口加密
+
+- **WHEN** 监督器、executor 或工作台连接内部控制 API
+- **THEN** 使用 HTTPS 并验证服务端身份，私钥和密码只来自独立 Secret，未信任证书或明文请求不能访问业务接口
+
 ### Requirement: 日志与统计
 
 系统 SHALL 提供租户授权的任务日志、状态和应用指标统计，默认脱敏敏感数据。

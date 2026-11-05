@@ -2,7 +2,7 @@
 
 本 chart 交付当前平台的控制 API 和工作台，复用已实现的租户/Skill/Agent/任务查询/观测/文件接口。它不启用旧 `helm/astron-agent` 的整套服务，不部署模型网关、推理服务或 GPU 资源。
 
-**当前边界：集群执行监督器尚未实现，chart 强制关闭新任务准入。** 单机展示机的 systemd/OpenSandbox/gVisor 执行链仍正常运行；不能将它直接放入一个 Pod 并称为生产 K8S 执行器。此 chart 是集群交付的控制面增量，Kata/CNI、执行器、完整断网与 HA/容量验收继续在 OpenSpec 跟踪。
+**当前边界：集群执行监督器、镜像及独立部署包已实现，集群任务准入仍关闭。** 单机展示机的 systemd/OpenSandbox/gVisor 执行链仍正常运行；Kata admission/独立回收、真实节点/CNI、完整断网与 HA/容量验收继续在 OpenSpec 跟踪。接线要求见[执行部署包](../open-agent-execution/README.md)。
 
 ## 已验证内容
 
@@ -40,6 +40,8 @@ PLATFORM_RECONCILER_WORKERS    # 当前可为空 JSON 对象，不能拿管理 J
 ```
 
 企业 CA 可通过只含公共证书的 ConfigMap 提供 `ca.pem` 与 `truststore.p12`（证书型 truststore，约定密码 `changeit`，不包含私钥）。Java/S3/OIDC 与模型自定义 CA 使用该挂载；HTTPS 身份上游必须配置它。私有 registry CA 是节点侧依赖，不由该 ConfigMap 解决。Secret/CA 内容变化后滚动重启；建议使用带版本的 CA ConfigMap 名称触发明确的变更。
+
+接入集群监督器时启用 `apiTls.enabled`，预置 `open-agent-{env}-api-tls` Secret 的 `tls.p12`/`tls.password`，证书 SAN 覆盖完整 API Service DNS。Caddy 使用公共 CA 验证 API HTTPS，探针改用 HTTPS；控制 Secret 可提供 `PLATFORM_CLUSTER_RECONCILERS`，两类受信调用者须显式加入 `network.apiClients`。执行 chart 使用固定环境 CA 名，轮换时同时更新 `configurationRevision`，并滚动重启控制面。实际企业证书和 CNI 的组合验证仍待目标环境验收。
 
 ## 渲染与安装流程
 

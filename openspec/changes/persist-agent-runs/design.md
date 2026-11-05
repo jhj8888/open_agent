@@ -50,6 +50,8 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Migration Plan
 
+集群部署将 supervisor 与 executor 分置受信控制 namespace 和专属执行 namespace。Pod 创建/读取/patch/删除仅授权给监督服务，namespace 读取限制到指定名字，节点只读不授予 list/watch；executor 无 Kubernetes token。镜像拉取凭据由操作者显式配置为本 namespace 的 Secret 名称列表，作为 Pod 固定 spec 和绑定摘要的一部分；不读取 Secret 正文、不接受 ServiceAccount 自动注入的不同列表。部署包还提供默认拒绝的网络策略和固定执行 Pod 的官方 ValidatingAdmissionPolicy，防止拥有 Pod create 的身份扩大容器权限。控制面 HTTPS 使用 Spring Boot 原生 TLS 和运行时 Secret，Temporal 继续使用 mTLS。控制/执行 Secret、CA、队列及 namespace 按 test/prod 分开；部署配置、真实 API 准入/RBAC 与实际 CNI/Kata 行为分别验证，缺失物理验收不能通过配置声明绕过。
+
 集群监督服务连接同一环境的 outbox、官方 Temporal Worker、ClusterSupervisorClient 与 KubernetesProcesses。execute 只在原子 claim 成功后调用一次 launch；未知回复不重放。reconcile 和独立周期扫描共用有界回收路径，先取得 Pod 停止证据，再重新读取沙盒 journal，最后提交稳定的回收证明。未接通 Kata 核验的已授权沙盒创建保留配额。服务重启/扩容只扫描终态、取消、截止或租约过期记录，不像独占单机进程那样 fencing 所有活动记录；控制数据库的租户配额跨副本生效，副本内锁只用于减少重复请求。
 
 监督服务配置来自固定 Secret 挂载，Kubernetes 使用官方 in-cluster 凭据加载与 TLS 校验；Temporal 使用内网 mTLS，只有明确 loopback 测试连接允许无 TLS。监督器只持有调度/回收身份，不持有模型密钥或 worker 模板。executor 继续使用独立无 Kubernetes token 的 ServiceAccount。依赖探测失败撤销就绪状态，服务退出不根据本地进程消失推断 Pod/沙盒已经停止。

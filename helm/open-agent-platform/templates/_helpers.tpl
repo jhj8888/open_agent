@@ -14,6 +14,10 @@ open-agent.io/environment: {{ .Values.environment | quote }}
 {{- if ne .Values.identity.issuer (printf "https://%s/identity" .Values.publicHost) }}{{ fail "OIDC issuer must equal https://publicHost/identity" }}{{ end -}}
 {{- if hasPrefix "https://" .Values.identity.upstream }}{{- if not .Values.trustBundle.configMapName }}{{ fail "HTTPS identity upstream requires the reviewed CA bundle" }}{{ end }}{{ end -}}
 {{- if .Values.executionAdmission }}{{ fail "Cluster execution adapter is not delivered; admission must remain disabled" }}{{ end -}}
+{{- if .Values.apiTls.enabled }}
+{{- if ne .Values.apiTls.existingSecret (printf "open-agent-%s-api-tls" .Values.environment) }}{{ fail "API TLS requires the environment-specific existing Secret" }}{{ end -}}
+{{- if not .Values.trustBundle.configMapName }}{{ fail "API TLS requires the reviewed CA bundle" }}{{ end -}}
+{{- end -}}
 {{- range $required := list "api/database" "api/storage" "api/identity" "web/identity" }}
 {{- $found := false }}
 {{- range $.Values.network.dependencies }}{{ if eq (printf "%s/%s" .component .purpose) $required }}{{ $found = true }}{{ end }}{{ end -}}

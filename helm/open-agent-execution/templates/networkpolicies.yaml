@@ -1,0 +1,65 @@
+{{- range $role := list "supervisor" "executor" }}
+{{- $namespace := $.Release.Namespace }}
+{{- if eq $role "executor" }}{{ $namespace = $.Values.executorNamespace }}{{ end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "oae.name" $ }}-{{ $role }}-deny
+  namespace: {{ $namespace }}
+  labels: {{- include "oae.labels" $ | nindent 4 }}
+spec:
+  {{- if eq $role "executor" }}
+  podSelector: {}
+  {{- else }}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name | quote }}
+      app.kubernetes.io/component: cluster-supervisor
+  {{- end }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "oae.name" $ }}-{{ $role }}-egress
+  namespace: {{ $namespace }}
+  labels: {{- include "oae.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- if eq $role "executor" }}
+      app.kubernetes.io/name: open-agent-executor
+      open-agent.io/environment: {{ $.Values.environment | quote }}
+      {{- else }}
+      app.kubernetes.io/instance: {{ $.Release.Name | quote }}
+      app.kubernetes.io/component: cluster-supervisor
+      {{- end }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - {{- include "oae.peer" $.Values.network.dns | nindent 10 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    {{- $peers := list $.Values.network.control }}
+    {{- if eq $role "supervisor" }}{{ $peers = append $peers $.Values.network.temporal }}{{ else }}{{ $peers = concat $peers $.Values.network.models }}{{ end }}
+    {{- range $peers }}
+    - to:
+        - {{- include "oae.peer" . | nindent 10 }}
+      ports:
+        {{- range .ports }}
+        - {protocol: TCP, port: {{ . }}}
+        {{- end }}
+    {{- end }}
+    {{- if eq $role "supervisor" }}
+    - to:
+        {{- range $.Values.network.kubernetes.addresses }}
+        - ipBlock: {cidr: {{ printf "%s/32" . | quote }}}
+        {{- end }}
+      ports:
+        {{- range $.Values.network.kubernetes.ports }}
+        - {protocol: TCP, port: {{ . }}}
+        {{- end }}
+    {{- end }}
+{{- end }}

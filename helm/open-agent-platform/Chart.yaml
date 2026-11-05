@@ -2,7 +2,7 @@ apiVersion: v2
 name: open-agent-platform
 description: Private Open Agent control plane and workbench; execution adapters are tracked separately.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "2026.11.05"
 kubeVersion: ">=1.30.0-0"
 home: https://github.com/jhj8888/open_agent
