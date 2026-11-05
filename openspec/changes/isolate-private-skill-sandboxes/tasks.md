@@ -25,3 +25,5 @@
 持久 journal 增量已实现 V1.53、环境原子沙盒配额、一次性创建意图、迟到资源观察及可信释放事务；worker 没有配额释放接口。31 项真实 MySQL、44 项其他 Java 和 155 项 Python 检查通过（两项首次 SSH 连接超时已单独重跑并记录），见 `docs/platform/sandbox-journal-verification-20261104.json`。独立物理回收和实际 worker 接线尚未交付，1.3、2.3 继续保留未勾选。
 
 2026-11-05 已接通实际 OIDC/HTTP/S3/数据库/Temporal/systemd/Unix 核验/gVisor Skill 全链路，并验证正常完成、取消及 executor SIGKILL 后的独立物理回收。52 项核验代理及监督测试通过，新增 IPv4/IPv6 与开机防护恢复配置。证据见 `docs/platform/skill-run-verification-20261105.json`、`run-recovery-verification-20261105.json`。无 ID 的未知 creating 仍保留配额，需补足创建服务在途清理；生产 Kata/K8S、完整故障和离线攻击面未验收，因此任务保持未勾选。
+
+2026-11-05 Kubernetes 配置准备增量：固定官方 OpenSandbox server 源码和镜像，验证真实配置模型/模板合并后的 CR；零节点 API 接受 CRD、Pod 与策略并拒绝超额请求。19 项配置测试、33 项 SDK 测试及 196 项离线镜像检查通过；详见 `docs/platform/kata-profile-verification-20261105.json`。API 夹具 1.36.6 不在 BOM 最高 1.34 的矩阵中；集群 Skill admission/UID 绑定/独立清理与 Kata/CNI 实机测试未交付，1.1、1.3、2.2、2.3、3.1 保持未勾选。

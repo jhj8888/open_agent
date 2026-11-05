@@ -32,7 +32,7 @@ python verify_image.py --report /private/worker-image-build/build-report.json --
 
 `verify_image.py` 验证归档与导入身份、默认命令、UID/GID 10001、网络关闭、只读文件系统、移除 capabilities、实际模块加载、安装版本、缺配置失败及 OS 包清单。导入检查使用同一 Docker daemon，不能据此宣称空节点冷启动已验收。`verify_contracts.py` 另外挂载显式测试包和预核验 Temporal CLI，运行合成模型/账本/Kubernetes 响应与真实本地 Temporal 的回归；测试包不进入发布镜像。
 
-镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定和创建拒绝恢复，163 项镜像内检查通过；拒绝恢复要求控制面 V1.65 或更新版本；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
+镜像根目录和应用目录仍需在 Pod 配置中强制只读；本镜像本身不是租户代码隔离边界。集群 Secret 引用、RBAC 和 NetworkPolicy 已在[执行 chart](../../../helm/open-agent-execution/README.md)接线，Kata admission/回收和实际节点/CNI 验收仍待完成，当前不得开启集群总准入。最新镜像含显式仓库凭据绑定、创建拒绝恢复和每次尝试独立的 execd 鉴权，196 项镜像内检查通过；拒绝恢复要求控制面 V1.65 或更新版本；当前摘要见 `artifacts.json`，前一版证据保留供追溯。
 
 ## 清单与许可范围
 
@@ -44,3 +44,5 @@ python verify_image.py --report /private/worker-image-build/build-report.json --
 当前上游项目把 pylint/astroid 等开发工具列为常规依赖，`--no-dev` 不会将其排除；此增量完整保留锁图并明确记录 GPL/LGPL/MPL 等不同许可。不能把整张依赖图笼统标为 Apache/MIT 或宣称已完成企业分发审查。后续需拆分开发依赖、重新验证最小运行集及对应分发义务。新增构建脚本使用 Python 标准库、官方 PyPA packaging 和 pip，没有引入第三方构建服务。
 
 官方参考：[uv 导出](https://docs.astral.sh/uv/concepts/projects/export/)、[pip 目标平台下载](https://pip.pypa.io/en/stable/cli/pip_download/)、[PyPA markers](https://packaging.pypa.io/en/stable/markers.html)、[Docker 构建建议](https://docs.docker.com/build/building/best-practices/)。
+
+2026-11-05 Kata 配置准备与 SDK 镜像验证见 [验证记录](../../../docs/platform/kata-profile-verification-20261105.json)。新增的 CNI 模式仍需独立准入；集群 Skill 入口保持关闭。

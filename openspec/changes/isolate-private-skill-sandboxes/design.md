@@ -23,6 +23,12 @@ SkillSandboxRunner 当前固定 E2BSandboxProvider，AsyncSandbox.create/run/kil
 7. 保留现有 skill_resource_security 检查。旧 E2B provider 仅显式开发配置可选，离线生产不允许。workflow 的有限 Pyodide 路径保留已有限制，所有可执行不可信本机代码的路径必须进入隔离后端。
 8. 无 KVM/K8S 的单机展示使用显式 `gvisor-demo` profile，禁止该 profile 承接 prod。固定 OpenSandbox SDK/server 1.1.0 与 gVisor 20261102.0。Docker provider 不支持 secureAccess，使用 execd 官方每次尝试独立认证 token；该 token 不得进入不可信子进程。gVisor 不兼容官方 egress 侧车，必须验证独立网桥/宿主规则/DNS，不能将空 networkPolicy 当作默认拒绝的证据。具体差异、调用链和未完成接线见 docs/platform/private-sandboxes.md。
 
+### Kubernetes 模板与 execd 鉴权接线
+
+锁定 OpenSandbox 1.1.0 commit `b00c96b0a89c07fc18409fcfe72d170b4c96c8a7`。官方 `secureAccess` 保护 gateway 入口，不能代替沙盒内部 loopback 的 execd 鉴权。所有 profile 均使用每次尝试独立的 `EXECD_ACCESS_TOKEN`，SDK 携带对应头，UID 1000 子命令继续清空该值。保留现有 gateway/egress 模式；新增显式 `cluster-cni` 模式要求 HTTPS、server proxy、Kata，使用可信准入确认的默认拒绝 CNI，关闭需要额外 gateway 的 secureAccess 和带 NET_ADMIN 的 egress 侧车，不允许静默降级。
+
+`deploy/platform/kata/prepare_profile.py` 生成无密钥、固定摘要的官方 server TOML、BatchSandbox 模板、独立 test/prod namespace、无 token ServiceAccount、ResourceQuota 与仅服务端代理可入站的 NetworkPolicy。官方模板合并会替换容器/init/volumes 列表；主容器安全上下文与额外挂载通过上游专门合并保留，不能凭模板原文宣称最终 Pod 安全。需在固定官方 server 镜像中验证实际输出，并持久保留 CR/Pod 的独立清理 finalizer。仅有生成配置和 API 测试不等于运行时/CNI/PID/磁盘/硬件虚拟化验收；execd installer 的固定受信镜像仍需在实际 Kata 节点验证。生产沙盒准入、持久 Pod/CR UID 绑定与回收服务尚未接通前，集群 Skill 入口继续关闭。
+
 ### 持久资源预留与独立回收
 
 沙盒创建之前在同一租户/环境锁下预留 `max_sandboxes`，记录一次性的创建意图；SDK 操作在事务之外执行。创建确认丢失不重试创建，所有未知/清理中记录继续占用配额。worker 的创建/删除观察绑定认证身份及完整租约，取消后允许补报资源但不恢复执行许可。只有独立核验执行进程终止、物理沙盒不存在且没有在途创建后，受信回收器才能在同一事务释放沙盒/执行槽并写审计；worker 没有配额释放接口。详见 `docs/platform/sandbox-journal.md`。

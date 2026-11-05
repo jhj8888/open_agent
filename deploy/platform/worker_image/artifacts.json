@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "input_archive_sha256": "cea0b5a75a9b0a1da66d548608f4d44881242ee499af263596cb2cb724cb2f5a",
-  "input_manifest_sha256": "8f1d0779c6e4ea12e07f415926110d20a378ea213166e1993eb749392f8b36b3",
+  "input_archive_sha256": "dec2d000e0590d3c457c25fce1ed9dd6f2080ceeb1f7a46094e111def93ba999",
+  "input_manifest_sha256": "1c0737087a0fae1d0652930b29fdf61eebac32ddafe20de727e73e8e1e3999e3",
   "builder_sha256": "42cef6b14eff21fb213e5003d8a02007d0c81c315dee3d1e92fa7ed559b049c7",
   "image": {
-    "tag": "open-agent/cluster-worker:cea0b5a75a9b0a1d",
-    "local_image_id": "sha256:ebd6c9f37c764dd87b679fad6ed319e85410883cbdd0fc40d6b2111ee4a65c1a",
-    "size_bytes": 671956396,
+    "tag": "open-agent/cluster-worker:dec2d000e0590d3c",
+    "local_image_id": "sha256:e77930c0ecf430dc3d06d5e1e9130d8e23d338825fd7ac7c03607a9aba71574d",
+    "size_bytes": 671956774,
     "registry_manifest_digest": null
   },
   "archive": {
-    "path": "/opt/open-agent/worker-image-build/cea0b5a75a9b0a1da66d548608f4d44881242ee499af263596cb2cb724cb2f5a.docker.tar",
-    "sha256": "8078b7a534e6c3abef5263d944c363a65b51e3e93cbe76af2c85601334d03644",
+    "path": "/opt/open-agent/worker-image-build/dec2d000e0590d3c457c25fce1ed9dd6f2080ceeb1f7a46094e111def93ba999.docker.tar",
+    "sha256": "f427b3fd311fa0d0cadb9082ca303d4aaca17865b35ddfe235ca30bde1aff626",
     "bytes": 706424832
   },
   "base_archive": {

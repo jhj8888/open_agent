@@ -47,6 +47,16 @@
 
 系统 SHALL 默认拒绝沙盒网络，并阻止读取控制面凭据、云元数据和集群管理接口。
 
+#### Scenario: 沙盒内部调用 execd
+
+- **WHEN** 租户代码尝试通过 loopback 调用 execd 控制接口
+- **THEN** 缺少本次尝试独立 execd token 的请求被拒绝；网关 secureAccess 不能代替该鉴权，子进程不得继承 token 或平台管理凭据
+
+#### Scenario: Kubernetes 使用服务端代理与 CNI
+
+- **WHEN** 操作者显式选择 cluster-cni 网络模式
+- **THEN** 只允许 HTTPS server proxy 和 Kata profile，仍需独立准入验证实际默认拒绝策略；不自动启用额外 gateway/NET_ADMIN 侧车，不允许回落为未经核验的普通容器
+
 #### Scenario: 内部白名单
 
 - **WHEN** 管理员显式允许某内部服务且策略生效

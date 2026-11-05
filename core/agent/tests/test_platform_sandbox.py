@@ -94,7 +94,7 @@ def scope(environment="test"):
     )
 
 
-async def provider(profile="kata"):
+async def provider(profile="kata", **options):
     _, _, ref, source = package()
     release = await load_release(source, ref)
     sandbox = SimpleNamespace(
@@ -111,12 +111,13 @@ async def provider(profile="kata"):
     factory = AsyncMock(return_value=sandbox)
     config = ConnectionConfig(
         domain="sandbox.internal:8080",
+        protocol="https",
         api_key="synthetic-contract-test-key-000000000",
         use_server_proxy=True,
         transport=httpx.MockTransport(lambda request: httpx.Response(200)),
     )
     adapter = OpenSandboxProvider(
-        config, journal, admission, profile=profile, factory=factory
+        config, journal, admission, profile=profile, factory=factory, **options
     )
     return adapter, sandbox, journal, admission, factory, release
 
@@ -128,7 +129,7 @@ async def test_create_scopes_files_and_credentials_and_destroys_exactly_once():
     lease = await adapter.create(run, [release])
     kwargs = factory.call_args.kwargs
     assert (
-        kwargs["env"] == {} and kwargs["volumes"] == [] and kwargs["extensions"] == {}
+        set(kwargs["env"]) == {"EXECD_ACCESS_TOKEN"} and kwargs["volumes"] == [] and kwargs["extensions"] == {}
     )
     assert kwargs["secure_access"] is True
     assert kwargs["network_policy"].default_action == "deny"
@@ -227,8 +228,9 @@ async def test_production_never_uses_demo_gvisor_or_missing_admission():
 
 
 @pytest.mark.asyncio
-async def test_demo_has_unique_execd_auth_instead_of_unsupported_docker_secure_access():
-    adapter, sb, journal, admission, factory, release = await provider("gvisor-demo")
+@pytest.mark.parametrize('profile', ['gvisor-demo', 'kata'])
+async def test_all_profiles_have_unique_execd_auth_separate_from_management_and_gateway_keys(profile):
+    adapter, sb, journal, admission, factory, release = await provider(profile)
     first = await adapter.create(scope(), [release])
     first_args = factory.call_args.kwargs
     await first.close()
@@ -239,10 +241,40 @@ async def test_demo_has_unique_execd_auth_instead_of_unsupported_docker_secure_a
     assert token != adapter.connection.api_key
     assert second_args["connection_config"].headers["X-EXECD-ACCESS-TOKEN"] == token
     assert "X-EXECD-ACCESS-TOKEN" not in adapter.connection.headers
-    assert (
-        second_args["secure_access"] is False and second_args["network_policy"] is None
-    )
+    assert second_args["secure_access"] is (profile == 'kata')
+    assert (second_args["network_policy"] is None) is (profile == 'gvisor-demo')
     await second.close()
+
+
+@pytest.mark.asyncio
+async def test_kata_server_proxy_uses_admitted_cni_and_execd_auth_without_gateway_or_net_admin_sidecar():
+    adapter, sb, journal, admission, factory, release = await provider('kata', network_enforcement='cluster-cni')
+    run = scope('prod')
+    lease = await adapter.create(run, [release])
+    payload = factory.call_args.kwargs
+    assert payload['secure_access'] is False and payload['network_policy'] is None
+    assert payload['connection_config'].use_server_proxy is True
+    assert payload['resource'] == {'cpu':'1', 'memory':'512Mi', 'ephemeral-storage':'512Mi'}
+    assert payload['env']['EXECD_ACCESS_TOKEN'] == payload['connection_config'].headers['X-EXECD-ACCESS-TOKEN']
+    admission.before_create.assert_awaited_once_with(run,'kata',IMAGE)
+    admission.after_create.assert_awaited_once_with(run,'kata',sb.id)
+    await lease.close()
+    admission.before_create.side_effect = SandboxFailure('CNI_UNVERIFIED')
+    with pytest.raises(SandboxFailure,match='CNI_UNVERIFIED'):
+        await adapter.create(scope('prod'), [release])
+    assert factory.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_cni_profile_does_not_allow_demo_runtime_or_unknown_network_mode():
+    with pytest.raises(SandboxFailure,match='SANDBOX_NETWORK_CONFIGURATION_INVALID'):
+        await provider('gvisor-demo', network_enforcement='cluster-cni')
+    with pytest.raises(SandboxFailure,match='SANDBOX_NETWORK_CONFIGURATION_INVALID'):
+        await provider('kata', network_enforcement='none')
+    adapter, _, journal, admission, _, _ = await provider('kata')
+    with pytest.raises(SandboxFailure,match='SANDBOX_NETWORK_CONFIGURATION_INVALID'):
+        OpenSandboxProvider(adapter.connection.model_copy(update={'protocol':'http'}),journal,admission,
+            profile='kata',network_enforcement='cluster-cni')
 
 
 @pytest.mark.asyncio

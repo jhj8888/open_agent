@@ -1,0 +1,290 @@
+{
+  "date": "2026-11-05",
+  "feature": "Kata deployment preparation and per-attempt execd authentication",
+  "demo_url": "https://120.26.81.83/open-agent/",
+  "windows_configuration_tests": {
+    "tests": "19",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "0.750",
+    "timestamp": "2026-11-05T21:45:44.379368+08:00"
+  },
+  "windows_sdk_tests": {
+    "tests": "33",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "82.943",
+    "timestamp": "2026-11-05T21:32:13.903307+08:00"
+  },
+  "official_server_provider": {
+    "event": "upstream_profile_verified",
+    "profile_manifest_sha256": "34bcfa3c8d48d3c811390749c700e2e7120d62fc5628a675a1b86ecb5ada0d56",
+    "upstream_umbrella_release": "1.1.0",
+    "upstream_source_hashes_verified": true,
+    "server_package_metadata_version": "0.1.0.dev0",
+    "actual_provider_used": true,
+    "actual_config_and_request_models_used": true,
+    "kubernetes_writes_captured_not_sent": 1,
+    "direct_secure_access_rejected": true,
+    "kata_or_cni_verified": false,
+    "server_image": "m.daocloud.io/docker.io/opensandbox/server@sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1",
+    "server_image_id": "sha256:b8ddf24debed844a20376fe63ed3064125e357dd49ffc2e535adfe2f4f2f3419",
+    "input_sha256": "94c60ffb16ef2eca3f0f39b02034d5d999e25416d445771ddf435c7844bc66df",
+    "network": "none",
+    "read_only": true,
+    "uid": 10001,
+    "fixture_registry_references_only": true
+  },
+  "real_kubernetes_api": {
+    "checked_at": "2026-11-05T13:43:07.402590+00:00",
+    "kubernetes_version": "v1.36.6+k3s1",
+    "profile_manifest_sha256": "34bcfa3c8d48d3c811390749c700e2e7120d62fc5628a675a1b86ecb5ada0d56",
+    "official_crd_accepted": true,
+    "actual_provider_workload_accepted": true,
+    "pod_template_accepted": true,
+    "default_deny_network_policy_stored": true,
+    "oversized_pod_rejected": true,
+    "quota_initialized_after_seconds": 0.5,
+    "ephemeral_storage_limit_and_default_request": "512Mi",
+    "nodes": 0,
+    "runtime_or_cni_or_pids_or_disk_verified": false,
+    "release_compatibility_matrix_verified": false
+  },
+  "api_fixture_cleanup": {
+    "container_removed": true,
+    "volume_removed": true,
+    "network_removed": true,
+    "admin_credentials_removed": true,
+    "checked_at": "2026-11-05T13:43:33.335330+00:00"
+  },
+  "worker_image": {
+    "schema": 1,
+    "input_archive_sha256": "dec2d000e0590d3c457c25fce1ed9dd6f2080ceeb1f7a46094e111def93ba999",
+    "input_manifest_sha256": "1c0737087a0fae1d0652930b29fdf61eebac32ddafe20de727e73e8e1e3999e3",
+    "builder_sha256": "42cef6b14eff21fb213e5003d8a02007d0c81c315dee3d1e92fa7ed559b049c7",
+    "image": {
+      "tag": "open-agent/cluster-worker:dec2d000e0590d3c",
+      "local_image_id": "sha256:e77930c0ecf430dc3d06d5e1e9130d8e23d338825fd7ac7c03607a9aba71574d",
+      "size_bytes": 671956774,
+      "registry_manifest_digest": null
+    },
+    "archive": {
+      "path": "/opt/open-agent/worker-image-build/dec2d000e0590d3c457c25fce1ed9dd6f2080ceeb1f7a46094e111def93ba999.docker.tar",
+      "sha256": "f427b3fd311fa0d0cadb9082ca303d4aaca17865b35ddfe235ca30bde1aff626",
+      "bytes": 706424832
+    },
+    "base_archive": {
+      "path": "/opt/open-agent/worker-image-build/65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c.base.docker.tar",
+      "sha256": "c24495d7eeb4e90a9c675edcf7ba5302537de10c894c19e396ec3c3c0f272293",
+      "bytes": 134603264
+    },
+    "base_registry_verification": {
+      "upstream": "registry-1.docker.io/library/python",
+      "manifest_digest": "sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd",
+      "linux_amd64_manifest_digest": "sha256:061c190f3d5815b341a18dfe8a45771f8ba68c15a607ea56997fde3009ac4eec",
+      "config_id": "sha256:65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c",
+      "mirror_config_matches_official": true
+    }
+  },
+  "worker_image_contracts": {
+    "image_id": "sha256:e77930c0ecf430dc3d06d5e1e9130d8e23d338825fd7ac7c03607a9aba71574d",
+    "test_archive_sha256": "d731ce7bc9695b1b02af6e3a67e86b670c7bc4b50a7ba6bc592fcf790eb8d181",
+    "temporal_binary_sha256": "6968c86c97d91d4b49e19c0c9b0842bfb5eb2d356f22b989006d1e09164eab5b",
+    "network": "none",
+    "uid": 10001,
+    "read_only": true,
+    "results": {
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "196",
+          "time": "108.584",
+          "timestamp": "2026-11-05T13:48:44.051238+00:00",
+          "hostname": "0eb9542b04bc"
+        }
+      ]
+    },
+    "scope": "Official SDKs with synthetic model/control/Kubernetes responses and real local Temporal; not a Kubelet/Kata end-to-end test."
+  },
+  "worker_image_probe": {
+    "input_archive_sha256": "dec2d000e0590d3c457c25fce1ed9dd6f2080ceeb1f7a46094e111def93ba999",
+    "image_archive_sha256": "f427b3fd311fa0d0cadb9082ca303d4aaca17865b35ddfe235ca30bde1aff626",
+    "build_network": "none",
+    "probe_network": "none",
+    "read_only": true,
+    "capabilities": "ALL dropped",
+    "load_verification": "Same Docker daemon import and identity check; not an empty-node cold-start test."
+  },
+  "retained_task": {
+    "model_version": 2,
+    "deployment_id": "131ed2f7-b6a0-43c9-9d84-717b193fd86b",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "verified_at": "2026-11-05T13:48:41.284750+00:00",
+    "steps": 58,
+    "model_calls": 6,
+    "tool_calls": 4,
+    "steps_with_think": 2,
+    "input_modes": [
+      "initial",
+      "append",
+      "append",
+      "append",
+      "append",
+      "context_changed"
+    ],
+    "totals": {
+      "steps": 58,
+      "modelCalls": 6,
+      "toolCalls": 4,
+      "unknownModelCalls": 0,
+      "inputTokens": 21274,
+      "outputTokens": 968,
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "actual_tool_results": true,
+    "output_text": true,
+    "synthetic_secret_redacted": true,
+    "other_tenant_denied": true,
+    "token_sum_matches_task": true,
+    "retained_files": 2,
+    "model_adapter": "langchain-deepseek 1.1.1 + reasoning-history compatibility shim",
+    "download_digests_verified": true,
+    "thinking_steps": [
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input_tokens": 3609,
+        "duration_ms": 1850
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input_tokens": 3865,
+        "duration_ms": 1928
+      }
+    ]
+  },
+  "cache_tokens": {
+    "checked_at": "2026-11-05T13:48:42.471025+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "public_console": {
+    "checked_at": "2026-11-05T13:48:44.774309+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "1d535106cef221dfa36c6a1cb9bbfea15d4429a5bd601b731f6791eec63bed2d",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "delivery": {
+    "configuration_path": "/opt/open-agent/kata-profiles/94c60ffb16ef2eca3f0f39b02034d5d999e25416d445771ddf435c7844bc66df",
+    "active_api_schema": "1.65",
+    "active_execution_backend": "systemd-gvisor-demo",
+    "live_worker_dependencies_modified": false,
+    "cluster_skill_admission_enabled": false
+  },
+  "failed_attempts_and_resolution": [
+    "Initial provider fixture directory was private due to umask; public fixture mount permissions were corrected while its parent remains private.",
+    "Image package metadata is 0.1.0.dev0 rather than umbrella 1.1.0; six actual source modules were verified against the pinned release commit instead of relabeling metadata.",
+    "Verifier initially passed a Pydantic resource model to the internal provider; it now uses the actual upstream create context.",
+    "New CRD quota status was not initialized: immediate creation returned 403, a 50s readiness check timed out. The verifier now polls actual status for up to 7m; no quota or status was bypassed. Final run initialized in 0.5s with the discovered evaluator.",
+    "System Python lacked websocket; the API verifier was rerun using the existing prepared worker interpreter, without installing dependencies.",
+    "Demo checks all passed; first download used a singular cache-token filename. Existing successful evidence was fetched using the correct plural filename without replaying model or checks."
+  ],
+  "limits": [
+    "This is a preparation package, not a deployable production admission service.",
+    "API-only fixture v1.36.6 exceeds OpenSandbox BOM maximum 1.34. No release compatibility claim.",
+    "No Kubernetes worker, OpenSandbox controller, Kata, KVM, actual CNI, PID/disk limit or physical cleanup was exercised.",
+    "Generated private registry references are synthetic fixture inputs; no enterprise image mirror availability was proven.",
+    "CR/Pod UID binding, independent sandbox admission/cleanup, real-node fault testing and offline cold start remain required.",
+    "New image is prepared and verified separately; live host worker and production admission remain unchanged."
+  ]
+}

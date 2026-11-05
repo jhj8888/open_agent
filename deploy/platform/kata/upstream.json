@@ -1,0 +1,18 @@
+{
+  "umbrella_release": "1.1.0",
+  "commit": "b00c96b0a89c07fc18409fcfe72d170b4c96c8a7",
+  "source_url": "https://codeload.github.com/opensandbox-group/OpenSandbox/tar.gz/b00c96b0a89c07fc18409fcfe72d170b4c96c8a7",
+  "source_archive_sha256": "423adeb75c925c852ceb817b52cdeba4f5c62447fea101f254d079721f5c8300",
+  "license": "Apache-2.0",
+  "server_manifest_digest": "sha256:68ca0212a2749b2c73096ce2ec0264455c64442c45f81007db442f52bf84c9d1",
+  "server_package_metadata_version": "0.1.0.dev0",
+  "package_metadata_note": "The fixed official image has development package metadata. Source hashes below match the umbrella release commit exactly; do not infer the release from package metadata.",
+  "files": {
+    "config": "872b6a19f8c88365675803c242ebb80cef5f56e4e23137342031b7eba1a70c04",
+    "services.k8s.batchsandbox_provider": "ef9167aaef203c6973838f79dc53947911172d87901d97585cbf8ca832260a21",
+    "services.k8s.template_manager": "742aa90a5e71cb62c9fcfcf98695c959e9859e653aa36f7d6590e241d55debc2",
+    "services.k8s.provider_common": "f88dc41222661f9f0f909da74d5b4c81d7da717013ce9cf38e2a75b6031013ce",
+    "services.k8s.create_helpers": "47865263899dc108a11c99ddfb34bc4134f52447e11e03c123841e9348b8360f",
+    "services.k8s.kubernetes_service": "18e2d1703a181d4ce5fe958c26de1d34031d503f5e580cfb29dbdb24ca87408a"
+  }
+}

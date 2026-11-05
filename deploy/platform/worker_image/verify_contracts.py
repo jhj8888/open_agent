@@ -27,6 +27,7 @@ TEST_FILES = (
     "test_durable_executor.py",
     "test_execution_observations.py",
     "test_deepseek_reasoning.py",
+    "test_platform_sandbox.py",
 )
 
 

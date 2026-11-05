@@ -357,6 +357,7 @@ class OpenSandboxProvider:
         profile: Literal["kata", "gvisor-demo"],
         cpu: str = "1",
         memory: str = "512Mi",
+        network_enforcement: Literal["opensandbox-egress", "cluster-cni"] = "opensandbox-egress",
         factory: Callable[..., Awaitable[Sandbox]] = Sandbox.create,
         permission: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
@@ -368,6 +369,11 @@ class OpenSandboxProvider:
             raise SandboxFailure("SANDBOX_CONNECTION_UNSAFE")
         if profile not in {"kata", "gvisor-demo"}:
             raise SandboxFailure("SANDBOX_ISOLATION_UNAVAILABLE")
+        if network_enforcement not in {"opensandbox-egress", "cluster-cni"} or (
+            network_enforcement == "cluster-cni" and (profile != "kata" or connection.protocol != "https")
+        ):
+            raise SandboxFailure("SANDBOX_NETWORK_CONFIGURATION_INVALID")
+        self.network_enforcement = network_enforcement
         self.connection, self.journal, self.admission = connection, journal, admission
         self.permission = permission
         self.profile, self.cpu, self.memory, self.factory = (
@@ -405,25 +411,20 @@ class OpenSandboxProvider:
         # must validate its dedicated Docker network/firewall instead; production uses Kata/CNI.
         policy = (
             NetworkPolicy(defaultAction="deny", egress=[])
-            if self.profile == "kata"
+            if self.profile == "kata" and self.network_enforcement == "opensandbox-egress"
             else None
         )
-        connection = self.connection
-        environment: dict[str, str] = {}
-        if self.profile == "gvisor-demo":
-            # Docker does not implement secureAccess in OpenSandbox 1.1.0. Its
-            # execd supports a separate per-attempt token. execute() clears it
-            # before launching child processes. Never substitute a management/model key.
-            execd_token = secrets.token_urlsafe(48)
-            environment["EXECD_ACCESS_TOKEN"] = execd_token
-            connection = self.connection.model_copy(
-                update={
-                    "headers": {
-                        **self.connection.headers,
-                        "X-EXECD-ACCESS-TOKEN": execd_token,
-                    }
-                }
-            )
+        # Gateway secureAccess does not authenticate a process calling execd
+        # over sandbox loopback. Every profile needs its own execd token;
+        # execute() removes it before launching tenant code as UID 1000.
+        execd_token = secrets.token_urlsafe(48)
+        environment = {"EXECD_ACCESS_TOKEN": execd_token}
+        connection = self.connection.model_copy(update={"headers": {
+            **self.connection.headers, "X-EXECD-ACCESS-TOKEN": execd_token,
+        }})
+        resource = {"cpu": self.cpu, "memory": self.memory}
+        if self.profile == "kata":
+            resource["ephemeral-storage"] = "512Mi"
         try:
             async with asyncio.timeout(min(90, seconds)):
                 sandbox = await self.factory(
@@ -432,11 +433,11 @@ class OpenSandboxProvider:
                     ready_timeout=timedelta(seconds=min(60, seconds)),
                     connection_config=connection,
                     metadata=scope.metadata(),
-                    resource={"cpu": self.cpu, "memory": self.memory},
+                    resource=resource,
                     env=environment,
                     volumes=[],
                     extensions={},
-                    secure_access=self.profile == "kata",
+                    secure_access=self.profile == "kata" and self.network_enforcement == "opensandbox-egress",
                     network_policy=policy,
                     entrypoint=["/bin/bash", "-c", "exec sleep infinity"],
                 )

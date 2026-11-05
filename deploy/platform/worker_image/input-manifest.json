@@ -32,7 +32,7 @@
       "2.36"
     ]
   },
-  "source_commit": "bc275c2717e41f7c48dee317b61e7726b9324348",
+  "source_commit": "d76e478b26ac11f710743d8fee2d6a2214844dc9",
   "source_note": "Source hashes below are authoritative; builder changes may be uncommitted at packaging time.",
   "files": {
     ".dockerignore": {
@@ -1068,8 +1068,8 @@
       "bytes": 4352
     },
     "source/core/agent/platform_runtime/sandbox.py": {
-      "sha256": "20efc121864e2e845838868200049d39a5e497e5c1125046c1544eba3be6df09",
-      "bytes": 19559
+      "sha256": "7106fb55f7d50066cdac52af99a733afd224b0c98f67edf2b080df34fb8b2801",
+      "bytes": 19937
     },
     "source/core/agent/platform_runtime/transport.py": {
       "sha256": "74793d628465749e69ed87d9c71213cad9e06ff3b5baf9e465559b8c596e9453",
