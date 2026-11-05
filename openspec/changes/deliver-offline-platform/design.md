@@ -33,6 +33,8 @@ helm 已存在，但默认引用 ghcr.io 和 latest，部分服务单副本；La
 
 ## Migration Plan
 
+集群 Python 运行镜像同时提供受信 executor 和 supervisor 入口，使用固定 Linux amd64 Python 基础镜像和当前 `uv.lock` 的完整 cluster extra。官方 uv 导出带哈希 requirements 与 CycloneDX 清单；准备阶段由官方 PyPA marker 根据已探测的目标环境过滤依赖，再由官方 pip 指定 Python/ABI/manylinux 平台下载 wheel，禁止安装 sdist 或未锁定依赖。构建时在实际 Linux Python 中消费完整原始 requirements 再核验。构建阶段只使用已核验的基础镜像、wheel、显式 Git 源码清单与许可证，Docker 构建网络关闭、pip no-index/require-hashes，缺包不得在线补齐。宿主构建目录私有，COPY 进入镜像的公开源码/许可目录可由非 root 遍历。最终镜像不包含 wheel 缓存、业务配置、账号、模型密钥或 Kubernetes token，默认 UID/GID 10001，启动不安装依赖。基础镜像配置 ID 与官方 Registry manifest 交叉核验；制品记录区分 registry manifest digest、本地 image/config ID 和导出归档摘要。单机导入、模块/权限检查、空节点冷启动与真实 Kata/CNI/业务全链路验收分别追踪，不互相替代。
+
 监控增量调用路径：工作台 → Java 租户授权 → MySQL 窗口聚合；平台管理员 → Java 固定查询 → 内部 Prometheus → node_exporter / Java Micrometer 指标。窗口为 1h/24h/7d，起止时刻固定，不受部署列表分页影响，缺少 usage 的任务不按零计量。当前排队、执行租约占用及未释放沙盒与窗口历史统计区分。仅 LOG_READ 角色可读取租户聚合；主机指标要求平台管理员，生产执行委托不自动获得租户聚合。
 
 采用 Spring Boot 管理版本的 micrometer-registry-prometheus，使用隔离的官方注册表导出固定指标，不手写 Prometheus 文本格式。只读 observer 服务角色仅能 GET 私有指标端点，worker/dispatcher/reconciler 角色互不扩权。聚合指标采用固定有限 labels，任务标识只进入既有授权日志。Prometheus 与 node_exporter 固定官方版本/摘要、Apache-2.0；展示安装使用专属非 root systemd 服务、有限保留空间及仅内部可达地址，保留其他项目服务。生产配置可接已有内网 Prometheus。采集失效不得用 0 表示健康，告警规则需 promtool 验证。

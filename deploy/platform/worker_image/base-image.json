@@ -1,0 +1,32 @@
+{
+  "base_image": "m.daocloud.io/docker.io/library/python@sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd",
+  "image_id": "sha256:65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c",
+  "size_bytes": 129304893,
+  "runtime": {
+    "python": "3.11.18",
+    "machine": "x86_64",
+    "executable": "/usr/local/bin/python"
+  },
+  "tag_used_for_preparation_only": "m.daocloud.io/docker.io/library/python:3.11-slim-bookworm",
+  "runtime_probe_network": "none",
+  "runtime_probe_uid": 10001,
+  "official_upstream": "docker.io/library/python",
+  "source_catalog": "https://github.com/docker-library/official-images/blob/master/library/python",
+  "environment": {
+    "implementation_name": "cpython",
+    "implementation_version": "3.11.18",
+    "os_name": "posix",
+    "platform_machine": "x86_64",
+    "platform_release": "6.6.102-5.3.alnx4.x86_64",
+    "platform_system": "Linux",
+    "platform_version": "#1 SMP PREEMPT_DYNAMIC Mon Mar 30 10:41:57 CST 2026",
+    "python_full_version": "3.11.18",
+    "platform_python_implementation": "CPython",
+    "python_version": "3.11",
+    "sys_platform": "linux"
+  },
+  "libc": [
+    "glibc",
+    "2.36"
+  ]
+}

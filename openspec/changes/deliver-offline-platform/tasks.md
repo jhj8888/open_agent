@@ -58,3 +58,14 @@
 - [x] 提供私有 registry manifest digest 核对工具，明确区分本地 config ID、归档摘要与可拉取 manifest digest；缺基础镜像、错误输入或错误引用失败关闭。
 
 证据见 `docs/platform/platform-delivery-verification-20261105.json`。本轮是控制面交付增量，没有在实际 Kubernetes 集群安装，没有导入企业私有仓库或切换线上运行部署。现有 systemd 执行监督器不能直接充当集群执行器，chart 强制关闭新任务准入。集群执行、Kata/CNI/CA、全部依赖 SBOM、完整离线冷启动和容量验收继续实施，原 1.1–3.2 大项保持未勾选。
+
+## 2026-11-05 Python 集群运行镜像增量
+
+- [x] 固定官方 Python 3.11.18 Linux amd64 基础镜像，并与 Docker Hub Registry 核对 manifest/config；155 个目标 wheel 与 uv.lock 的包名、版本、文件名和 SHA256 一致，官方 uv CycloneDX、逐包许可与补充 NOTICE 已归档。
+- [x] 显式 Git 源码输入、私有构建目录、Docker 无网络/不拉取、pip no-index/require-hashes；导出约 706 MB 运行镜像归档及约 135 MB 基础镜像归档，记录独立摘要和本地 image ID。
+- [x] 修复 COPY 保留宿主 0700 目录导致非 root 无法加载源码的问题；最终镜像在 UID/GID 10001、网络关闭、只读根目录下实际加载 executor/supervisor，155 个版本一致、pip check 通过、缺配置拒绝启动。
+- [x] 在最终镜像中实际执行缺 wheel、错误 hash 两种离线安装，均失败且未生成安装目录；没有访问包索引或修改运行环境。
+- [x] 镜像内 130 项检查通过、无跳过：合成模型/控制面/Kubernetes 响应、真实本地 Temporal、步骤采集、工具调用及调度/取消；构建输入与许可边界的 16 项本地检查通过。
+- [x] 展示站 HTTPS、3 个静态资源、21 条任务列表用量一致性及既有 58 步/2 个文件再次核验通过，无业务任务重放。
+
+证据见 `docs/platform/worker-image-verification-20261105.json`，操作说明见 `deploy/platform/worker_image/README.md`。镜像只部署为展示机上的独立交付制品，未替换活动 worker 或开启集群准入；同一 Docker daemon 的 load 不等于空节点冷启动。当前完整上游依赖图含开发工具及不同许可，最小运行依赖拆分/企业分发审查、集群 Helm/RBAC/CNI/Kata、全平台离线冷启动与容量验收仍待完成，原大项保持未勾选。

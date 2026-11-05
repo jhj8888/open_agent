@@ -1,0 +1,54 @@
+[
+  {
+    "name": "e2b",
+    "version": "2.58.0",
+    "source_url": "https://files.pythonhosted.org/packages/0f/c0/c7a5fd58ea37c7439c22ebd47036f5b90cfef957b38aa48ac0f2158b8cff/e2b-2.58.0.tar.gz",
+    "source_sha256": "2c6294df851dbbb30c845d2f7fb447e0411fc90c08ef41e388898a235566c186",
+    "license_files": [
+      {
+        "path": "licenses/e2b-2.58.0-LICENSE",
+        "source_url": "https://raw.githubusercontent.com/e2b-dev/E2B/@e2b/python-sdk@2.58.0/packages/python-sdk/LICENSE",
+        "sha256": "38db71fd15b98fa0b498f8c5ee705a49570e3111085c277fb89b5ea107ec4dcb"
+      }
+    ]
+  },
+  {
+    "name": "loguru",
+    "version": "0.7.3",
+    "source_url": "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz",
+    "source_sha256": "19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6",
+    "license_files": [
+      {
+        "path": "licenses/loguru-0.7.3-LICENSE",
+        "source_url": "https://raw.githubusercontent.com/Delgan/loguru/0.7.3/LICENSE",
+        "sha256": "b35d026cc7aca9d5859a02eb87ddf7a386a24c986838651bd1f283f94e003327"
+      }
+    ]
+  },
+  {
+    "name": "protobuf-py-ext",
+    "version": "0.6.0",
+    "source_url": "https://files.pythonhosted.org/packages/b4/6c/a1f6a1a50dfc3f14ddb9e54f9a769bc589b85b5e394bab2bb78f67d2dc42/protobuf_py_ext-0.6.0.tar.gz",
+    "source_sha256": "03f61ccfcad52a2d784aec9bb0b6088e0e32f144a6c3ab3deed12f17f1f0d0bb",
+    "license_files": [
+      {
+        "path": "licenses/protobuf-py-ext-0.6.0-LICENSE",
+        "source_url": "https://raw.githubusercontent.com/bufbuild/protobuf-py/v0.6.0/LICENSE",
+        "sha256": "1c5e374691049b02313a909936cb4b70df33e5d94404688f27766fa42b8088e5"
+      }
+    ]
+  },
+  {
+    "name": "tqdm",
+    "version": "4.70.1",
+    "source_url": "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz",
+    "source_sha256": "cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4",
+    "license_files": [
+      {
+        "path": "licenses/tqdm-4.70.1-LICENCE",
+        "source_member": "tqdm-4.70.1/LICENCE",
+        "sha256": "fcff87c3a47ce8028a8512aa182d4fcf0ad1c90544ee75cf9b343684cac194de"
+      }
+    ]
+  }
+]

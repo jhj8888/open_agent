@@ -1,0 +1,10 @@
+licenses/** -text
+requirements.lock -text
+resolution.cdx.json -text
+dependency-inventory.json -text
+input-manifest.json -text
+base-image.json -text
+supplemental-notices.json -text
+*.py text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf

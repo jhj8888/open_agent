@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!requirements.lock
+!wheels/
+!wheels/**
+!source/
+!source/core/
+!source/core/**
+!licenses/
+!licenses/**
+!inventory/
+!inventory/**
