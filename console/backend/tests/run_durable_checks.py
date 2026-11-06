@@ -25,6 +25,10 @@ def docker(*args, check=True):
 
 
 def main():
+    dispatch_python = Path(os.environ["OA_RUN_DISPATCH_PYTHON"]).resolve()
+    temporal_binary = Path(os.environ["TEMPORAL_TEST_BINARY"]).resolve()
+    if not dispatch_python.is_file() or not temporal_binary.is_file():
+        raise RuntimeError("Dispatch verification requires the frozen Python environment and preverified Temporal CLI")
     # Exercise the deployable entry point in two distinct JVMs, in addition to
     # the transaction tests. Never silently skip this gate in the normal driver.
     subprocess.run(["mvn", "-B", "-ntp", "-f", "console/backend/pom.xml", "-pl", "hub", "-am",
@@ -84,6 +88,9 @@ def main():
                        OA_RUN_TEST_JDBC_URL=f"jdbc:mysql://127.0.0.1:{port}/?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000&socketTimeout=30000",
                        OA_RUN_TEST_DB_USER="root", OA_RUN_TEST_DB_PASSWORD=password,
                        OA_RUN_MULTI_API_JAR=str(api_jar),
+                       OA_RUN_DISPATCH_PYTHON=str(dispatch_python),
+                       OA_RUN_DISPATCH_SCRIPT=str(ROOT / "tests/durable_integration/verify_outbox_recovery.py"),
+                       TEMPORAL_TEST_BINARY=str(temporal_binary),
                        OA_RUN_TEST_RESTART_SIGNAL=str(signal))
             result = subprocess.run(["mvn", "-B", "-ntp", "-f", "console/backend/pom.xml", "-pl", "hub", "-am",
                                      "-Dtest=Run*Test", "-Dsurefire.failIfNoSpecifiedTests=false", "test"],

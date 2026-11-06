@@ -78,6 +78,15 @@ class RunLedgerMySqlTest {
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
     @Test
+    @EnabledIfEnvironmentVariable(named = "OA_RUN_DISPATCH_SCRIPT", matches = ".+")
+    void durableOutboxSurvivesDispatcherProcessFailures() throws Exception {
+        actors();
+        jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=8 WHERE tenant_id=? AND environment='test'", A);
+        try (var fixture = new MultiApiAdmissionFixture(source, jdbc)) {
+            fixture.verifyDispatch(deployment);
+        }
+    }
+    @Test
     @EnabledIfEnvironmentVariable(named = "OA_RUN_MULTI_API_JAR", matches = ".+")
     void independentApiProcessesShareAdmissionAndExecutionQuotas() throws Exception {
         actors();

@@ -1,6 +1,8 @@
 # Temporal 调度与 worker 内部接口
 
-2026-11-04 增量：官方 Python SDK `temporalio==1.35.0`、确定性 workflow、outbox 发布器、独立内部服务鉴权和固定资源读取已实现。真实 Temporal 测试使用合成 activity；执行 DeepAgents、沙盒持久清理与统一 HTTP/聊天尚未接通，不能把这些测试解释为平台已经可展示。
+当前展示环境已接通真实 HTTP/聊天、Temporal、DeepAgents、Skill 与独立资源回收，见 [实施记录](implementation-progress.md)。新增 SQL/HTTP/Temporal 联合故障验收的方法和范围见 [任务投递故障验收](dispatch-recovery.md)。生产 HA、完整集群故障恢复仍待交付。
+
+以下为 2026-11-04 初始调度骨架及增量的历史记录，“尚未接通”描述当时状态，不是当前展示环境结论。该阶段官方 Python SDK `temporalio==1.35.0`、确定性 workflow、outbox 发布器、独立内部服务鉴权和固定资源读取已实现；当时真实 Temporal 测试使用合成 activity，不能将这部分单独解释为完整平台验收。
 
 后续 RuntimeExecutor 已完成独立真实模型/Skill 联调，并新增 `/worker/runs/{runId}/permit` 操作许可接口，见 [执行器记录](runtime-executor.md)。生产 execute/reconcile activity 注册和持久清理仍未接通，Temporal 测试的合成 activity 边界保持不变。
 

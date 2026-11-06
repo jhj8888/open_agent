@@ -28,6 +28,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+### SQL/HTTP/Temporal 联合故障验证
+
+新增验收复用打包平台 API、独占 MySQL 与官方 Temporal CLI/SDK。SQL trigger 只存在于一次性测试 schema，用于在 outbox 写入时中止事务；另以插入间隙锁及 performance_schema 的真实锁等待定位提交前边界，再强杀 API 并检查回滚。API 与独立 Python 调度子进程在已观察的边界被强制终止。真实 ControlPlaneClient 通过 HTTP 领取 60 秒租约，真实 OutboxDispatcher 执行 start/ack；仅测试子类在确认 RPC 前后暂停，由父进程终止，不向业务代码加入故障开关。自然等待领取到期，不修改数据库时间或回填状态。测试 activity 使用真实 claim/permit/event/finish 记录一个明确的合成事件，不调用模型或执行用户代码。其 reconcile 仅读取账本终态，保留 cleanup_pending 配额，不冒充生产独立回收。此证据覆盖投递边界，不能替代未知实体、物理回收或生产 Temporal HA 验收。
+
 ### 多 API 副本的准入验收
 
 调用链保持 `AgentRunController → AgentRunService → RunLedger → MySQL`，内部领取保持服务身份验证后进入同一账本。新增验收使用两个实际 PlatformApplication JAR 进程、临时官方 Nimbus 签名/JWKS、真实 HTTP 与独占 MySQL schema；验证重复提交、队列背压、执行槽位、终态待回收占额、跨租户/环境以及进程强制终止后的幂等恢复。没有模型调用、Temporal 执行或物理沙盒，资源释放阶段只针对从未启动执行实体的夹具调用可信账本边界，不替代物理回收验收。唯一业务响应变更是队列满附加 `Retry-After: 5` 和禁止缓存；不改变鉴权、数据迁移、Kafka、Redis、身份服务或对象存储。

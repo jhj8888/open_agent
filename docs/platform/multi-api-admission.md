@@ -32,7 +32,7 @@
 
 ## 复现与证据范围
 
-正常 Linux 验收驱动 `python3 console/backend/tests/run_durable_checks.py` 先构建专用平台 JAR，再设置 `OA_RUN_MULTI_API_JAR` 运行事务与双进程测试；没有 JAR 时直接失败。Docker 镜像、Java/Maven 依赖需提前准备才能断网执行。CI 的 durable-run-database 作业使用这个驱动，新增 CI 配置不代表远端 CI 已运行通过。
+正常 Linux 验收驱动 `python3 console/backend/tests/run_durable_checks.py` 先构建专用平台 JAR，再设置 `OA_RUN_MULTI_API_JAR` 运行事务与双进程测试；没有 JAR 时直接失败。后续投递故障集成要求额外配置 `OA_RUN_DISPATCH_PYTHON` 和 `TEMPORAL_TEST_BINARY`，见[投递验收](dispatch-recovery.md)。Docker 镜像、Java/Maven/Python 依赖与 Temporal CLI 需提前准备才能断网执行。CI 的 durable-run-database 作业使用这个驱动，新增 CI 配置不代表远端 CI 已运行通过。
 
 已有受控临时数据库时，可以设置原有 `OA_RUN_TEST_JDBC_URL`／`OA_RUN_TEST_DB_USER`／`OA_RUN_TEST_DB_PASSWORD`，再令 `OA_RUN_MULTI_API_JAR` 指向以 `-Dplatform.main-class=com.iflytek.astron.platform.PlatformApplication` 打包的绝对路径，执行 `RunLedgerMySqlTest#independentApiProcessesShareAdmissionAndExecutionQuotas`。测试仅接受 loopback 数据库连接，自建并删除随机 schema；不要连接业务数据库。未设置 JAR 的普通单元测试会显式跳过该用例。
 

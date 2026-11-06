@@ -54,6 +54,7 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
     private final HttpServer issuer;
     private final RSAKey signingKey;
     private final String workerSecret = UUID.randomUUID().toString();
+    private final String dispatcherSecret = UUID.randomUUID().toString();
     private final List<Process> owned = new ArrayList<>();
     private final List<Map<String, Object>> evidence = new ArrayList<>();
     private final long started = System.nanoTime();
@@ -95,9 +96,95 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
                 "PLATFORM_S3_ACCESS_KEY", "fixture-access", "PLATFORM_S3_SECRET_KEY", UUID.randomUUID().toString(),
                 "PLATFORM_S3_BUCKET", "admission-fixture", "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE", "4"));
         environment.put("PLATFORM_SERVICE_KEYS", json.writeValueAsString(Map.of(
-                "fixture-worker", Map.of("role", "worker", "secret", workerSecret))));
+                "fixture-worker", Map.of("role", "worker", "secret", workerSecret),
+                "fixture-dispatcher", Map.of("role", "dispatcher", "secret", dispatcherSecret))));
         alice = token("alice", origin, "admission-fixture");
         bob = token("bob", origin, "admission-fixture");
+    }
+
+    void verifyDispatch(String deployment) throws Exception {
+        issuer.start(); firstPort = port(); first = start(firstPort); ready(first, firstPort);
+        String route = "/api/v1/agent-deployments/" + deployment + "/runs";
+        String input = "{\"input\":{\"message\":\"Synthetic dispatch fixture\"},\"timeoutSeconds\":3600}";
+        // Fail the outbox write inside the real public submission transaction.
+        jdbc.execute("CREATE TRIGGER fixture_reject_outbox BEFORE INSERT ON oa_run_outbox FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture failure before commit'");
+        try {
+            expect(call(firstPort, "POST", route, alice, "transaction-retry", input, false), 503);
+            assertEquals(0, count("oa_agent_run")); assertEquals(0, count("oa_run_outbox"));
+        } finally { jdbc.execute("DROP TRIGGER fixture_reject_outbox"); }
+        // Hold the owned outbox's insertion gap, observe the API transaction's
+        // real InnoDB lock wait, then kill the JVM before it can commit.
+        try (var blocker = jdbc.getDataSource().getConnection(); var pool = Executors.newSingleThreadExecutor()) {
+            blocker.setTransactionIsolation(java.sql.Connection.TRANSACTION_REPEATABLE_READ);
+            blocker.setAutoCommit(false);
+            try (var statement = blocker.createStatement(); var rows = statement.executeQuery("SELECT id FROM oa_run_outbox WHERE id>=0 FOR UPDATE")) {
+                assertFalse(rows.next());
+                var pending = pool.submit(() -> call(firstPort, "POST", route, alice, "transaction-retry", input, false));
+                boolean waiting = false;
+                long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
+                while (System.nanoTime() < until) {
+                    int waits = jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM performance_schema.data_lock_waits w
+                        JOIN performance_schema.data_locks l ON l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID
+                        WHERE l.OBJECT_SCHEMA=? AND l.OBJECT_NAME='oa_run_outbox'
+                        """, Integer.class, blocker.getCatalog());
+                    if (waits > 0) { waiting = true; break; }
+                    Thread.sleep(50);
+                }
+                assertTrue(waiting, "API did not reach the observed precommit outbox lock boundary");
+                first.destroyForcibly(); assertTrue(first.waitFor(30, TimeUnit.SECONDS));
+                var lost = assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+                assertInstanceOf(java.io.IOException.class, lost.getCause());
+            } finally { blocker.rollback(); }
+        }
+        first = start(firstPort); ready(first, firstPort);
+        assertEquals(0, count("oa_agent_run")); assertEquals(0, count("oa_run_outbox"));
+        record("api_crash_before_sql_commit", Map.of("innodb_lock_wait_observed", true, "runs", 0, "outbox", 0));
+        String run = runId(call(firstPort, "POST", route, alice, "transaction-retry", input, false));
+        assertEquals(1, count("oa_agent_run")); assertEquals(1, count("oa_run_outbox"));
+        first.destroyForcibly(); assertTrue(first.waitFor(30, TimeUnit.SECONDS));
+        first = start(firstPort); ready(first, firstPort);
+        assertEquals(run, runId(call(firstPort, "POST", route, alice, "transaction-retry", input, false)));
+        record("sql_commit_and_api_crash", Map.of("rollback_runs", 0, "rollback_outbox", 0, "committed_runs", 1, "committed_outbox", 1));
+
+        Path script = Path.of(System.getenv("OA_RUN_DISPATCH_SCRIPT")).toAbsolutePath();
+        Path python = Path.of(System.getenv("OA_RUN_DISPATCH_PYTHON")).toAbsolutePath();
+        Path temporal = Path.of(System.getenv("TEMPORAL_TEST_BINARY")).toAbsolutePath();
+        assertTrue(Files.isRegularFile(script)); assertTrue(Files.isRegularFile(python)); assertTrue(Files.isRegularFile(temporal));
+        var builder = new ProcessBuilder(python.toString(), script.toString());
+        builder.environment().clear(); builder.environment().putAll(environment);
+        builder.environment().put("PYTHONUTF8", "1");
+        builder.environment().put("PYTHONPATH", script.getParent().getParent().getParent().resolve("core").toString());
+        builder.directory(directory.toFile()).redirectErrorStream(true).redirectOutput(directory.resolve("dispatch.log").toFile());
+        Process verifier = builder.start(); owned.add(verifier);
+        try (var inputStream = verifier.getOutputStream()) {
+            inputStream.write(json.writeValueAsBytes(Map.of("api", "http://127.0.0.1:" + firstPort,
+                    "token", alice, "deployment", deployment, "first_run", run,
+                    "worker_key", workerSecret, "dispatcher_key", dispatcherSecret,
+                    "temporal_binary", temporal.toString(), "directory", directory.toString())));
+        }
+        boolean ended = verifier.waitFor(330, TimeUnit.SECONDS);
+        if (!ended) {
+            // Only this fixture's own descendants, including its private Temporal CLI.
+            var descendants = verifier.descendants().toList();
+            descendants.forEach(ProcessHandle::destroyForcibly); verifier.destroyForcibly();
+            verifier.waitFor(10, TimeUnit.SECONDS);
+        }
+        assertTrue(ended, "Dispatch fixture timed out; private diagnostics: " + directory);
+        assertEquals(0, verifier.exitValue(), "Dispatch fixture failed; private diagnostics: " + directory);
+        JsonNode report = json.readTree(directory.resolve("dispatch-result.json").toFile());
+        assertTrue(report.path("verified").asBoolean());
+        assertEquals(4, count("oa_agent_run")); assertEquals(4, count("oa_run_outbox"));
+        assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_outbox WHERE state='delivered'", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE lease_state='cleanup_pending'", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_event WHERE event_key='worker:fixture-effect'", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM oa_agent_run WHERE state='succeeded' AND attempt_no=1", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM oa_agent_run WHERE state='cancelled' AND attempt_no=0", Integer.class));
+        assertEquals(List.of(1,1,2,2), jdbc.queryForList("SELECT delivery_attempts FROM oa_run_outbox ORDER BY delivery_attempts", Integer.class));
+        System.out.println("DISPATCH_RECOVERY_EVIDENCE " + report);
+        record("actual_sql_http_temporal_delivery", Map.of("delivered_outbox", 4, "attempts", 3, "effect_events", 3, "unreleased_fixture_attempts", 3));
+        verified = true;
     }
 
     void verify(String deployment, String other, String production, Consumer<RunLedger.Lease> release) throws Exception {

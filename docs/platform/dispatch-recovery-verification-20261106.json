@@ -1,0 +1,317 @@
+{
+  "checked_at": "2026-11-06T01:42:45.323572+00:00",
+  "test_scope": "isolated SQL + actual packaged Java API + production HTTP client/dispatcher + real Temporal, synthetic ledger activities only",
+  "runtime": {
+    "java": "21.0.13",
+    "mysql": "8.4.13",
+    "python": "3.12",
+    "temporalio": "1.35.0",
+    "httpx": "0.28.1",
+    "temporal_cli": "1.10.0",
+    "temporal_server": "1.32.2",
+    "temporal_cli_windows_sha256": "4cfd15f9753eb6aa47ca2af00467c087f4afc389c650b0b50a40982656057075"
+  },
+  "artifact": {
+    "path": "console\\backend\\hub\\target\\hub-server.jar",
+    "bytes": 193466605,
+    "sha256": "5b7cb30e9232ed73ac54dcf384b19433c806c62e288148c12deb5dff797fe18b",
+    "start_class": "com.iflytek.astron.platform.PlatformApplication",
+    "migration": "1.69"
+  },
+  "junit": {
+    "name": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "202.105"
+  },
+  "java_commit_boundaries_and_sql": {
+    "verified": true,
+    "child_processes_stopped": true,
+    "elapsed_seconds": 192.5667551,
+    "stages": [
+      {
+        "result": "passed",
+        "stage": "api_crash_before_sql_commit",
+        "details": {
+          "runs": 0,
+          "outbox": 0,
+          "innodb_lock_wait_observed": true
+        }
+      },
+      {
+        "result": "passed",
+        "stage": "sql_commit_and_api_crash",
+        "details": {
+          "rollback_outbox": 0,
+          "committed_outbox": 1,
+          "rollback_runs": 0,
+          "committed_runs": 1
+        }
+      },
+      {
+        "result": "passed",
+        "stage": "actual_sql_http_temporal_delivery",
+        "details": {
+          "effect_events": 3,
+          "delivered_outbox": 4,
+          "unreleased_fixture_attempts": 3,
+          "attempts": 3
+        }
+      }
+    ]
+  },
+  "python_dispatch_and_temporal": {
+    "verified": true,
+    "stages": [
+      {
+        "stage": "crash_after_sql_claim",
+        "lease_expiry_wait_seconds": 61.016,
+        "execute_activities_scheduled": 1,
+        "effect_calls": 1,
+        "synthetic_reconcile_calls": 1
+      },
+      {
+        "stage": "crash_after_temporal_before_ack",
+        "same_temporal_run": true,
+        "lease_expiry_wait_seconds": 61.016,
+        "execute_activities_scheduled": 1,
+        "effect_calls": 1,
+        "synthetic_reconcile_calls": 1
+      },
+      {
+        "stage": "crash_after_sql_ack",
+        "execute_activities_scheduled": 1,
+        "effect_calls": 1,
+        "synthetic_reconcile_calls": 1
+      },
+      {
+        "stage": "cancelled_before_dispatch",
+        "workflow_absent": true,
+        "effect_calls": 0
+      }
+    ],
+    "dispatcher_processes": 10,
+    "all_dispatcher_children_exited": true,
+    "temporal_environment_shutdown": true,
+    "elapsed_seconds": 147.531,
+    "scope": "Actual SQL/HTTP/dispatcher/Temporal; synthetic ledger activity, no model or sandbox, slots deliberately retained"
+  },
+  "prior_multi_api_regression": {
+    "stages": [
+      {
+        "stage": "independent_processes_ready",
+        "result": "passed",
+        "details": {
+          "count": 2
+        }
+      },
+      {
+        "stage": "http_authentication",
+        "result": "passed",
+        "details": {
+          "unauthenticated_and_wrong_audience_rejected": 4
+        }
+      },
+      {
+        "stage": "idempotent_submissions",
+        "result": "passed",
+        "details": {
+          "outbox": 1,
+          "requests": 12,
+          "reused": 11,
+          "runs": 1
+        }
+      },
+      {
+        "stage": "shared_queue_backpressure",
+        "result": "passed",
+        "details": {
+          "limited": 7,
+          "accepted": 5,
+          "unique_requests": 12,
+          "retry_after_seconds": 5,
+          "limit": 6
+        }
+      },
+      {
+        "stage": "queue_cancel_reopens_one_slot",
+        "result": "passed",
+        "details": {
+          "queued": 6
+        }
+      },
+      {
+        "stage": "shared_execution_slots",
+        "result": "passed",
+        "details": {
+          "competing_runs": 6,
+          "claimed": 2,
+          "limit": 2,
+          "independent_scopes_claimed": 2,
+          "cleanup_pending_still_counted": 2
+        }
+      },
+      {
+        "stage": "release_reopens_one_execution_slot",
+        "result": "passed",
+        "details": {
+          "new_claims": 1,
+          "active": 2
+        }
+      },
+      {
+        "stage": "api_process_crash_and_restart",
+        "result": "passed",
+        "details": {
+          "same_run": true,
+          "active_slots_preserved": 2
+        }
+      }
+    ],
+    "elapsed_seconds": 45.5909131,
+    "child_processes_stopped": true,
+    "verified": true
+  },
+  "initial_attempt_note": "The first combined batch passed the multi-API regression and Python delivery scenarios but failed an independent SQL assertion missing the worker: event-key prefix. Fixed the assertion, added actual precommit API process kill at an observed InnoDB lock wait, and reran the complete dispatch scenario successfully.",
+  "cleanup": {
+    "temporary_mysql_containers": 0,
+    "temporary_mysql_networks": 0,
+    "temporal_processes_after_completion": 0,
+    "successful_fixture_directory_removed": true,
+    "failed_first_attempt_diagnostics_retained_privately": true
+  },
+  "sources": {
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/MultiApiAdmissionFixture.java": "052e4073097033951726ba86412d3fe16d1187281a63b472eecb05786b54b83f",
+    "console/backend/hub/src/test/java/com/iflytek/astron/console/hub/platform/run/RunLedgerMySqlTest.java": "d17041d4aa7e89b59a1d9fb95cc443babfc5efed7d21070c46b741f4ad32d3e1",
+    "tests/durable_integration/verify_outbox_recovery.py": "559a0e8af4d5e639eaf8663d5e74ddf15cedce4df0337a4a14bc5c90e854cd69",
+    "console/backend/tests/run_durable_checks.py": "49e8d84725dc047123745d3d805e171c8ee044d78fcc8f15b339fe10c96258a4",
+    "core/agent/durable/dispatcher.py": "48b3cceb5092a539c183f047582a21b1b49b5ffab062b31cb728cc19ca831f4e",
+    "core/agent/durable/control.py": "146d4d1f3c9c08264db8a21680c96eb6157e165dfeb80eb90162c1d0538aed81",
+    "core/agent/durable/workflow.py": "63603cf23ff37e29cdb01b390547c02180f9a4071f74b7179170bc80c37bddf9",
+    ".github/workflows/platform-checks.yml": "eb127fafb1ac7fd4d377bfff852c14d66e5e5a4cb9eb7e0c6795faf9bc9d3f62"
+  },
+  "spec_validation": {
+    "passed": 11,
+    "failed": 0,
+    "mode": "all strict"
+  },
+  "limits": [
+    "Synthetic reconcile reads terminal state and intentionally does not release slots",
+    "No model or physical sandbox execution in this fixture",
+    "No production Temporal HA or Kubernetes/Kata acceptance",
+    "CI wiring present; remote CI outcome not asserted"
+  ],
+  "live_health": {
+    "live_services_active": [
+      "open-agent-supervisor.service",
+      "open-agent-temporal.service",
+      "open-agent-ingress.service",
+      "open-agent-mlflow.service",
+      "open-agent-trace-exporter.service"
+    ],
+    "original_retained_run": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "original_steps": 58,
+    "original_files_sha256_verified": 2,
+    "no_restore_containers_or_firewall_rules_left": true,
+    "maintenance_resume_retry_verified": true,
+    "cleanup_retry_verified": true,
+    "pending_observation_attempts": 0
+  },
+  "public_regression": {
+    "checked_at": "2026-11-06T01:42:01.240631+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "12d3fb49a99fba0bdb8afe9e5fe1288c727e19883749f1498670f6ec0f9ba818",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "cache_regression": {
+    "checked_at": "2026-11-06T01:41:59.254567+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "live_deployment_note": "Runtime code and artifact are unchanged; verified the existing demonstration deployment after isolated fault tests without redeploying/restarting business services."
+}
