@@ -78,8 +78,11 @@ class AgentRunHttpTest {
     @ParameterizedTest @CsvSource({"action_forbidden,403","resource_unavailable,404","idempotency_conflict,409","invalid_input,422","queue_full,429","executor_unavailable,503"})
     void admissionErrorsUseHttpStatusAndStableCode(String code,int status) throws Exception {
         when(runs.submit(any(),anyString(),any(),any())).thenThrow(new RunFailure(code));
-        mvc.perform(post(SUBMIT).header("Authorization","Bearer valid-user-jwt").header("Idempotency-Key","key")
+        var response=mvc.perform(post(SUBMIT).header("Authorization","Bearer valid-user-jwt").header("Idempotency-Key","key")
                 .contentType("application/json").content(INPUT)).andExpect(status().is(status)).andExpect(jsonPath("$.message").value(code));
+        if ("queue_full".equals(code)) response.andExpect(header().string("Retry-After","5"))
+                .andExpect(header().string("Cache-Control","no-store"));
+        else response.andExpect(header().doesNotExist("Retry-After"));
     }
     @Test void oversizedAndUnknownRunFieldsAreRejectedBeforeAdmission() throws Exception {
         for(String body:List.of("{\"input\":{\"message\":\"x\",\"endpoint\":\"https://invalid\"}}",

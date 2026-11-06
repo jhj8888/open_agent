@@ -25,6 +25,14 @@ def docker(*args, check=True):
 
 
 def main():
+    # Exercise the deployable entry point in two distinct JVMs, in addition to
+    # the transaction tests. Never silently skip this gate in the normal driver.
+    subprocess.run(["mvn", "-B", "-ntp", "-f", "console/backend/pom.xml", "-pl", "hub", "-am",
+                    "-Dmaven.test.skip=true", "-Dplatform.main-class=com.iflytek.astron.platform.PlatformApplication",
+                    "package"], cwd=ROOT, check=True, timeout=600)
+    api_jar = ROOT / "console/backend/hub/target/hub-server.jar"
+    if not api_jar.is_file():
+        raise RuntimeError("Packaged platform API missing")
     name = "open-agent-run-verification-" + uuid.uuid4().hex[:12]
     docker("image", "inspect", IMAGE)
     with socket.socket() as reservation:
@@ -75,6 +83,7 @@ def main():
             env = dict(os.environ,
                        OA_RUN_TEST_JDBC_URL=f"jdbc:mysql://127.0.0.1:{port}/?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000&socketTimeout=30000",
                        OA_RUN_TEST_DB_USER="root", OA_RUN_TEST_DB_PASSWORD=password,
+                       OA_RUN_MULTI_API_JAR=str(api_jar),
                        OA_RUN_TEST_RESTART_SIGNAL=str(signal))
             result = subprocess.run(["mvn", "-B", "-ntp", "-f", "console/backend/pom.xml", "-pl", "hub", "-am",
                                      "-Dtest=Run*Test", "-Dsurefire.failIfNoSpecifiedTests=false", "test"],

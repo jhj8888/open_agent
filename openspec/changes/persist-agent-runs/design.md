@@ -28,6 +28,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+### 多 API 副本的准入验收
+
+调用链保持 `AgentRunController → AgentRunService → RunLedger → MySQL`，内部领取保持服务身份验证后进入同一账本。新增验收使用两个实际 PlatformApplication JAR 进程、临时官方 Nimbus 签名/JWKS、真实 HTTP 与独占 MySQL schema；验证重复提交、队列背压、执行槽位、终态待回收占额、跨租户/环境以及进程强制终止后的幂等恢复。没有模型调用、Temporal 执行或物理沙盒，资源释放阶段只针对从未启动执行实体的夹具调用可信账本边界，不替代物理回收验收。唯一业务响应变更是队列满附加 `Retry-After: 5` 和禁止缓存；不改变鉴权、数据迁移、Kafka、Redis、身份服务或对象存储。
+
 ### 出队环境绑定
 
 调用链为环境专属调度器 → `ControlPlaneClient.deliveries(environment=...)` → `PlatformRunInternalController` → `RunOutbox.claim`（SQL 在行锁前过滤 environment）→ 官方 Temporal `start_workflow`/signal → 对应环境 worker。API 不从消息响应推断目标队列；调度器的环境、Temporal namespace 和任务队列由运维固定配置。旧请求缺少环境时只兼容 test。迁移新增 environment 前缀的待投递/过期领取索引，保留现有行和 claim token；模型、工具、Skill 与最终回收接口不变。共用控制数据库时也必须隔离两环境出队；正式交付 chart 仍要求不同环境独立数据库与网络 namespace。

@@ -77,6 +77,18 @@ class RunLedgerMySqlTest {
         return new DriverManagerDataSource(url, System.getenv("OA_RUN_TEST_DB_USER"), System.getenv("OA_RUN_TEST_DB_PASSWORD"));
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OA_RUN_MULTI_API_JAR", matches = ".+")
+    void independentApiProcessesShareAdmissionAndExecutionQuotas() throws Exception {
+        actors();
+        String other = seedDeployment(new RunLedger.Scope(B, "test"));
+        String production = seedDeployment(new RunLedger.Scope(A, "prod"));
+        jdbc.update("INSERT INTO oa_deployment_grant(tenant_id,environment,deployment_id,uid,granted_by) VALUES(?,'prod',?,'alice','alice')", A, production);
+        jdbc.update("UPDATE oa_tenant_environment SET max_queued_runs=6 WHERE tenant_id=? AND environment='test'", A);
+        try (var fixture = new MultiApiAdmissionFixture(source, jdbc)) {
+            fixture.verify(deployment, other, production, ledger::resourcesReleased);
+        }
+    }
     private TaskObservationService observations() {
         return new TaskObservationService(ledger,jdbc,new ObjectMapper().findAndRegisterModules(),authorization(),deployments(),new DataSourceTransactionManager(source));
     }

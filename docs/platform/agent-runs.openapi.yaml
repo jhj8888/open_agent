@@ -90,7 +90,15 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
-        '429': { $ref: '#/components/responses/Error' }
+        '429':
+          description: Queue full (queue_full); retry with the same idempotency key after the indicated delay. Capacity is not guaranteed.
+          headers:
+            Retry-After:
+              description: Minimum suggested delay in seconds before retrying
+              schema: { type: integer, enum: [5] }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Envelope' }
         '503': { $ref: '#/components/responses/Error' }
   /api/v1/runs/{runId}:
     parameters:

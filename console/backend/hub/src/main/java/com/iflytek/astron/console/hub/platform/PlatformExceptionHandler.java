@@ -37,6 +37,14 @@ public class PlatformExceptionHandler {
             case "event_history_expired" -> HttpStatus.GONE;
             default -> HttpStatus.UNPROCESSABLE_ENTITY;
         };
+        if ("queue_full".equals(exception.code())) {
+            // A retry hint, not a promise that capacity will be available. Clients retain
+            // their original idempotency key when retrying a submission.
+            return ResponseEntity.status(status).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .header(org.springframework.http.HttpHeaders.RETRY_AFTER, "5")
+                    .cacheControl(org.springframework.http.CacheControl.noStore())
+                    .body(new ApiResult<>(status.value(), exception.code(), null, System.currentTimeMillis()));
+        }
         return error(status, exception.code());
     }
     @ExceptionHandler(com.iflytek.astron.console.hub.platform.skill.SkillReleaseService.ReleaseConflictException.class)

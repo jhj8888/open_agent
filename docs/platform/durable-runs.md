@@ -1,6 +1,8 @@
 # 持久任务实现记录
 
-本变更在 Astron Java 控制面新增独立的任务账本。内部 worker HTTP 接口和 Temporal 调度骨架已有增量，见 [Temporal 接入记录](temporal-runtime.md)；公共 HTTP/聊天和真实执行 activity 尚未接通，完整在线任务平台仍未交付。
+当前展示环境已接通公共 HTTP/聊天、Temporal、真实模型与 Skill 执行以及独立资源回收，见 [实时实施记录](implementation-progress.md)。2026-11-06 两个独立 API 进程共享配额、背压、幂等和重启恢复验收通过，见 [多实例准入](multi-api-admission.md)。企业生产集群和完整离线交付仍未验收。
+
+以下为 2026-11-04 初始账本阶段的历史记录，其中“尚未接通”描述当时边界，不是当前演示环境状态；最新状态以上述记录为准。
 
 ## 调用链与共享层影响
 

@@ -32,6 +32,8 @@ curl -sS -X POST "$BASE_URL/api/v1/runs/$RUN_ID/cancel" -H "Authorization: Beare
 
 接入成功为 HTTP 202；`data` 包含 run_id、status_url、events_url 与 reused。幂等键限定在部署内，相同主体/输入/超时重试返回同一任务，内容冲突为 409。权限在幂等返回之前重新校验；撤销权限后不能通过旧请求键读取任务。
 
+队列达到租户/环境上限时返回 HTTP 429、`message=queue_full`、`Retry-After: 5` 和 `Cache-Control: no-store`，拒绝的提交不创建任务或 outbox。客户端应至少等待 5 秒，并加入随机退避，保留原幂等键及请求体；该提示不保证下一次请求有容量。即使队列已满，已成功接入的相同请求仍返回原任务。
+
 事件有持久化序号。浏览器重连传 `Last-Event-ID`，它优先于 `after` 查询参数；JSON 历史页通过 `Accept: application/json` 获取，每页最多 100 条。收到 `stream.end` 停止重连；带 `terminal=true` 的 `error` 表示执行失败，随后仍可查询终态。连接约 60 秒轮换，不重复提交任务，不因断线而取消。历史保留期已过返回 410，应读取终态并显示历史不可用。
 
 ## 部署管理接口
