@@ -95,7 +95,8 @@ public class PlatformTenantController {
 
     @GetMapping("/{tenantId}/environments/{environment}/audit")
     public ApiResult<?> audit(@PathVariable String tenantId, @PathVariable String environment,
-            @RequestParam(defaultValue = "9223372036854775807") long beforeId) {
-        return ApiResult.success(service.auditEntries(tenantId, environment, beforeId));
+            @RequestParam(defaultValue = "9223372036854775807") long beforeId,
+            @RequestParam(defaultValue = "") String action) {
+        return ApiResult.success(service.auditEntries(tenantId, environment, beforeId,action));
     }
 }

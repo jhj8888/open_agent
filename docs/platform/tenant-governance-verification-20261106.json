@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-11-06T03:52:19.943896+00:00",
+  "read_only": true,
+  "public_https": true,
+  "rows": 104,
+  "pages": 2,
+  "page_size": 100,
+  "database_order_and_values_match": true,
+  "action_filter_matches": true,
+  "invalid_queries_denied": true,
+  "cross_tenant_audit_cursor_and_quotas_denied": true,
+  "occupancy_matches_database": true,
+  "token_budget_enforcement": false,
+  "business_tasks_created": false
+}

@@ -26,15 +26,21 @@ export interface Quotas {
   dailyTokenBudget: number;
   auditRetentionDays: number;
   revision: number;
+  usage?: { queuedRuns: number; executionSlots: number; sandboxes: number };
+  tokenBudgetEnforced?: boolean;
+  sampledAt?: string;
 }
 export interface AuditEntry {
   id: number;
+  cursor?: string;
+  nextBeforeId?: string | null;
   actorUid: string;
   action: string;
   subjectId: string;
   beforeValue: string | null;
   afterValue: string | null;
   createdAt: string;
+  retainUntil?: string;
 }
 
 export interface Deployment {

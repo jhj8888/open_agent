@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-11-06T04:03:03.053608+00:00",
+  "public_https": true,
+  "read_only_verifier": true,
+  "tenant": "space-3",
+  "browser_created_tenant": true,
+  "expected_audit_actions": 7,
+  "quota_before_after_verified": true,
+  "member_developer_viewer_removed_verified": true,
+  "sole_admin_preserved": true,
+  "suspended_then_active_verified": true,
+  "only_test_granted": true,
+  "production_quota_members_audit_denied": true,
+  "no_deployments_or_tasks": true
+}

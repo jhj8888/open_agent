@@ -78,6 +78,96 @@ class RunLedgerMySqlTest {
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
     private TaskHistoryService history() { return new TaskHistoryService(jdbc,access(),deployments(),json,new DataSourceTransactionManager(source)); }
+    private com.iflytek.astron.console.hub.platform.TenantGovernanceService governance() {
+        return new com.iflytek.astron.console.hub.platform.TenantGovernanceService(jdbc,access(),json);
+    }
+    private <T> T governanceTx(java.util.function.Supplier<T> action) {
+        return new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source)).execute(status->action.get());
+    }
+
+    @Test void governanceKeepsAnAdministratorWhoCanActuallyEnterTheSpace() {
+        actors();var service=governance();
+        jdbc.update("UPDATE oa_tenant_member SET role='tenant_admin' WHERE tenant_id=? AND environment='test' AND uid='bob'",A);
+        jdbc.update("DELETE FROM agent_space_user WHERE space_id=10 AND uid='bob'");
+        user("bob");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.members(A,"test"));
+        user("alice");
+        assertThrows(IllegalArgumentException.class,()->governanceTx(()->{service.removeMember(A,"test","alice",0);return null;}));
+        assertThrows(IllegalArgumentException.class,()->governanceTx(()->{service.setMember(A,"test","alice","viewer",0L,false);return null;}));
+        assertEquals("tenant_admin",service.members(A,"test").stream().filter(m->m.get("uid").equals("alice")).findFirst().orElseThrow().get("role"));
+        assertEquals(0,count("oa_tenant_audit"));
+        jdbc.update("INSERT INTO agent_space_user(space_id,uid,role) VALUES(10,'bob',3)");
+        jdbc.update("UPDATE user_info SET account_status=2 WHERE uid='bob'");
+        assertThrows(IllegalArgumentException.class,()->governanceTx(()->{service.removeMember(A,"test","alice",0);return null;}));
+        jdbc.update("UPDATE user_info SET account_status=1 WHERE uid='bob'");
+        governanceTx(()->{service.removeMember(A,"test","alice",0);return null;});
+        assertEquals(1,count("oa_tenant_audit"));user("bob");
+        assertThrows(IllegalArgumentException.class,()->governanceTx(()->{service.removeMember(A,"test","bob",0);return null;}));
+    }
+
+    @Test void governanceQuotaViewIncludesHeldResourcesAndLoweringDoesNotReleaseThem() throws Exception {
+        actors();bindSkill(scope,deployment);var service=governance();var held=reserved("governance-held");var queued=submit("governance-queued");
+        var oldRetain=jdbc.queryForObject("SELECT retain_until FROM oa_tenant_audit WHERE action='run.created' AND subject_id=?",Timestamp.class,held.runId());
+        governanceTx(()->{service.setQuotas(A,"test",new com.iflytek.astron.console.hub.platform.PlatformTenantController.QuotaUpdate(0,0,0,123,1,0));return null;});
+        var view=governanceTx(()->service.quotas(A,"test"));
+        assertEquals(0,((Number)view.get("maxConcurrentRuns")).intValue());assertEquals(false,view.get("tokenBudgetEnforced"));
+        var usage=(Map<?,?>)view.get("usage");
+        for(String key:List.of("queuedRuns","executionSlots","sandboxes")) assertEquals(1,((Number)usage.get(key)).intValue());
+        assertTrue(ledger.claim(scope,queued.runId(),"blocked-worker").isEmpty());
+        code("queue_full",()->submit("blocked-new"));assertTrue(ledger.heartbeat(held));
+        assertEquals(oldRetain,jdbc.queryForObject("SELECT retain_until FROM oa_tenant_audit WHERE action='run.created' AND subject_id=?",Timestamp.class,held.runId()));
+        var audit=service.auditEntries(A,"test",Long.MAX_VALUE,"tenant.quota_changed").getFirst();
+        assertEquals(2,json.readTree((String)audit.get("beforeValue")).path("maxConcurrentRuns").asInt());
+        assertEquals(0,json.readTree((String)audit.get("afterValue")).path("maxConcurrentRuns").asInt());
+        assertFalse(json.readTree((String)audit.get("afterValue")).has("usage"));
+        assertEquals(1,jdbc.queryForObject("SELECT DATEDIFF(retain_until,created_at) FROM oa_tenant_audit WHERE action='tenant.quota_changed'",Integer.class));
+        user("viewer");assertNotNull(service.quotas(A,"test"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.members(A,"test"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.auditEntries(A,"test",Long.MAX_VALUE));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(A,"prod"));
+    }
+
+    @Test void governanceAuditPagesLargeIdsFiltersAndRechecksEveryScope() {
+        actors();var service=governance();long firstId=9007199254740993L;
+        for(int i=0;i<103;i++) jdbc.update("""
+                INSERT INTO oa_tenant_audit(id,tenant_id,environment,actor_uid,action,subject_id,before_value,after_value,retain_until)
+                VALUES(?,?,'test','alice','tenant.member_changed','fixture','{"role":"viewer"}','{"role":"developer"}','2000-01-01')
+                """,firstId+i,A);
+        jdbc.update("INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,retain_until) VALUES(?,'test','alice','model.probe.completed','fixture',CURRENT_TIMESTAMP)",A);
+        jdbc.update("INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,retain_until) VALUES(?,'prod','alice','tenant.member_changed','prod-only',CURRENT_TIMESTAMP)",A);
+        var one=service.auditEntries(A,"test",Long.MAX_VALUE,"tenant.member_changed");
+        assertEquals(100,one.size());assertEquals(String.valueOf(firstId+102),one.getFirst().get("cursor"));
+        assertEquals(String.valueOf(firstId+3),one.getLast().get("nextBeforeId"));
+        var two=service.auditEntries(A,"test",Long.parseLong((String)one.getLast().get("nextBeforeId")),"tenant.member_changed");
+        assertEquals(3,two.size());assertEquals(String.valueOf(firstId),two.getLast().get("cursor"));assertNull(two.getLast().get("nextBeforeId"));
+        assertEquals(1,service.auditEntries(A,"test",Long.MAX_VALUE,"model.probe.completed").size());
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.auditEntries(B,"test",Long.MAX_VALUE));
+        assertEquals("prod-only",service.auditEntries(A,"prod",Long.MAX_VALUE).getFirst().get("subjectId"));
+        assertThrows(IllegalArgumentException.class,()->service.auditEntries(A,"test",0,""));
+        assertThrows(IllegalArgumentException.class,()->service.auditEntries(A,"test",Long.MAX_VALUE,"x' OR 1=1"));
+        user("bob");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.auditEntries(A,"test",Long.MAX_VALUE));
+        user("alice");jdbc.update("UPDATE oa_tenant_member SET role='viewer' WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.auditEntries(A,"test",Long.parseLong((String)one.getLast().get("nextBeforeId"))));
+    }
+
+    @Test void governanceLifecycleSeparatesPlatformAuthorityAndEnvironmentMembership() {
+        actors();var service=governance();
+        jdbc.update("INSERT INTO oa_platform_admin(uid) VALUES('alice')");
+        String created=governanceTx(()->service.createTenant("Governance fixture","bob"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(created,"test"));
+        user("bob");assertEquals("tenant_admin",service.memberships(created).getFirst().get("role"));
+        assertEquals(1,service.memberships(created).size());
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(created,"prod"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->governanceTx(()->{service.setStatus(created,"suspended",0);return null;}));
+        user("alice");governanceTx(()->{service.setStatus(created,"suspended",0);return null;});
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,()->governanceTx(()->{service.setStatus(created,"active",0);return null;}));
+        user("bob");assertNotNull(service.quotas(created,"test"));assertFalse(service.auditEntries(created,"test",Long.MAX_VALUE).isEmpty());
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.members(created,"test"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->access().require(created,"test",com.iflytek.astron.console.commons.tenant.TenantPermission.RUN_CREATE));
+        user("alice");governanceTx(()->{service.setStatus(created,"active",1);return null;});
+        governanceTx(()->{service.setStatus(created,"archived",2);return null;});
+        assertThrows(IllegalArgumentException.class,()->governanceTx(()->{service.setStatus(created,"active",3);return null;}));
+        assertEquals(7,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE tenant_id=?",Integer.class,created));
+    }
     private String historyRun(RunLedger.Scope target,String targetDeployment,String actor,String state,String time) {
         String id=UUID.randomUUID().toString();
         jdbc.update("""

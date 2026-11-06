@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ApiScope, aborted, errorMessage } from './api';
+import { AuditHistory } from './audit';
 import {
   dateText,
   Empty,
@@ -11,7 +12,6 @@ import {
 } from './components';
 import type {
   AgentRun,
-  AuditEntry,
   Deployment,
   DeploymentKey,
   Member,
@@ -21,6 +21,7 @@ import type {
   SkillManifest,
   SkillRelease,
   Tenant,
+  TenantRole,
 } from './types';
 
 const text = (data: FormData, name: string): string =>
@@ -1095,25 +1096,74 @@ export function Promotion({ api, close, saved }: EditorProps): JSX.Element {
   );
 }
 
+export function TenantCreator({
+  api,
+  close,
+  saved,
+  initialOwner,
+}: EditorProps & { initialOwner?: string }): JSX.Element {
+  return (
+    <EditForm
+      title="创建租户"
+      close={close}
+      saved={saved}
+      action={data =>
+        api.request('/platform/tenants', 'POST', {
+          displayName: text(data, 'name'),
+          ownerUid: text(data, 'owner'),
+        })
+      }
+    >
+      <label>
+        租户名称
+        <input name="name" required maxLength={50} />
+      </label>
+      <label>
+        负责人用户 UID
+        <input
+          name="owner"
+          required
+          maxLength={128}
+          defaultValue={initialOwner}
+        />
+      </label>
+      <p className="form-note">
+        负责人需要先登录平台。创建后获得测试环境管理员权限，生产环境单独授权。
+      </p>
+    </EditForm>
+  );
+}
+
 export function TenantPage({
   api,
   tenant,
   platformAdmin,
   admin,
+  role,
   changed,
 }: {
   api: ApiScope;
   tenant: Tenant;
   platformAdmin: boolean;
   admin: boolean;
+  role?: TenantRole;
   changed: () => void;
 }): JSX.Element {
-  const quotas = useResource(() => api.list<Quotas>('quotas'), [api]);
-  const members = useResource(
-    () => (admin ? api.list<Member[]>('members') : Promise.resolve([])),
-    [api, admin]
+  const active = tenant.status === 'active';
+  const canManage = active && admin;
+  const canRead = !!role && (active || admin || role === 'operator');
+  const canAudit = admin || (!active && role === 'operator');
+  const quotas = useResource<Quotas | undefined>(
+    () => (canRead ? api.list<Quotas>('quotas') : Promise.resolve(undefined)),
+    [api, canRead]
   );
-  const audit = useResource(() => api.list<AuditEntry[]>('audit'), [api]);
+  const members = useResource(
+    () => (canManage ? api.list<Member[]>('members') : Promise.resolve([])),
+    [api, canManage]
+  );
+  const [auditRevision, setAuditRevision] = useState(0);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const statusLock = useRef(false);
   const [edit, setEdit] = useState<
     'quota' | 'tenant' | 'member' | 'administrator'
   >();
@@ -1122,19 +1172,26 @@ export function TenantPage({
   const refresh = (): void => {
     quotas.refresh();
     members.refresh();
-    audit.refresh();
+    setAuditRevision(value => value + 1);
     changed();
   };
   const statusChange = async (status: Tenant['status']): Promise<void> => {
+    if (statusLock.current) return;
+    statusLock.current = true;
+    setChangingStatus(true);
+    setError('');
     try {
       await api.request(
         `/platform/tenants/${encodeURIComponent(api.tenant)}/status`,
         'PUT',
         { status, revision: tenant.revision }
       );
-      changed();
+      refresh();
     } catch (failure) {
       if (!aborted(failure)) setError(errorMessage(failure));
+    } finally {
+      statusLock.current = false;
+      setChangingStatus(false);
     }
   };
   return (
@@ -1149,20 +1206,27 @@ export function TenantPage({
             <>
               <button
                 className="button"
-                disabled={tenant.status !== 'active'}
+                disabled={changingStatus || tenant.status !== 'active'}
                 onClick={() => setEdit('administrator')}
               >
                 登记环境管理员
               </button>
               <button
                 className="button"
+                disabled={changingStatus || tenant.status === 'archived'}
                 onClick={() => {
                   void statusChange(
                     tenant.status === 'active' ? 'suspended' : 'active'
                   );
                 }}
               >
-                {tenant.status === 'active' ? '暂停租户' : '恢复租户'}
+                {changingStatus
+                  ? '正在更新…'
+                  : tenant.status === 'archived'
+                    ? '租户已归档'
+                    : tenant.status === 'active'
+                      ? '暂停租户'
+                      : '恢复租户'}
               </button>
               <button
                 className="button primary"
@@ -1181,14 +1245,22 @@ export function TenantPage({
           <h2>环境配额</h2>
           <button
             className="link"
-            disabled={!admin || !quotas.data}
+            disabled={!canRead || quotas.loading}
+            onClick={quotas.refresh}
+          >
+            刷新占用
+          </button>
+          <button
+            className="link"
+            disabled={!canManage || !quotas.data}
             onClick={() => setEdit('quota')}
           >
             调整配额
           </button>
         </div>
         <ErrorBox message={quotas.error} />
-        {quotas.data && (
+        {!canRead && <Empty text="当前账号没有此环境的配额查看权限" />}
+        {canRead && quotas.data && (
           <div className="quota-grid">
             {Object.entries({
               并发任务: quotas.data.maxConcurrentRuns,
@@ -1200,9 +1272,37 @@ export function TenantPage({
               <div key={label}>
                 <span>{label}</span>
                 <strong>{value.toLocaleString()}</strong>
+                {label === '并发任务' && (
+                  <small>
+                    已占用 {quotas.data?.usage?.executionSlots ?? '未知'}
+                    （含待回收）
+                  </small>
+                )}
+                {label === '排队任务' && (
+                  <small>
+                    当前排队 {quotas.data?.usage?.queuedRuns ?? '未知'}
+                  </small>
+                )}
+                {label === '并发沙盒' && (
+                  <small>未释放 {quotas.data?.usage?.sandboxes ?? '未知'}</small>
+                )}
+                {label === '每日 Token' && (
+                  <small>
+                    {quotas.data?.tokenBudgetEnforced
+                      ? '预算限制已启用'
+                      : '预算已记录，自动限额尚未启用'}
+                  </small>
+                )}
               </div>
             ))}
           </div>
+        )}
+        {canRead && quotas.data && (
+          <p className="quota-note">
+            降低并发或沙盒上限不会释放已有资源；占用下降前暂停新增执行。
+            {quotas.data.sampledAt &&
+              ` 占用采样：${dateText(quotas.data.sampledAt)}`}
+          </p>
         )}
       </div>
       <div className="panel recent">
@@ -1210,7 +1310,7 @@ export function TenantPage({
           <h2>成员与角色</h2>
           <button
             className="link"
-            disabled={!admin}
+            disabled={!canManage}
             onClick={() => {
               setMember(undefined);
               setEdit('member');
@@ -1220,7 +1320,7 @@ export function TenantPage({
           </button>
         </div>
         <ErrorBox message={members.error} />
-        {admin ? (
+        {canManage ? (
           <div className="table-scroll">
             <table>
               <thead>
@@ -1237,7 +1337,16 @@ export function TenantPage({
                       {item.username}
                       <span className="subline mono">{item.uid}</span>
                     </td>
-                    <td>{item.role}</td>
+                    <td>
+                      {
+                        {
+                          tenant_admin: '租户管理员',
+                          developer: '开发者',
+                          operator: '运维人员',
+                          viewer: '只读成员',
+                        }[item.role]
+                      }
+                    </td>
                     <td>
                       <button
                         className="link"
@@ -1256,66 +1365,18 @@ export function TenantPage({
           </div>
         ) : (
           <Empty
-            text="成员管理需要管理员权限"
-            detail="当前环境的角色与权限由租户管理员维护。"
+            text={active ? '成员管理需要管理员权限' : '租户已暂停或归档'}
+            detail="仅活动租户的环境管理员可以调整成员和配额。"
           />
         )}
       </div>
-      <div className="panel recent">
-        <div className="panel-heading">
-          <h2>最近审计记录</h2>
-          <button className="link" onClick={audit.refresh}>
-            刷新
-          </button>
-        </div>
-        <ErrorBox message={audit.error} />
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>操作</th>
-                <th>操作人</th>
-                <th>对象</th>
-                <th>时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {audit.data?.map(item => (
-                <tr key={item.id}>
-                  <td>{item.action}</td>
-                  <td className="mono small">{item.actorUid}</td>
-                  <td className="mono small">{item.subjectId}</td>
-                  <td>{dateText(item.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AuditHistory api={api} enabled={canAudit} revision={auditRevision} />
       {edit === 'tenant' && (
-        <EditForm
-          title="创建租户"
+        <TenantCreator
+          api={api}
           close={() => setEdit(undefined)}
           saved={changed}
-          action={data =>
-            api.request('/platform/tenants', 'POST', {
-              displayName: text(data, 'name'),
-              ownerUid: text(data, 'owner'),
-            })
-          }
-        >
-          <label>
-            租户名称
-            <input name="name" required maxLength={50} />
-          </label>
-          <label>
-            负责人用户 UID
-            <input name="owner" required maxLength={128} />
-          </label>
-          <p className="form-note">
-            负责人需要先登录平台。创建后获得测试环境管理员权限，生产环境单独授权。
-          </p>
-        </EditForm>
+        />
       )}
       {edit === 'administrator' && (
         <EditForm
@@ -1350,7 +1411,7 @@ export function TenantPage({
           </p>
         </EditForm>
       )}
-      {edit === 'quota' && quotas.data && (
+      {edit === 'quota' && canManage && quotas.data && (
         <EditForm
           title="调整环境配额"
           close={() => setEdit(undefined)}
@@ -1413,6 +1474,12 @@ export function TenantPage({
               defaultValue={quotas.data.dailyTokenBudget}
             />
           </label>
+          {!quotas.data?.tokenBudgetEnforced && (
+            <p className="form-note">
+              Token
+              预算当前仅保存配置，尚未自动拦截超额模型调用。并发、队列和沙盒配额由后端执行。
+            </p>
+          )}
           <label>
             审计保留天数
             <input
@@ -1426,7 +1493,7 @@ export function TenantPage({
           </label>
         </EditForm>
       )}
-      {edit === 'member' && (
+      {edit === 'member' && canManage && (
         <EditForm
           title={member ? '更新成员权限' : '添加成员'}
           close={() => setEdit(undefined)}

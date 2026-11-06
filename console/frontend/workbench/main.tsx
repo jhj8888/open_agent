@@ -24,6 +24,7 @@ import {
   SkillUploader,
   SkillViewer,
   TenantPage,
+  TenantCreator,
 } from './management';
 import type {
   AgentRun,
@@ -167,6 +168,7 @@ function App({ user }: { user: User }): JSX.Element {
     );
   }, [rootApi]);
   const [tenantId, setTenantId] = useState('');
+  const [creatingTenant, setCreatingTenant] = useState(false);
   const [environment, setEnvironment] = useState<Environment>('test');
   const [page, setPage] = useState<Page>('agents');
   useEffect(() => {
@@ -286,9 +288,35 @@ function App({ user }: { user: User }): JSX.Element {
         ) : (
           <main>
             <Empty
-              text={tenants.loading ? '正在加载工作台…' : '暂未分配租户'}
-              detail={`请将账号标识 ${user.profile.sub} 提供给管理员，由管理员分配租户和环境权限。`}
+              text={
+                tenants.loading
+                  ? '正在加载工作台…'
+                  : tenants.data?.platformAdmin
+                    ? '尚未创建租户'
+                    : '暂未分配租户'
+              }
+              detail={
+                tenants.data?.platformAdmin
+                  ? '创建首个租户并指定负责人。负责人默认获得测试环境管理员权限。'
+                  : `请将账号标识 ${user.profile.sub} 提供给管理员，由管理员分配租户和环境权限。`
+              }
             />
+            {tenants.data?.platformAdmin && (
+              <button
+                className="button primary"
+                onClick={() => setCreatingTenant(true)}
+              >
+                创建租户
+              </button>
+            )}
+            {tenants.data?.platformAdmin && creatingTenant && (
+              <TenantCreator
+                api={rootApi}
+                initialOwner={user.profile.sub}
+                close={() => setCreatingTenant(false)}
+                saved={tenants.refresh}
+              />
+            )}
           </main>
         )}
       </div>
@@ -809,6 +837,7 @@ function Workspace({
           tenant={tenant}
           platformAdmin={platformAdmin}
           admin={admin}
+          role={role}
           changed={() => {
             changed();
             refresh();

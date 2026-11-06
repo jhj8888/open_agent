@@ -72,9 +72,18 @@ public class TenantGovernanceService {
                 """, tenantId, uid);
     }
 
+    @Transactional(readOnly=true, isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> quotas(String tenantId, String environment) {
         access.require(tenantId, environment, TenantPermission.METADATA_READ);
-        return quotaRow(tenantId, environment);
+        var result=quotaRow(tenantId, environment);
+        result.put("usage",jdbc.queryForMap("""
+                SELECT (SELECT COUNT(*) FROM oa_agent_run WHERE tenant_id=? AND environment=? AND state='queued') AS queuedRuns,
+                  (SELECT COUNT(*) FROM oa_run_attempt WHERE tenant_id=? AND environment=? AND lease_state<>'released') AS executionSlots,
+                  (SELECT COUNT(*) FROM oa_run_sandbox WHERE tenant_id=? AND environment=? AND phase<>'released') AS sandboxes
+                """,tenantId,environment,tenantId,environment,tenantId,environment));
+        result.put("tokenBudgetEnforced",false);
+        result.put("sampledAt",java.time.Instant.now());
+        return result;
     }
 
     private Map<String, Object> quotaRow(String tenantId, String environment) {
@@ -212,12 +221,22 @@ public class TenantGovernanceService {
     }
 
     public List<Map<String, Object>> auditEntries(String tenantId, String environment, long beforeId) {
+        return auditEntries(tenantId,environment,beforeId,"");
+    }
+
+    public List<Map<String, Object>> auditEntries(String tenantId, String environment, long beforeId, String action) {
         access.require(tenantId, environment, TenantPermission.AUDIT_READ);
-        return jdbc.queryForList("""
-                SELECT id,actor_uid AS actorUid,action,subject_id AS subjectId,before_value AS beforeValue,
+        if(beforeId<1 || action==null || (!action.isEmpty()&&!action.matches("[a-zA-Z0-9_.-]{1,64}")))
+            throw new IllegalArgumentException("Invalid audit query");
+        var rows=jdbc.queryForList("""
+                SELECT id,CAST(id AS CHAR) AS `cursor`,actor_uid AS actorUid,action,subject_id AS subjectId,before_value AS beforeValue,
                   after_value AS afterValue,created_at AS createdAt,retain_until AS retainUntil
-                FROM oa_tenant_audit WHERE tenant_id=? AND environment=? AND id<? ORDER BY id DESC LIMIT 100
-                """, tenantId, environment, beforeId);
+                FROM oa_tenant_audit WHERE tenant_id=? AND environment=? AND id<? AND (?='' OR action=?) ORDER BY id DESC LIMIT 101
+                """, tenantId, environment, beforeId,action,action);
+        boolean more=rows.size()>100;
+        var page=new java.util.ArrayList<>(rows.subList(0,Math.min(rows.size(),100)));
+        if(!page.isEmpty()) page.getLast().put("nextBeforeId",more?page.getLast().get("cursor"):null);
+        return page;
     }
 
     private void requireAnotherAdmin(String tenantId, String environment, String uid) {
@@ -225,6 +244,11 @@ public class TenantGovernanceService {
                 SELECT COUNT(*) FROM oa_tenant_member m JOIN user_info u ON u.uid COLLATE utf8mb4_bin=m.uid
                 WHERE m.tenant_id=? AND m.environment=? AND m.role='tenant_admin' AND m.uid<>?
                   AND u.deleted=0 AND u.account_status=1
+                  AND EXISTS(SELECT 1 FROM oa_tenant t WHERE t.tenant_id=m.tenant_id
+                    AND ((t.scope_kind='personal' AND t.personal_uid=m.uid)
+                      OR (t.scope_kind='space' AND EXISTS(SELECT 1 FROM agent_space s
+                        JOIN agent_space_user su ON su.space_id=s.id
+                        WHERE s.id=t.space_id AND s.deleted=0 AND su.uid COLLATE utf8mb4_bin=m.uid))))
                 """, Integer.class, tenantId, environment, uid);
         if (count == null || count == 0) {
             throw new IllegalArgumentException("Keep at least one active environment administrator");
