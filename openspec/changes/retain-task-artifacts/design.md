@@ -16,6 +16,12 @@
 
 ## Verification
 
+### Deletion overlay during recovery
+
+恢复程序在隔离副本上使用当前支持删除的 API 制品完成迁移，停 API 后经官方 MySQL CLI 在同一事务中合并受信删除清单，再启动副本验证。`oa_run_deletion_fence` 无外键，允许保存快照之后才创建并删除的任务身份；它仅拒绝原请求键，不授予读取或执行权限。RunLedger 在既有租户锁和授权之后、创建任何任务之前查询该表，并区分原提交者和其他身份。正常删除仍由原有事务负责，恢复清单导出包含普通墓碑与既有恢复 fence，避免再次恢复时遗漏。
+
+匹配的旧任务必须租户/环境/部署/提交者/请求与执行摘要完全一致、终态且全部执行资源释放；未发布对象必须有持久清理键。导入事务保存 fence、补写墓碑和恢复审计、撤销文件发布并重新打开清理状态，不信任源库的 purged_at。冲突/写入失败整批回滚。源清单必须来自受信运维路径并保留摘要；目标仅允许无公开端口、执行关闭且 API 停止的本项目恢复副本。本步骤不恢复 worker、不替代最终切换前停止源写入与重取删除清单，也不能从已经丢失的源库推断未备份删除。
+
 ### Explicit task deletion
 
 工作台/API → `AgentRunService.delete` → 当前租户环境管理员授权 → 租户/环境/run 锁 → 终态及全部 attempt/沙盒释放核验 → `oa_run_deletion` 墓碑、审计和产物取消发布同一事务 → 既有 `TaskOutputService.reconcile` 精确键后台清理。删除不调用模型、工具或运行时，不修改共享 TenantPermission、Skill 对象、Redis/Kafka。服务凭据不授予删除权限；测试/生产均需当前 active tenant_admin。运行中、取消中或资源尚未释放返回冲突，不自动取消或释放资源。

@@ -40,7 +40,17 @@ python3 /opt/open-agent/recovery/recovery.py resume
 
 ## 隔离恢复演练
 
-从仓库部署 `verify_restore.py` 与 `recovery.py`。验证器复用 `../control` 下的 `DemoSession` 和 `verify_task_outputs.raw`；展示机安装将这些辅助模块放在同一私有目录。演练不要求模型 API，也不启动 worker。
+V1.69 起，演练会从当前受信业务库读取删除记录，合并到旧快照副本。新增 `deletion_overlay.py` 须与 `verify_restore.py` 一起安装。恢复先验证原数据库指纹，再使用当前已部署且摘要匹配的 API 制品执行迁移；不能启动不识别删除记录的旧制品并对外提供服务。迁移副本无公开端口、任务准入关闭，合并前停止其 API，整个过程不启动 worker。
+
+`deletion_overlay` 使用官方 MySQL 批处理客户端，不使用 `--force`、自动重连或自制数据库协议。清单字段在生成 SQL 前严格校验，动态文本采用 UTF-8 十六进制字面量；单个会话事务同时写入删除 fence、墓碑、恢复审计与产物取消发布。租户/环境/任务/部署/提交者/请求及执行摘要不匹配、任务仍运行、资源未释放、清理键缺失或审计失败时拒绝整批。不会把源库已清理状态直接复制为完成：恢复出的对象仍须由原精确键对账删除。
+
+快照之后创建又删除的任务没有旧账本可恢复，V1.69 的 `oa_run_deletion_fence` 独立保存最小请求身份和删除证据。它没有租户/部署/任务外键，不能授予权限；原提交者使用旧键收到 `run_deleted`，其他身份得到不可访问，新请求键仍按正常权限和准入规则处理。后续导出同时读取普通删除记录和 fence，避免再次恢复时丢失这些拒绝记录。清单可能包含用户 UID 和请求键，仅保存在 root 私有恢复目录并随加密备份保护，不放入 Git。
+
+**演练不是生产切换。** 当前线上服务继续写入，报告记录 `captured_at`，仅证明该删除截点已合并；实际切换必须先停止旧入口和写入者，取得最后一份受信删除清单，再合并并验收后开放新入口。源库已丢失且没有独立备份/PITR 的删除不能被推断出来，不能承诺零 RPO。每次最多合并 50,000 条，超过限制明确失败，不截断记录。原快照保持不可变；导入失败保留私有诊断目录，清理临时服务后再重做演练。
+
+事务和 CLI 行为依据 MySQL 官方[批处理选项](https://dev.mysql.com/doc/refman/8.4/en/mysql-command-options.html)及[隐式提交说明](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)。会话未提供 Context7，使用上述官方来源核对；业务写入事务内无持久 DDL。
+
+从仓库部署 `verify_restore.py`、`deletion_overlay.py` 与 `recovery.py`。验证器复用 `../control` 下的 `DemoSession` 和 `verify_task_outputs.raw`；展示机安装将这些辅助模块放在同一私有目录。演练不要求模型 API，也不启动 worker。
 
 ```sh
 python3 /opt/open-agent/recovery/verify_restore.py
@@ -55,6 +65,8 @@ python3 /opt/open-agent/recovery/verify_restore.py --cleanup
 测试机 firewalld 需给新建 Docker bridge 设置 Docker 官方约定的 `docker` zone。演练只添加该临时 bridge 的运行时关联，并增加带唯一注释的精确规则：阻断副本向宿主机的新连接及跨网桥转发。结束仅移除本次规则/关联，不刷新防火墙、不修改其他网桥。首次演练因未关联该 zone，认证副本无法连接数据库；失败后所有临时容器已清理、原观测服务恢复，修正后完整演练通过。[Docker 官方说明](https://docs.docker.com/engine/network/packet-filtering-firewalls/)
 
 ## 2026-11-05 实测
+
+2026-11-06 增量：同一旧加密快照经当前 V1.69 API 迁移，并合并后续删除清单后再次通过隔离恢复。最终脚本恢复至接口验收 217.717 秒，12 个文件与 197 个步骤保持完整、4 个 SQLite 库完整性通过；1 个快照之后才创建/删除的任务保留 fence。匹配旧任务的墓碑/清理恢复由独立真实 MySQL/S3 合成快照演练覆盖。恢复工具已安装，临时资源清理和原服务恢复已核验，见[删除恢复证据](../../../docs/platform/deletion-restore-verification-20261106.json)。这是读取截点的隔离演练，不包含停源后最终切换，不替代生产 RPO/RTO 验收。以下保留原始备份及初次演练记录。
 
 数据截点为 **11:17:27（Asia/Shanghai）**。加密快照 `d85a7e206a408892d6eab9e0bca8ba602250814af377cbdba60904cc832473fc`：44,255 个文件、2,489,767,934 字节源数据；维护时间 **132.115 秒**。恢复并校验文件 **64.713 秒**，从开始恢复到真实接口验收完成 **143.188 秒**。
 

@@ -9,6 +9,10 @@ import tempfile
 import time
 import uuid
 import zipfile
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1] / 'backup'))
+import deletion_overlay
 
 from provision_data import ROOT, MYSQL, SEAWEED, command, private_file
 from provision_api import JRE, ARTIFACT_SHA256
@@ -186,7 +190,46 @@ def main(multipart_only=False):
         run_probe('multipart-reap',namespace)
         inspect_multipart('absent')
         if not multipart_only:
+            run_probe('delete-seed',namespace)
+            snapshot=command('docker','exec',mysql,'sh','-c',
+                'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -h127.0.0.1 -ufixture_output --no-tablespaces --set-gtid-purged=OFF oa_output_fixture').stdout
             run_probe('delete-prepare',namespace)
+            run_probe('delete-after-snapshot',namespace)
+            def sql(statement):
+                owned_container(mysql)
+                result=command('docker','exec','-i',mysql,'sh','-c',
+                    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --batch --raw --skip-reconnect -uroot -N oa_output_fixture',
+                    input=statement,check=False)
+                if result.returncode:
+                    private_file(folder/'overlay-sql-error.log',result.stderr,replace=True)
+                    raise RuntimeError('deletion_overlay_fixture_sql_failed')
+                return result.stdout.strip()
+            records=deletion_overlay.export(sql)
+            assert len(records)==2
+            sql(snapshot);del snapshot
+            assert sql("SELECT state FROM oa_run_output WHERE file_name='deleted.txt'")=='available'
+            conflict=[dict(row) for row in records]
+            conflict[0]['tenant_id']='wrong-scope'
+            # Choose the existing task so the scope mismatch must be detected.
+            existing=next(row for row in conflict if row['idempotency_key']=='delete-fixture')
+            existing['tenant_id']='wrong-scope'
+            try:deletion_overlay.merge(sql,conflict)
+            except RuntimeError:pass
+            else:raise AssertionError('conflicting_overlay_accepted')
+            assert sql('SELECT COUNT(*) FROM oa_run_deletion_fence')=='0'
+            sql("CREATE TRIGGER fail_restore_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic restore failure'")
+            try:deletion_overlay.merge(sql,records)
+            except RuntimeError:pass
+            else:raise AssertionError('failed_audit_did_not_abort_overlay')
+            sql('DROP TRIGGER fail_restore_audit')
+            assert sql('SELECT COUNT(*) FROM oa_run_deletion_fence')=='0'
+            assert sql("SELECT state FROM oa_run_output WHERE file_name='deleted.txt'")=='available'
+            overlay=deletion_overlay.merge(sql,records)
+            assert overlay['restored_tasks_hidden']==1 and overlay['absent_tasks_fenced']==1
+            assert deletion_overlay.merge(sql,records)==overlay
+            assert deletion_overlay.export(sql)==records
+            phases.append('deletion-overlay-rollback-idempotency-roundtrip')
+            run_probe('restore-deletions-check',namespace)
             command('docker','kill','--signal=KILL',s3)
             assert command('docker','wait',s3).stdout.strip()=='137'
             run_probe('delete-outage',namespace)
@@ -208,7 +251,7 @@ def main(multipart_only=False):
             path=folder/filename;assert path.parent==folder and not path.is_symlink();path.unlink(missing_ok=True)
     result={'checked_at':datetime.now(timezone.utc).isoformat(),'api_artifact_sha256':ARTIFACT_SHA256,
         'probe_sha256':sha256(probe.read_bytes()).hexdigest(),'mysql_image':MYSQL,'s3_image':SEAWEED,'phases':phases,
-        'actual_task_output_service_and_run_ledger':True,'migrations':'upstream dependency tables + V1.49 through V1.68 from verified release JAR',
+        'actual_task_output_service_and_run_ledger':True,'migrations':'upstream dependency tables + V1.49 through V1.69 from verified release JAR',
         'uploader_sigkill_after_s3_commit_before_publication':True,'writing_record_persisted':True,
         'offline_reconciliation_preserves_reaping_for_retry':True,'failed_upload_has_no_public_object_reference':True,
         'initial_recovery_cleared_uploads':3,'final_recovery_cleared_uploads':4,'retained_published_uploads':2,'retry_uses_different_immutable_key':True,
@@ -224,6 +267,9 @@ def main(multipart_only=False):
     else:
         result['task_deletion']={'real_authorization_and_service':True,'idempotent_audit':True,'read_hidden':True,
             'storage_outage_pending':True,'recovery_clears_exact_object':True,'retained_file_digest_matches':True}
+        result['deletion_overlay']={**overlay,'snapshot_restored':True,'audit_failure_rolls_back':True,
+            'scope_conflict_rejected':True,'repeated_merge_idempotent':True,'reexport_preserves_absent_tasks':True,
+            'actual_java_refuses_both_original_request_keys':True}
     private_file(ROOT/'output-multipart-verification.json',json.dumps(result,indent=2)+'\n',replace=True)
     print(json.dumps(result),flush=True)
 

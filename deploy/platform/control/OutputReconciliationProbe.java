@@ -65,10 +65,10 @@ public class OutputReconciliationProbe {
         try(var files=Files.list(Path.of("/fixture/classes/db/migration"))) {
             files.forEach(path->{
                 var match=Pattern.compile("V1\\.(\\d+)__.*\\.sql").matcher(path.getFileName().toString());
-                if(match.matches()) {int version=Integer.parseInt(match.group(1));if(version>=49 && version<=68)migrations.put(version,path);}
+                if(match.matches()) {int version=Integer.parseInt(match.group(1));if(version>=49 && version<=69)migrations.put(version,path);}
             });
         }
-        require(migrations.size()==20);
+        require(migrations.size()==21);
         for(var path:migrations.values())scripts.addScript(new FileSystemResource(path));
         scripts.execute(source);
         jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',10)",TENANT,TENANT);
@@ -222,7 +222,7 @@ public class OutputReconciliationProbe {
                 require(jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE object_key=?",String.class,key).equals("cleared"));
             }
             System.out.println("OUTPUT_MULTIPART_KEY="+key);retained();
-        } else if(mode.equals("delete-prepare")) {
+        } else if(mode.equals("delete-seed")) {
             jdbc.update("INSERT INTO user_info(uid,username,account_status,deleted) VALUES('output-admin','Fixture admin',1,0)");
             jdbc.update("INSERT INTO agent_space(id,name,uid,deleted) VALUES(10,'Fixture','output-admin',0)");
             jdbc.update("INSERT INTO agent_space_user(space_id,uid,role) VALUES(10,'output-admin',1)");
@@ -230,13 +230,30 @@ public class OutputReconciliationProbe {
             var lease=lease("delete-fixture");String id=reserve(lease,"deleted.txt");
             outputs.upload(lease,id,new ByteArrayInputStream(CONTENT),CONTENT.length);
             ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+            retained();
+        } else if(mode.equals("delete-prepare")) {
+            String run=(String)output("deleted.txt").get("run_id");
             var caller=new DeploymentAuthorization.Caller("output-admin",null);var api=deletionApi();
-            require("pending".equals(api.delete(caller,lease.runId()).get("files_status")));
-            require("pending".equals(api.delete(caller,lease.runId()).get("files_status")));
-            rejected(()->api.status(caller,lease.runId()),"resource_unavailable");
-            rejected(()->api.events(caller,lease.runId(),0),"resource_unavailable");
+            require("pending".equals(api.delete(caller,run).get("files_status")));
+            require("pending".equals(api.delete(caller,run).get("files_status")));
+            rejected(()->api.status(caller,run),"resource_unavailable");
+            rejected(()->api.events(caller,run,0),"resource_unavailable");
             require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='run.deleted'",Integer.class)==1);
             retained();
+        } else if(mode.equals("delete-after-snapshot")) {
+            var lease=lease("deleted-after-snapshot");
+            ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+            deletionApi().delete(new DeploymentAuthorization.Caller("output-admin",null),lease.runId());
+        } else if(mode.equals("restore-deletions-check")) {
+            String run=(String)output("deleted.txt").get("run_id");
+            var caller=new DeploymentAuthorization.Caller("output-admin",null);var api=deletionApi();
+            rejected(()->api.status(caller,run),"resource_unavailable");
+            rejected(()->api.events(caller,run,0),"resource_unavailable");
+            rejected(()->lease("delete-fixture"),"run_deleted");
+            rejected(()->lease("deleted-after-snapshot"),"run_deleted");
+            require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_agent_run WHERE idempotency_key='deleted-after-snapshot'",Integer.class)==0);
+            require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='run.deletion_restored'",Integer.class)==1);
+            require("pending".equals(api.deletion(caller,run).get("files_status")));retained();
         } else if(mode.equals("delete-outage") || mode.equals("delete-recover")) {
             var row=output("deleted.txt");String run=(String)row.get("run_id");
             jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3)),reconcile_after=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE output_id=?",row.get("output_id"));

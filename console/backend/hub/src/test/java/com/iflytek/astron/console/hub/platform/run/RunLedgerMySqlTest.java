@@ -59,6 +59,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.66__bind_cluster_sandbox_resources.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.67__recheck_unpublished_output_uploads.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.68__record_task_deletion.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.69__preserve_deleted_requests_after_restore.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -329,6 +330,20 @@ class RunLedgerMySqlTest {
         assertEquals(1,store.objects.size());
         try(var bytes=service.download(caller("alice"),other.runId(),keep,false).content().getInputStream()){assertArrayEquals(content,bytes.readAllBytes());}
         assertNotNull(ledger.get(scope,lease.runId())); // Accounting and idempotency evidence remain.
+    }
+    @Test void restoredDeletionFencesRequestsEvenWhenRunIsAbsentFromSnapshot() {
+        String absent=UUID.randomUUID().toString();
+        jdbc.update("INSERT INTO oa_run_deletion_fence(run_id,tenant_id,environment,deployment_id,idempotency_key,request_sha256,snapshot_sha256,run_actor_id,deleted_by,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP(3))",
+                absent,A,"test",deployment,"deleted-after-backup","0".repeat(64),"1".repeat(64),"alice","admin");
+        code("run_deleted",()->submit("deleted-after-backup"));
+        code("resource_unavailable",()->ledger.submit(scope,deployment,"other","deleted-after-backup",json.createObjectNode().put("message","changed"),60,()->{}));
+        code("run_deleted",()->ledger.submit(scope,deployment,"alice","deleted-after-backup",json.createObjectNode().put("message","changed"),60,()->{}));
+        assertEquals(0,count("oa_agent_run"));assertEquals(0,count("oa_run_outbox"));
+        assertNotNull(submit("fresh-after-restore"));
+        var prod=new RunLedger.Scope(A,"prod");String prodDeployment=seedDeployment(prod);
+        assertNotNull(ledger.submit(prod,prodDeployment,"alice","deleted-after-backup",json.createObjectNode().put("message","allowed"),60,()->{}));
+        var otherScope=new RunLedger.Scope(B,"test");String otherDeployment=seedDeployment(otherScope);
+        assertNotNull(ledger.submit(otherScope,otherDeployment,"alice","deleted-after-backup",json.createObjectNode().put("message","allowed"),60,()->{}));
     }
     @Test void taskDeletionAuditFailureRollsBackTombstoneAndOutputDetach() {
         actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("delete-rollback").runId());

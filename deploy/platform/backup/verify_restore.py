@@ -9,13 +9,16 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import sqlite3
 import sys
 import time
 import urllib.parse
+import zipfile
 from uuid import uuid4
 
 import recovery as r
+import deletion_overlay
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'control'))
 sys.path.append('/opt/open-agent/verification/control-package')
@@ -106,7 +109,7 @@ def address(name):
     return next(iter(networks.values()))['IPAddress']
 
 
-def clone(original, target, network, identifier):
+def clone(original, target, network, identifier, api_artifact=None):
     source_name = original['Name'].removeprefix('/')
     if source_name not in r.CONTAINERS[:4]:
         raise RuntimeError('restore_container_out_of_scope')
@@ -140,6 +143,10 @@ def clone(original, target, network, identifier):
         if mount['Type'] != 'bind' or not source.is_relative_to(r.ROOT):
             raise RuntimeError('restore_mount_out_of_scope')
         restored = target / source.relative_to('/')
+        if source_name.endswith('-api') and mount['Destination'] == '/app/platform.jar':
+            if api_artifact is None or mount['RW']:
+                raise RuntimeError('restore_current_api_artifact_required')
+            restored = api_artifact
         if not restored.exists() or not restored.resolve().is_relative_to(target.resolve()):
             raise RuntimeError('restore_mount_missing_or_escaped')
         args += ['--mount', 'type=bind,src=' + str(restored) + ',dst=' + mount['Destination']
@@ -168,6 +175,68 @@ def sqlite_checks(target):
                       for table in tables}
         results.append({'path': str(path.relative_to(target)), 'integrity': 'ok', 'row_counts': counts})
     return results
+
+
+def current_api_artifact(target):
+    """Use deletion-aware code; the snapshot's old binary may ignore tombstones."""
+    live = r.inspect('open-agent-control-api')
+    metadata = json.loads((r.ROOT / 'control/api-deployment.json').read_text())
+    digest = metadata['artifact_sha256']
+    if not re.fullmatch(r'[0-9a-f]{64}', digest):
+        raise RuntimeError('restore_current_api_digest_invalid')
+    source = r.ROOT / 'control/releases' / digest / 'platform.jar'
+    mounts = [m for m in live['Mounts'] if m['Destination'] == '/app/platform.jar']
+    if len(mounts) != 1 or mounts[0]['Source'] != str(source) or mounts[0]['RW'] or source.is_symlink() or r.digest(source) != digest:
+        raise RuntimeError('restore_current_api_identity_mismatch')
+    with zipfile.ZipFile(source) as archive:
+        if ('BOOT-INF/classes/db/migration/V1.69__preserve_deleted_requests_after_restore.sql' not in archive.namelist()
+                or 'Start-Class: com.iflytek.astron.platform.PlatformApplication' not in archive.read('META-INF/MANIFEST.MF').decode()):
+            raise RuntimeError('restore_api_missing_deletion_fences')
+    artifact = target / 'current-platform.jar'
+    shutil.copyfile(source, artifact)
+    artifact.chmod(0o444)
+    if r.digest(artifact) != digest:
+        raise RuntimeError('restore_current_api_copy_failed')
+    return artifact, digest
+
+
+def preserve_deletions(mysql, api, target):
+    if not re.fullmatch(r'oa-restore-[0-9a-f]{12}-mysql', mysql) or api != mysql.removesuffix('mysql') + 'api':
+        raise RuntimeError('deletion_overlay_target_names_invalid')
+    network_ids = set()
+    for name in (mysql, api):
+        item = json.loads(r.run('docker', 'inspect', name).stdout)[0]
+        if item['Config'].get('Labels', {}).get(r.LABEL) != DRILL_OWNER or item['HostConfig'].get('PortBindings'):
+            raise RuntimeError('deletion_overlay_target_not_isolated')
+        networks = item['NetworkSettings']['Networks']
+        if len(networks) != 1:
+            raise RuntimeError('deletion_overlay_target_network_invalid')
+        network_ids.add(next(iter(networks.values()))['NetworkID'])
+        if name == api:
+            environment = dict(entry.split('=', 1) for entry in item['Config']['Env'])
+            if item['State']['Running'] or environment.get('PLATFORM_RUN_ADMISSION_ENABLED') != 'false':
+                raise RuntimeError('deletion_overlay_target_api_must_be_stopped')
+    if len(network_ids) != 1:
+        raise RuntimeError('deletion_overlay_target_network_mismatch')
+    network = json.loads(r.run('docker', 'network', 'inspect', network_ids.pop()).stdout)[0]
+    if not network['Internal'] or network.get('Labels', {}).get(r.LABEL) != DRILL_OWNER:
+        raise RuntimeError('deletion_overlay_target_network_not_private')
+    r.inspect('open-agent-control-mysql')
+    rows = deletion_overlay.export(r.sql)
+    captured_at = r.utc()
+    r.save(target / 'deletion-overlay.json', {'captured_at': captured_at, 'records': rows})
+
+    def sql(statement):
+        return r.run('docker', 'exec', '-i', mysql, 'sh', '-c',
+                     'MYSQL_PWD="$(cat /run/secrets/mysql-root)" mysql --batch --raw --skip-reconnect -N -uroot astron_console',
+                     input=statement).stdout.strip()
+    result = deletion_overlay.merge(sql, rows)
+    # A retry must retain evidence without duplicating restore audits.
+    if deletion_overlay.merge(sql, rows) != result:
+        raise RuntimeError('deletion_overlay_retry_mismatch')
+    result.update(captured_at=captured_at, live_source_writes_fenced=False,
+                  scope='isolated drill at captured deletion cutoff; not a production cutover')
+    return result, rows
 
 
 def verify():
@@ -201,6 +270,7 @@ def verify():
         r.event('snapshot_files_restored_and_verified')
         restore_seconds = round(time.monotonic() - started, 3)
         manifest = json.loads((target / 'opt/open-agent/recovery/manifest.json').read_text())
+        api_artifact, api_digest = current_api_artifact(target)
         database_checks = sqlite_checks(target)
         for unit, expected in manifest['units'].items():
             if r.digest(target / Path(unit).relative_to('/')) != expected:
@@ -222,7 +292,7 @@ def verify():
         network_guard(state, True)
         for component in ['mysql', 's3', 'identity', 'api']:
             original = manifest['containers']['open-agent-control-' + component]
-            name = clone(original, target, network, identifier)
+            name = clone(original, target, network, identifier, api_artifact)
             containers.append(name)
             r.run('docker', 'start', name)
             if component == 'mysql':
@@ -243,12 +313,19 @@ def verify():
                 r.wait_http('http://' + address(name) + ':8000/.well-known/jwks')
             elif component == 'api':
                 r.wait_http('http://' + address(name) + ':18082/health/ready')
+        r.run('docker', 'stop', '--time', '30', containers[-1], timeout=45)
+        deletion_result, deleted_rows = preserve_deletions(containers[0], containers[-1], target)
+        r.run('docker', 'start', containers[-1])
+        r.wait_http('http://' + address(containers[-1]) + ':18082/health/ready')
         state_root = target / 'opt/open-agent/control'
         arguments = dict(api='http://' + address(containers[-1]) + ':18082',
                          identity_endpoint='http://' + address(containers[-2]) + ':8000', state_root=state_root)
         session = DemoSession(**arguments)
         other = DemoSession('member-demo', json.loads((state_root / 'member-secrets.json').read_text())['password'],
                             require_tenant=False, **arguments)
+        for row in deleted_rows:
+            for suffix in ('', '/observations', '/outputs', '/events'):
+                raw(session, '/api/v1/runs/' + row['run_id'] + suffix, 404)
         # Every available output owned by the authenticated demonstration tenant
         # is fetched through the actual authorized Java -> S3 download path.
         rows = r.sql("SELECT run_id,output_id,sha256,size_bytes FROM oa_run_output "
@@ -283,6 +360,8 @@ def verify():
                   'restore_and_integrity_seconds': restore_seconds,
                   'restore_to_verified_api_seconds': round(time.monotonic() - started, 3),
                   'database_fingerprints_equal': True, 'real_oidc_login': True,
+                  'database_fingerprint_scope': 'before current-code migrations and deletion overlay',
+                  'current_api_artifact_sha256': api_digest, 'deletion_overlay': deletion_result,
                   'all_restored_files_verified_by_restic': True, 'cross_tenant_download_and_steps_denied': True,
                   'execution_admission': False, 'worker_started': False, 'internal_network_only': True,
                   'host_ports_published': False, 'files': files, 'observed_steps': steps,

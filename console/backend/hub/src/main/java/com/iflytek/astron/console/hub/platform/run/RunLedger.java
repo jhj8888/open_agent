@@ -64,6 +64,13 @@ public class RunLedger {
         Accepted result = tx(() -> {
             Map<String, Object> quota = lockScope(scope, false);
             authorize.run();
+            var deletedRequest = jdbc.queryForList("SELECT run_actor_id FROM oa_run_deletion_fence "
+                    + "WHERE tenant_id=? AND environment=? AND deployment_id=? AND idempotency_key=?",
+                    scope.tenant(), scope.environment(), deploymentId, key);
+            if (!deletedRequest.isEmpty()) {
+                if (!actor.equals(deletedRequest.getFirst().get("run_actor_id"))) throw new RunFailure("resource_unavailable");
+                throw new RunFailure("run_deleted");
+            }
             var duplicate = jdbc.queryForList("SELECT run_id,request_sha256,actor_id FROM oa_agent_run "
                     + "WHERE tenant_id=? AND environment=? AND deployment_id=? AND idempotency_key=?",
                     scope.tenant(), scope.environment(), deploymentId, key);
