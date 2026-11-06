@@ -16,12 +16,13 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class,PlatformClusterReconcileController.class,com.iflytek.astron.platform.OperationsMetricsController.class}, properties={
+@WebMvcTest(controllers={PlatformRunInternalController.class,PlatformRunRuntimeController.class,PlatformRunModelBudgetController.class,PlatformRunSandboxController.class,PlatformRunReconcileController.class,PlatformClusterReconcileController.class,com.iflytek.astron.platform.OperationsMetricsController.class}, properties={
         "PLATFORM_SERVICE_KEYS={\"observer-one\":{\"role\":\"observer\",\"secret\":\"oooooooooooooooooooooooooooooooo\"},\"worker-one\":{\"role\":\"worker\",\"secret\":\"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\"},\"dispatcher-one\":{\"role\":\"dispatcher\",\"secret\":\"dddddddddddddddddddddddddddddddd\"},\"supervisor-one\":{\"role\":\"reconciler\",\"secret\":\"ssssssssssssssssssssssssssssssss\"}}"
 })
 @Import({PlatformInternalSecurityConfig.class, PlatformExceptionHandler.class,com.iflytek.astron.platform.OperationsMetricsController.class})
 class PlatformRunInternalSecurityTest {
     @Autowired MockMvc mvc;
+    @MockBean RunModelBudgetService modelBudgets;
     @MockBean RunLedger ledger;
     @MockBean RunOutbox outbox;
     @MockBean RunRuntimeService runtime;
@@ -29,6 +30,47 @@ class PlatformRunInternalSecurityTest {
     @MockBean RunSupervision supervision;
     @MockBean RunClusterSupervision clusters;
     @MockBean com.iflytek.astron.platform.OperationsMetrics metrics;
+
+    @Test void modelBudgetRoutesRejectPublicAndOtherServiceRoles() throws Exception {
+        for(String action:java.util.List.of("prepare","dispatch","cancel","unknown","settle")) {
+            String route="/internal/platform/worker/runs/"+RUN+"/model-calls/"+action;
+            mvc.perform(post(route).header("Authorization","Bearer user-jwt").contentType("application/json").content("{}"))
+                    .andExpect(status().isUnauthorized());
+            for(var role:java.util.Map.of("dispatcher-one","d","observer-one","o","supervisor-one","s").entrySet())
+                mvc.perform(post(route).header("X-Platform-Key-Id",role.getKey()).header("X-Platform-Service-Key",role.getValue().repeat(32))
+                        .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(modelBudgets);
+    }
+
+    @Test void modelBudgetUsesAuthenticatedWorkerAndRefusesOmittedUsage() throws Exception {
+        String id="f76dd290-9a4b-4487-b8e3-7f605cd93efb", leaseId="fc42b1dd-3f87-400c-a38b-2161cfdd988a";
+        String call="{\"lease\":{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\""+leaseId+"\",\"fencingToken\":2,\"workerId\":\"forged\"},\"callId\":\""+id+"\",\"requestSha256\":\""+"a".repeat(64)+"\",\"boundTokens\":1}";
+        String route="/internal/platform/worker/runs/"+RUN+"/model-calls/";
+        var expected=new RunLedger.Lease(new RunLedger.Scope("space-10","test"),RUN,1,leaseId,2,"worker-one");
+        when(modelBudgets.dispatch(eq(expected),eq(id),eq("a".repeat(64)))).thenReturn(true);
+        mvc.perform(post(route+"dispatch").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .header("X-User-Id","forged").contentType("application/json").content(call))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.permitted").value(true));
+        verify(modelBudgets).dispatch(expected,id,"a".repeat(64));
+        mvc.perform(post(route+"settle").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content("{\"call\":"+call+"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoMoreInteractions(modelBudgets);
+        mvc.perform(post(route+"settle").header("X-Platform-Key-Id","worker-one").header("X-Platform-Service-Key","w".repeat(32))
+                .contentType("application/json").content("{\"call\":"+call+",\"inputTokens\":0,\"outputTokens\":0}"))
+                .andExpect(status().isOk());
+        verify(modelBudgets).settle(expected,id,"a".repeat(64),0,0);
+    }
+
+    @Test void modelBudgetExhaustionHasStableHttpStatusWithoutAReplayPromise() throws Exception {
+        String call="{\"lease\":{\"tenant\":\"space-10\",\"environment\":\"test\",\"attempt\":1,\"leaseId\":\"fc42b1dd-3f87-400c-a38b-2161cfdd988a\",\"fencingToken\":2},\"callId\":\"f76dd290-9a4b-4487-b8e3-7f605cd93efb\",\"requestSha256\":\""+"a".repeat(64)+"\"}";
+        when(modelBudgets.prepare(any(),anyString(),anyString())).thenThrow(new RunFailure("token_budget_exhausted"));
+        mvc.perform(post("/internal/platform/worker/runs/"+RUN+"/model-calls/prepare").header("X-Platform-Key-Id","worker-one")
+                .header("X-Platform-Service-Key","w".repeat(32)).contentType("application/json").content(call))
+                .andExpect(status().isTooManyRequests()).andExpect(header().doesNotExist("Retry-After"))
+                .andExpect(jsonPath("$.message").value("token_budget_exhausted"));
+    }
 
     @Test void metricsObserverIsReadOnlyAndCannotEnterExecutionRoutes() throws Exception {
         String path="/internal/platform/metrics";

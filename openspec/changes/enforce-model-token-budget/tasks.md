@@ -13,3 +13,7 @@
 展示 API V1.70 已部署，部署前备份及部署后账本空表/开关关闭、既有任务文件/计量/授权复查通过；兼容回退边界只适用于未启用阶段。见 docs/platform/token-budget-ledger-delivery-20261106.json。
 
 2026-11-06 后续：可信上限的运维配置、不可变模型快照、撤销/时效校验及 Helm 注入已部署 V1.71。62 项 Java、24 项 Helm 和 12 项规格通过；实际 V1.70→1.71 迁移、旧应用兼容与部署后原业务复查通过，见 docs/platform/model-token-bounds-delivery-20261106.json。2.1 保持未完成：真实提供方契约及多副本配置一致性/严格执行准入尚未联合验收，不能用合成上限启用预算。
+
+2026-11-06 任务调用接线：V1.72 归属表、私有 worker API、官方回调与物理请求许可、压缩继承和实际用量结算已实现。33 项 Java、Windows 与冻结 Linux 各 78 项 Python 检查通过；真实 Java/Python/MySQL 联合场景核对 3 个合成模型请求、48 Token 实际用量和 1,000 Token 未知占额。首次计数辅助函数白名单缺项已修正并完整重跑，实际旧 V1.71 JAR 在新 schema 兼容通过。见 docs/platform/run-model-budget.md。2.2 仍待最终真实模型、治理和启用验收，协议仅测试夹具启用，生产预算不变为 true。
+
+V1.72 API 已部署并保持预算关闭；维护前备份、原任务/文件/统计、公网 worker 路由拒绝及服务健康通过。Linux worker 源仅暂存验证，活动源未切换；完整离线镜像未更新。见 docs/platform/run-model-budget-delivery-20261106.json。

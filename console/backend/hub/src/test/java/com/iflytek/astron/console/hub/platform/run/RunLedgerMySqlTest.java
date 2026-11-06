@@ -62,6 +62,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.69__preserve_deleted_requests_after_restore.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.70__reserve_model_token_budgets.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.71__bind_model_token_contracts.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.72__bind_run_model_token_calls.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -259,7 +260,7 @@ class RunLedgerMySqlTest {
         actors();String run=submit("budget-migration-retained").runId();
         assertEquals(0,count("oa_model_token_reservation"));assertEquals(0,count("oa_model_token_day"));
         // Only this test's freshly owned schema; recreate the 1.69 pre-migration state.
-        jdbc.execute("DROP TABLE oa_model_token_bound");jdbc.execute("DROP TABLE oa_model_token_reservation");jdbc.execute("DROP TABLE oa_model_token_day");
+        jdbc.execute("DROP TABLE oa_run_model_token_call");jdbc.execute("DROP TABLE oa_model_token_bound");jdbc.execute("DROP TABLE oa_model_token_reservation");jdbc.execute("DROP TABLE oa_model_token_day");
         try(var fixture=new MultiApiAdmissionFixture(source,jdbc)){fixture.verifyTokenBudgetMigration(run);}
     }
     private <T> T governanceTx(java.util.function.Supplier<T> action) {
@@ -345,9 +346,132 @@ class RunLedgerMySqlTest {
     @Test @EnabledIfEnvironmentVariable(named="OA_BUDGET_PREVIOUS_API_JAR",matches=".+")
     void modelTokenBoundPackagedMigrationKeepsV170ApiCompatible() throws Exception {
         actors();String run=submit("bound-migration-retained").runId();
-        assertEquals(0,count("oa_model_token_bound"));jdbc.execute("DROP TABLE oa_model_token_bound");
+        assertEquals(0,count("oa_model_token_bound"));jdbc.execute("DROP TABLE oa_run_model_token_call");jdbc.execute("DROP TABLE oa_model_token_bound");
         try(var fixture=new MultiApiAdmissionFixture(source,jdbc)) {
             fixture.verifyTokenBudgetMigration(run,"1.70","V1.71__bind_model_token_contracts.sql");
+        }
+    }
+
+    private RunModelBudgetService runBudgets(long bound) {
+        return new RunModelBudgetService(instance(),new TokenBudgetLedger(jdbc,new DataSourceTransactionManager(source)),boundedModels(bound),jdbc);
+    }
+    private String boundDeployment() {
+        var models=boundedModels(1000);
+        String connection=(String)governanceTx(()->models.save(A,"test",null,boundModelInput(0,true,false))).get("connectionId");
+        // Test-only fixture adjustment before the first run; production deployments are immutable.
+        jdbc.update("UPDATE oa_agent_deployment SET model_connection_id=? WHERE deployment_id=?",connection,deployment);
+        return connection;
+    }
+    private long tokenCounter(String column) {
+        assertTrue(List.of("held_tokens","spent_tokens").contains(column));
+        return jdbc.queryForObject("SELECT COALESCE(SUM("+column+"),0) FROM oa_model_token_day",java.math.BigDecimal.class).longValueExact();
+    }
+
+    @Test void runModelBudgetUsesPinnedVersionAndDoesNotFenceOrdinaryPermitOrCleanup() {
+        actors();String model=boundDeployment();var service=runBudgets(1000);var lease=claim(submit("run-model-budget").runId());
+        jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=1000 WHERE tenant_id=? AND environment='test'",A);
+        String first=UUID.randomUUID().toString();var receipt=service.prepare(lease,first,TOKEN_REQUEST);
+        assertEquals(1000,receipt.boundTokens());assertEquals("prepared",receipt.phase());
+        assertEquals(receipt,service.prepare(lease,first,TOKEN_REQUEST));assertEquals(1,count("oa_run_model_token_call"));
+        code("token_budget_exhausted",()->service.prepare(lease,UUID.randomUUID().toString(),TOKEN_REQUEST));
+        assertTrue(ledger.withPermit(lease,()->true));assertTrue(ledger.heartbeat(lease));
+        ledger.append(lease,"budget-ordinary-event","execution.notice",json.createObjectNode().put("phase","budget_fixture"));
+        // A changed current pointer cannot silently replace the deployment's approved model version.
+        governanceTx(()->boundedModels(2000).save(A,"test",model,boundModelInput(1,true,false)));
+        assertTrue(service.dispatch(lease,first,TOKEN_REQUEST));assertFalse(service.dispatch(lease,first,TOKEN_REQUEST));
+        assertEquals("settled",service.settle(lease,first,TOKEN_REQUEST,200,100).phase());
+        assertEquals(0,tokenCounter("held_tokens"));assertEquals(300,tokenCounter("spent_tokens"));
+        ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+        assertEquals("released",jdbc.queryForObject("SELECT lease_state FROM oa_run_attempt WHERE lease_id=?",String.class,lease.leaseId()));
+    }
+
+    @Test void runModelBudgetOwnershipRejectsOtherRunsWorkersAndRequestHashes() {
+        actors();boundDeployment();var service=runBudgets(1000);
+        var first=claim(submit("budget-owner-first").runId());var second=claim(submit("budget-owner-second").runId());
+        String call=UUID.randomUUID().toString();service.prepare(first,call,TOKEN_REQUEST);
+        var forged=new RunLedger.Lease(scope,first.runId(),first.attempt(),first.leaseId(),first.fencingToken(),"another-worker");
+        code("lease_fenced",()->service.prepare(forged,UUID.randomUUID().toString(),TOKEN_REQUEST));
+        code("lease_fenced",()->service.dispatch(forged,call,TOKEN_REQUEST));
+        code("lease_fenced",()->service.cancelPrepared(forged,call,TOKEN_REQUEST));
+        code("lease_fenced",()->service.unknown(forged,call,TOKEN_REQUEST));
+        code("lease_fenced",()->service.settle(forged,call,TOKEN_REQUEST,1,1));
+        code("token_request_conflict",()->service.prepare(second,call,TOKEN_REQUEST));
+        code("token_request_conflict",()->service.dispatch(second,call,TOKEN_REQUEST));
+        code("token_request_conflict",()->service.settle(second,call,TOKEN_REQUEST,1,1));
+        code("token_request_conflict",()->service.dispatch(first,call,RunJson.hash("different HTTP body")));
+        code("invalid_token_call",()->service.prepare(first,"1-2-3-4-5",TOKEN_REQUEST));
+        assertEquals(1,count("oa_model_token_reservation"));assertEquals(1,count("oa_run_model_token_call"));
+        assertEquals(1000,tokenCounter("held_tokens"));
+    }
+
+    @Test void runModelBudgetLateSettlementSurvivesCancellationRevocationAndReleasedLease() {
+        actors();String model=boundDeployment();var service=runBudgets(1000);var lease=claim(submit("budget-late").runId());
+        String sent=UUID.randomUUID().toString(),pending=UUID.randomUUID().toString();
+        service.prepare(lease,sent,TOKEN_REQUEST);service.prepare(lease,pending,TOKEN_REQUEST);assertTrue(service.dispatch(lease,sent,TOKEN_REQUEST));
+        ledger.cancel(scope,lease.runId(),"alice",()->{});ledger.finish(lease,RunState.FAILED,"model_failed");ledger.resourcesReleased(lease);
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE connection_id=?",model);
+        code("lease_fenced",()->service.dispatch(lease,pending,TOKEN_REQUEST));
+        code("lease_fenced",()->service.prepare(lease,UUID.randomUUID().toString(),TOKEN_REQUEST));
+        assertTrue(service.cancelPrepared(lease,pending,TOKEN_REQUEST));assertFalse(service.cancelPrepared(lease,sent,TOKEN_REQUEST));
+        assertEquals("unknown",service.unknown(lease,sent,TOKEN_REQUEST).phase());
+        assertEquals("settled",service.settle(lease,sent,TOKEN_REQUEST,100,20).phase());
+        assertEquals("settled",service.settle(lease,sent,TOKEN_REQUEST,100,20).phase());
+        assertEquals("settled",service.unknown(lease,sent,TOKEN_REQUEST).phase());
+        code("token_usage_conflict",()->service.settle(lease,sent,TOKEN_REQUEST,119,1));
+        assertEquals(0,tokenCounter("held_tokens"));assertEquals(120,tokenCounter("spent_tokens"));
+        assertEquals("cancelled",state(lease.runId()));
+    }
+
+    @Test void runModelBudgetConcurrentLeasesShareTheSameEnvironmentLimit() throws Exception {
+        actors();boundDeployment();var one=runBudgets(1000);var two=runBudgets(1000);
+        var first=claim(submit("budget-race-one").runId());var second=claim(submit("budget-race-two").runId());
+        jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=3000 WHERE tenant_id=? AND environment='test'",A);
+        List<Callable<Boolean>> requests=new ArrayList<>();
+        for(int index=0;index<12;index++) {var service=index%2==0?one:two;var lease=index%2==0?first:second;
+            requests.add(()->{try{service.prepare(lease,UUID.randomUUID().toString(),TOKEN_REQUEST);return true;}
+                catch(RunFailure denied){assertEquals("token_budget_exhausted",denied.code());return false;}});}
+        List<Boolean> outcomes=concurrent(requests);assertEquals(3,outcomes.stream().filter(Boolean::booleanValue).count());
+        assertEquals(3000,tokenCounter("held_tokens"));assertEquals(3,count("oa_run_model_token_call"));assertEquals(3,count("oa_model_token_reservation"));
+    }
+
+    @Test void runModelBudgetContractRecheckedBeforeDispatchAndMissingContractNeverReserves() {
+        actors();var service=runBudgets(1000);var legacy=claim(submit("budget-unbounded").runId());
+        code("token_bound_unavailable",()->service.prepare(legacy,UUID.randomUUID().toString(),TOKEN_REQUEST));
+        assertEquals(0,count("oa_model_token_day"));ledger.finish(legacy,RunState.FAILED,"model_failed");ledger.resourcesReleased(legacy);
+        String model=boundDeployment();var lease=claim(submit("budget-changed-contract").runId());String call=UUID.randomUUID().toString();
+        service.prepare(lease,call,TOKEN_REQUEST);
+        code("token_bound_unavailable",()->runBudgets(2000).dispatch(lease,call,TOKEN_REQUEST));
+        code("token_bound_unavailable",()->runBudgets(0).dispatch(lease,call,TOKEN_REQUEST));
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE connection_id=?",model);
+        code("deployment_unavailable",()->service.dispatch(lease,call,TOKEN_REQUEST));
+        assertEquals(1000,tokenCounter("held_tokens"));assertTrue(service.cancelPrepared(lease,call,TOKEN_REQUEST));
+        assertEquals(0,tokenCounter("held_tokens"));
+    }
+
+    @Test void runModelBudgetBindingFailureRollsBackReservationAndBreachRecordsActualUsage() {
+        actors();boundDeployment();var service=runBudgets(1000);var lease=claim(submit("budget-owner-transaction").runId());String call=UUID.randomUUID().toString();
+        jdbc.execute("CREATE TRIGGER call_binding_failure BEFORE INSERT ON oa_run_model_token_call FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='owned test failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->service.prepare(lease,call,TOKEN_REQUEST));
+        jdbc.execute("DROP TRIGGER call_binding_failure");
+        assertEquals(0,count("oa_model_token_reservation"));assertEquals(0,count("oa_run_model_token_call"));assertEquals(0,count("oa_model_token_day"));
+        service.prepare(lease,call,TOKEN_REQUEST);assertTrue(service.dispatch(lease,call,TOKEN_REQUEST));
+        assertEquals("breached",service.settle(lease,call,TOKEN_REQUEST,900,200).phase());
+        assertEquals(0,tokenCounter("held_tokens"));assertEquals(1100,tokenCounter("spent_tokens"));
+        code("token_bound_breached",()->service.prepare(lease,UUID.randomUUID().toString(),TOKEN_REQUEST));
+        assertTrue(ledger.withPermit(lease,()->true));ledger.finish(lease,RunState.FAILED,"model_failed");ledger.resourcesReleased(lease);
+    }
+
+    @Test @EnabledIfEnvironmentVariable(named="OA_RUN_DISPATCH_PYTHON",matches=".+")
+    void runModelBudgetPackagedApiAndRealPythonExecutorAccountEveryPhysicalRequest() throws Exception {
+        actors();
+        try(var fixture=new MultiApiAdmissionFixture(source,jdbc)){fixture.verifyModelBudgetRuntime(deployment,ledger);}
+    }
+    @Test @EnabledIfEnvironmentVariable(named="OA_BUDGET_PREVIOUS_API_JAR",matches=".+")
+    void runModelBudgetMigrationKeepsV171ApiCompatible() throws Exception {
+        actors();String run=submit("budget-call-migration-retained").runId();
+        assertEquals(0,count("oa_run_model_token_call"));jdbc.execute("DROP TABLE oa_run_model_token_call");
+        try(var fixture=new MultiApiAdmissionFixture(source,jdbc)) {
+            fixture.verifyTokenBudgetMigration(run,"1.71","V1.72__bind_run_model_token_calls.sql");
         }
     }
 

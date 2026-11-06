@@ -1,0 +1,381 @@
+{
+  "deployment": {
+    "artifact_sha256": "31a78a84d97752829eca85232465f93d18765526cefe6b7d7201ad66b31cda94",
+    "schema_version": "1.72",
+    "seconds": 43.46,
+    "finished_at": "2026-11-06T06:50:58.269889+00:00",
+    "backup_saved": true,
+    "ledger_rows": 0,
+    "model_bound_rows": 0,
+    "run_model_call_rows": 0,
+    "token_budget_enforced": false,
+    "cluster_bindings_enabled": false
+  },
+  "live_budget_verification": {
+    "checked_at": "2026-11-06T06:51:38.817662+00:00",
+    "read_only": true,
+    "schema_version": "1.72",
+    "api_artifact_sha256": "31a78a84d97752829eca85232465f93d18765526cefe6b7d7201ad66b31cda94",
+    "migration_sha256": "ba1bb0a1d68948d548e45bc3baed1722f86afb474e6948bc06218d135cdba5c2",
+    "public_worker_routes_denied": {
+      "prepare": 404,
+      "dispatch": 404,
+      "cancel": 404,
+      "unknown": 404,
+      "settle": 404
+    },
+    "business_task_count_unchanged": true,
+    "budget_tables_empty": true,
+    "token_budget_enforced": false,
+    "real_provider_contract_approved": false
+  },
+  "public_console": {
+    "checked_at": "2026-11-06T06:52:26.861457+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "a8bb53f0f1a5ce60ba9a691c71973ed77647a08a083d391e49de94d7c2dfd276",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "retained_task_and_services": {
+    "live_services_active": [
+      "open-agent-supervisor.service",
+      "open-agent-temporal.service",
+      "open-agent-ingress.service",
+      "open-agent-mlflow.service",
+      "open-agent-trace-exporter.service"
+    ],
+    "original_retained_run": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "original_steps": 58,
+    "original_files_sha256_verified": 2,
+    "no_restore_containers_or_firewall_rules_left": true,
+    "maintenance_resume_retry_verified": true,
+    "cleanup_retry_verified": true,
+    "pending_observation_attempts": 0
+  },
+  "daily_task_metering": {
+    "checked_at": "2026-11-06T06:53:41.497731+00:00",
+    "read_only": true,
+    "public_https": true,
+    "database_leaf_rows_match": true,
+    "cross_tenant_denied": true,
+    "task_count_unchanged": true,
+    "token_budget_enforced": false,
+    "tenants": [
+      {
+        "tenant": "space-1",
+        "date": "2026-11-06",
+        "as_of": "2026-11-06T06:53:40.378004843Z",
+        "modelCalls": 0,
+        "unknownModelCalls": 0,
+        "unsettledModelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "knownTotalTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "unknownCacheModelCalls": 0
+      },
+      {
+        "tenant": "space-3",
+        "date": "2026-11-06",
+        "as_of": "2026-11-06T06:53:40.684170002Z",
+        "modelCalls": 0,
+        "unknownModelCalls": 0,
+        "unsettledModelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "knownTotalTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "unknownCacheModelCalls": 0
+      },
+      {
+        "tenant": "space-4",
+        "date": "2026-11-06",
+        "as_of": "2026-11-06T06:53:40.937681003Z",
+        "modelCalls": 23,
+        "unknownModelCalls": 0,
+        "unsettledModelCalls": 0,
+        "inputTokens": 75615,
+        "outputTokens": 1487,
+        "knownTotalTokens": 77102,
+        "cacheReadTokens": 66560,
+        "uncachedInputTokens": 9055,
+        "unknownCacheModelCalls": 0
+      }
+    ]
+  },
+  "cache_and_period_metering": {
+    "checked_at": "2026-11-06T06:52:24.384498+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "worker_candidate": {
+    "source": "/opt/open-agent/agent-worker/releases/e3d3867d2568a23e",
+    "source_sha256": "e3d3867d2568a23e13cc0e5e6d0887088d865522d82e9879e01d32b4b5144a75",
+    "base_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+    "patch_sha256": "a103462a00bdeb7f884fc295990d8859dc942624964111e8d30313af8b5d142d",
+    "files": [
+      {
+        "path": "core/agent/durable/control.py",
+        "sha256": "b4ddc802a61cee781316e289ad284096c6ce887e1d41fb02cefdfebcb44dcbac",
+        "bytes": 15632
+      },
+      {
+        "path": "core/agent/durable/executor.py",
+        "sha256": "80ba02adc6ef7f4b1c58cc9a120c3506f11417c96dcaab2622bbf3ade18f46ce",
+        "bytes": 15330
+      },
+      {
+        "path": "core/agent/durable/permit.py",
+        "sha256": "4a0f13a7a3660423a1aac7da5705ccfa994cf5fb8ce430443a20c83a63443b22",
+        "bytes": 4332
+      },
+      {
+        "path": "core/agent/durable/runtime_config.py",
+        "sha256": "b7f402f358b36e3f1a0635cf8be870bfc432a7cc8c9d9f3a9559071f5543ed18",
+        "bytes": 2472
+      },
+      {
+        "path": "core/agent/durable/model_budget.py",
+        "sha256": "1de1279625dd1fe09bdcce6ca6ecceedc8e01ab13e89e444cb74b243721e6a1c",
+        "bytes": 7118
+      },
+      {
+        "path": "core/agent/engine/deepagents_runner.py",
+        "sha256": "92cfdc7a650850061720835d33e37eca327de904038f9db93ad7b1e70966c53d",
+        "bytes": 23689
+      },
+      {
+        "path": "core/agent/tests/test_model_budget.py",
+        "sha256": "4c81eef379ceeb3c80681aaea15b50edf2f865494b3875d357c3eccfc2df3a43",
+        "bytes": 11358
+      },
+      {
+        "path": "core/agent/tests/test_durable_executor.py",
+        "sha256": "3573065ef65f6b8de850facc46ae17df0710af555ab63041f782c50d17442fca",
+        "bytes": 11825
+      },
+      {
+        "path": "core/agent/tests/test_durable_permit.py",
+        "sha256": "33a5b05d018cfcb9bf4668377744f2f92ed1b45bbe54159e47e7f199f3cac792",
+        "bytes": 4235
+      },
+      {
+        "path": "core/agent/tests/test_durable_control.py",
+        "sha256": "65935971ee8230c2c01bb98662f5496a94d25780a24a425f8741e573561c0452",
+        "bytes": 10197
+      },
+      {
+        "path": "core/agent/tests/test_execution_observations.py",
+        "sha256": "909334e4e6050bc264a6b22916ec6eff65511520e54062f6b75cacce14267f44",
+        "bytes": 8168
+      },
+      {
+        "path": "core/agent/tests/test_deepagents_harness.py",
+        "sha256": "d1ab5c145847925f831f2bbf13cc42ef352ede8ab4a237687db99cb9bfb28573",
+        "bytes": 26315
+      }
+    ],
+    "full_source_files": 231,
+    "archive": "/opt/open-agent/agent-worker/staged-archives/a103462a00bdeb7f884fc295990d8859dc942624964111e8d30313af8b5d142d.tar",
+    "environment": "/opt/open-agent/agent-worker/venv",
+    "versions": {
+      "deepagents": "0.7.29",
+      "temporalio": "1.35.0",
+      "opensandbox": "1.1.0",
+      "langchain-openai": "1.7.2"
+    },
+    "dependency_changes": false,
+    "active_service_changed": false
+  },
+  "worker_verification": {
+    "checked_at": "2026-11-06T06:47:06.274334+00:00",
+    "source_sha256": "e3d3867d2568a23e13cc0e5e6d0887088d865522d82e9879e01d32b4b5144a75",
+    "tests_passed": 78,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "model_budget_callback_and_sdk_verified": true,
+    "real_model_provider": false,
+    "versions": {
+      "temporalio": "1.35.0",
+      "deepagents": "0.7.29",
+      "httpx": "0.28.1",
+      "aiohttp": "3.11.14",
+      "langchain-openai": "1.7.2"
+    },
+    "dependencies_unchanged": true,
+    "active_service_changed": false,
+    "cases": [
+      "test_parallel_contexts_and_inherited_context_replay_are_isolated",
+      "test_lost_dispatch_response_never_sends_model_or_releases_dispatched_budget",
+      "test_unknown_usage_cancellation_and_provider_failure_keep_reservation",
+      "test_lost_settlement_response_is_retried_without_repeating_model_and_zero_is_explicit",
+      "test_missing_foreign_cached_or_invalid_context_never_gets_budget",
+      "test_control_protocol_never_sends_declared_bound_and_rejects_implicit_zero",
+      "test_official_summarization_call_inherits_budget_and_has_its_own_receipt",
+      "test_skill_uuid_is_serialized_before_official_release_lookup",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[False-openai]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[False-deepseek]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[True-openai]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[True-deepseek]",
+      "test_revoked_lease_cannot_reach_the_model",
+      "test_untrusted_input_cannot_supply_connection_or_host_execution_configuration",
+      "test_timeout_cancels_actual_http_call_without_retry",
+      "test_skills_cannot_silently_fall_back_to_host_or_unbound_backend",
+      "test_real_deepagents_state_file_is_archived_before_final_answer",
+      "test_heartbeat_loss_cancels_inflight_work_and_closes_late_operations",
+      "test_caller_cancel_waits_for_cleanup_and_never_keeps_monitor_running",
+      "test_every_model_request_requires_current_permission_and_network_failure_is_closed",
+      "test_stream_closes_when_deadline_or_local_revocation_is_observed",
+      "test_expired_deadline_performs_no_control_or_model_operation",
+      "test_observation_transport_retries_identical_body_and_does_not_replay_execution",
+      "test_control_service_credentials_require_tls_or_literal_loopback[http://control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://user:pass@control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal/base]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal?token=x]",
+      "test_client_sends_service_identity_but_never_accepts_worker_identity_from_body",
+      "test_errors_never_echo_private_response_or_follow_redirects[302]",
+      "test_errors_never_echo_private_response_or_follow_redirects[401]",
+      "test_errors_never_echo_private_response_or_follow_redirects[403]",
+      "test_errors_never_echo_private_response_or_follow_redirects[409]",
+      "test_errors_never_echo_private_response_or_follow_redirects[503]",
+      "test_client_bounds_response_and_rejects_paths_outside_internal_namespace",
+      "test_slow_stream_cannot_extend_outbox_claim_indefinitely",
+      "test_runtime_secret_is_masked_and_invalid_runtime_errors_do_not_echo_it",
+      "test_artifact_transport_preserves_exact_bytes_and_bounds_download",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[recovered]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[twice]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[fenced]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[http_denied]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[bad_json]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[cancelled]",
+      "test_mutation_transport_failure_is_never_retried",
+      "test_each_leaf_call_has_provider_usage_and_parent_counts_are_not_repeated",
+      "test_unknown_tool_errors_and_interrupted_calls_are_not_reported_as_zero_usage",
+      "test_failed_start_prevents_call_and_unfinished_steps_are_interrupted",
+      "test_delta_inputs_reasoning_and_tool_results_are_redacted_without_mutating_history",
+      "test_partial_stream_retains_only_actually_returned_content",
+      "test_trusted_attempt_enables_native_tools_and_always_releases_sandbox[False]",
+      "test_trusted_attempt_enables_native_tools_and_always_releases_sandbox[True]",
+      "test_plain_answer_uses_real_graph_and_records_usage_once",
+      "test_tools_budget_and_answer_phase_preserve_platform_protocol",
+      "test_early_completion_transitions_to_final_answer",
+      "test_failure_result_is_visible_to_model_and_trace",
+      "test_model_error_has_stable_code_and_no_raw_secret",
+      "test_workflow_async_plugin_streams_and_accumulates_result",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[task]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[read_file]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[\\u5929\\u6c14\\u67e5\\u8be2]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[weather has spaces]",
+      "test_duplicate_and_invalid_schemas_are_rejected",
+      "test_invalid_arguments_never_execute_business_plugin",
+      "test_close_after_knowledge_metadata_releases_model",
+      "test_cancellation_closes_active_plugin_and_model",
+      "test_requests_do_not_share_virtual_files_or_messages",
+      "test_unavailable_delegation_is_rejected_before_execution",
+      "test_final_answer_streams_before_generation_finishes",
+      "test_generation_capture_is_opt_in_and_usage_has_parent",
+      "test_official_provider_configuration_and_cleanup[openai-https://gateway.test/v1/chat/completions-https://gateway.test/v1]",
+      "test_official_provider_configuration_and_cleanup[anthropic-https://gateway.test/v1/messages-https://gateway.test]",
+      "test_official_provider_configuration_and_cleanup[google-https://gateway.test/v1beta/models/gemini:streamGenerateContent?alt=sse-https://gateway.test]",
+      "test_virtual_file_tools_are_executed_by_framework_and_reported",
+      "test_unicode_tool_alias_preserves_public_name",
+      "test_parallel_calls_keep_distinct_results_and_trace",
+      "test_compression_failure_is_sanitized_before_sse_and_tracing",
+      "test_real_anthropic_sdk_final_turn_never_uses_assistant_prefill[False]",
+      "test_real_anthropic_sdk_final_turn_never_uses_assistant_prefill[True]"
+    ]
+  },
+  "worker_active_source_unchanged": true,
+  "owned_mysql_cleanup_verified": true,
+  "frontend_changed": false,
+  "browser_retested_this_increment": false,
+  "offline_api_image_updated": false,
+  "real_provider_contract_approved": false,
+  "environment_budget_enforced": false,
+  "report_download_filename_corrected": true
+}

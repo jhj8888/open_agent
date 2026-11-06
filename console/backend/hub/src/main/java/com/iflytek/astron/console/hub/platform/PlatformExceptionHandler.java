@@ -30,6 +30,8 @@ public class PlatformExceptionHandler {
             case "output_already_published", "output_not_available", "output_upload_expired" -> HttpStatus.CONFLICT;
             case "resource_unavailable" -> HttpStatus.NOT_FOUND;
             case "queue_full", "sandbox_quota_full", "stream_limit", "credential_limit" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "token_budget_exhausted" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "token_request_conflict", "token_usage_conflict", "token_bound_breached", "token_reservation_expired", "token_bound_unavailable" -> HttpStatus.CONFLICT;
             case "successful_test_required", "skill_verification_required", "production_promotion_required", "credential_revoked", "credential_expired", "skill_unavailable", "model_unavailable" -> HttpStatus.CONFLICT;
             case "sandbox_state_conflict", "sandbox_cleanup_pending", "cleanup_before_terminal" -> HttpStatus.CONFLICT;
             case "supervision_conflict", "cleanup_proof_conflict", "cleanup_unverified" -> HttpStatus.CONFLICT;

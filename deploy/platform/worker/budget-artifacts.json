@@ -1,0 +1,79 @@
+{
+  "source": "/opt/open-agent/agent-worker/releases/e3d3867d2568a23e",
+  "source_sha256": "e3d3867d2568a23e13cc0e5e6d0887088d865522d82e9879e01d32b4b5144a75",
+  "base_source_sha256": "54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653",
+  "patch_sha256": "a103462a00bdeb7f884fc295990d8859dc942624964111e8d30313af8b5d142d",
+  "files": [
+    {
+      "path": "core/agent/durable/control.py",
+      "sha256": "b4ddc802a61cee781316e289ad284096c6ce887e1d41fb02cefdfebcb44dcbac",
+      "bytes": 15632
+    },
+    {
+      "path": "core/agent/durable/executor.py",
+      "sha256": "80ba02adc6ef7f4b1c58cc9a120c3506f11417c96dcaab2622bbf3ade18f46ce",
+      "bytes": 15330
+    },
+    {
+      "path": "core/agent/durable/permit.py",
+      "sha256": "4a0f13a7a3660423a1aac7da5705ccfa994cf5fb8ce430443a20c83a63443b22",
+      "bytes": 4332
+    },
+    {
+      "path": "core/agent/durable/runtime_config.py",
+      "sha256": "b7f402f358b36e3f1a0635cf8be870bfc432a7cc8c9d9f3a9559071f5543ed18",
+      "bytes": 2472
+    },
+    {
+      "path": "core/agent/durable/model_budget.py",
+      "sha256": "1de1279625dd1fe09bdcce6ca6ecceedc8e01ab13e89e444cb74b243721e6a1c",
+      "bytes": 7118
+    },
+    {
+      "path": "core/agent/engine/deepagents_runner.py",
+      "sha256": "92cfdc7a650850061720835d33e37eca327de904038f9db93ad7b1e70966c53d",
+      "bytes": 23689
+    },
+    {
+      "path": "core/agent/tests/test_model_budget.py",
+      "sha256": "4c81eef379ceeb3c80681aaea15b50edf2f865494b3875d357c3eccfc2df3a43",
+      "bytes": 11358
+    },
+    {
+      "path": "core/agent/tests/test_durable_executor.py",
+      "sha256": "3573065ef65f6b8de850facc46ae17df0710af555ab63041f782c50d17442fca",
+      "bytes": 11825
+    },
+    {
+      "path": "core/agent/tests/test_durable_permit.py",
+      "sha256": "33a5b05d018cfcb9bf4668377744f2f92ed1b45bbe54159e47e7f199f3cac792",
+      "bytes": 4235
+    },
+    {
+      "path": "core/agent/tests/test_durable_control.py",
+      "sha256": "65935971ee8230c2c01bb98662f5496a94d25780a24a425f8741e573561c0452",
+      "bytes": 10197
+    },
+    {
+      "path": "core/agent/tests/test_execution_observations.py",
+      "sha256": "909334e4e6050bc264a6b22916ec6eff65511520e54062f6b75cacce14267f44",
+      "bytes": 8168
+    },
+    {
+      "path": "core/agent/tests/test_deepagents_harness.py",
+      "sha256": "d1ab5c145847925f831f2bbf13cc42ef352ede8ab4a237687db99cb9bfb28573",
+      "bytes": 26315
+    }
+  ],
+  "full_source_files": 231,
+  "archive": "/opt/open-agent/agent-worker/staged-archives/a103462a00bdeb7f884fc295990d8859dc942624964111e8d30313af8b5d142d.tar",
+  "environment": "/opt/open-agent/agent-worker/venv",
+  "versions": {
+    "deepagents": "0.7.29",
+    "temporalio": "1.35.0",
+    "opensandbox": "1.1.0",
+    "langchain-openai": "1.7.2"
+  },
+  "dependency_changes": false,
+  "active_service_changed": false
+}

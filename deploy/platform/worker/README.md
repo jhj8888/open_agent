@@ -11,3 +11,9 @@
 `provision_supervisor.py` 重新生成服务时保留已有显式队列设置；新安装缺省仅启用 test。生产模型队列通过受控升级设置为 `open-agent-demo-prod-v1`。两队列共用主机并发容量，不增加第二套独立配额。生产 Skill 仍需 Kata；展示机的 gVisor 路径只用于 test。
 
 升级证据和限制见 [按环境分派任务](../../../docs/platform/environment-dispatch.md)。新增代码复用官方 Temporal SDK 1.35.0，没有引入新的 Python 包。这里保留原有 LICENSE/NOTICE，源补丁不覆盖它们。
+
+## 任务模型预算源补丁
+
+`package_budget_patch.py` 固定已核对的展示源基线 `54f202cc073d5a2991700be8ae9079ecd96b9aff21fbf98dc98fc9e1620a5653`，仅打包 6 个运行模块和 6 个测试。归档/JSON 与 `stage_budget_patch.py` 放在同一私有目录，核验基线和各文件摘要后生成新的不可变完整源；保留原 LICENSE/NOTICE 和冻结依赖。`verify_budget_patch.py` 使用服务器现有解释器运行 78 项回归，并核对包版本与活动部署记录不变。
+
+这三个工具只打包、暂存和验证，不切换正在运行的服务；旧 `upgrade_dispatch.py` 专用于 V1.64，不能直接用于本次升级。新协议尚未由运行时下发，不代表展示环境已经强制预算。调用链、迁移和后续门禁见 [任务模型预算](../../../docs/platform/run-model-budget.md)。

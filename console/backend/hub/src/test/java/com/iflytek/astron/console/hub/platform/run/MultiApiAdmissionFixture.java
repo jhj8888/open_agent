@@ -41,7 +41,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 /** Two packaged application JVMs, real HTTP/JWT/service authentication and one owned MySQL schema.
- * No model, Temporal worker or physical sandbox runs in this admission-only fixture.
+ * Model-budget mode additionally runs the real Python executor against a synthetic local model.
+ * No real model service, Temporal worker or physical sandbox runs in this fixture.
  */
 final class MultiApiAdmissionFixture implements AutoCloseable {
     private final ObjectMapper json = new ObjectMapper();
@@ -294,7 +295,7 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
     private int active() { return jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE tenant_id='space-10' AND environment='test' AND lease_state<>'released'", Integer.class); }
     private int queued() { return jdbc.queryForObject("SELECT COUNT(*) FROM oa_agent_run WHERE tenant_id='space-10' AND environment='test' AND state='queued'", Integer.class); }
     private int count(String table) {
-        assertTrue(Set.of("oa_agent_run", "oa_run_outbox").contains(table));
+        assertTrue(Set.of("oa_agent_run", "oa_run_outbox", "oa_run_model_token_call", "oa_model_token_reservation").contains(table));
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
     }
     private void record(String stage, Map<String, Object> values) { evidence.add(Map.of("stage", stage, "result", "passed", "details", values)); }
@@ -344,6 +345,76 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
     private int port() throws Exception {
         try (var socket = new ServerSocket()) { socket.bind(new InetSocketAddress("127.0.0.1", 0)); return socket.getLocalPort(); }
     }
+    void verifyModelBudgetRuntime(String deployment,RunLedger ledger) throws Exception {
+        String python=System.getenv("OA_RUN_DISPATCH_PYTHON");assertNotNull(python);
+        String modelEndpoint="http://127.0.0.1:"+issuer.getAddress().getPort()+"/model/v1";
+        var providerRequests=new java.util.concurrent.atomic.AtomicInteger();
+        issuer.createContext("/model/v1/chat/completions",exchange->{
+            try {
+                var request=json.readTree(exchange.getRequestBody().readAllBytes());
+                assertEquals("contract-model",request.path("model").asText());assertTrue(request.path("stream").asBoolean());
+                providerRequests.incrementAndGet();
+                String body="data: "+json.writeValueAsString(Map.of("id","fixture","object","chat.completion.chunk","created",1700000000,
+                        "model","contract-model","choices",List.of(Map.of("index",0,"delta",Map.of("role","assistant","content","Synthetic budget answer")))))+"\n\n"
+                        +"data: "+json.writeValueAsString(Map.of("id","fixture","object","chat.completion.chunk","created",1700000000,
+                        "model","contract-model","choices",List.of(Map.of("index",0,"delta",Map.of(),"finish_reason","stop"))))+"\n\n"
+                        +"data: "+json.writeValueAsString(Map.of("id","fixture","object","chat.completion.chunk","created",1700000000,
+                        "model","contract-model","choices",List.of(),"usage",Map.of("prompt_tokens",11,"completion_tokens",5,"total_tokens",16)))+"\n\n"
+                        +"data: [DONE]\n\n";
+                byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","text/event-stream");
+                exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);
+            } finally {exchange.close();}
+        });
+        String contract=json.writeValueAsString(List.of(Map.of("endpoint",modelEndpoint,"modelName","contract-model","adapter","openai","thinkingEnabled",false,
+                "maxTotalTokens",1000,"sourceRef","synthetic-local-provider","evidenceSha256","a".repeat(64),
+                "verifiedAt","2000-01-01T00:00:00Z","validUntil","2099-01-01T00:00:00Z")));
+        String keys=json.writeValueAsString(Map.of("v1",java.util.Base64.getEncoder().encodeToString(new byte[32])));
+        environment.put("MODEL_TOKEN_BOUND_CONTRACTS",contract);environment.put("MODEL_CREDENTIAL_KEYS",keys);
+        environment.put("MODEL_ALLOWED_ORIGINS",json.writeValueAsString(List.of("http://127.0.0.1:"+issuer.getAddress().getPort())));
+        var env=new org.springframework.mock.env.MockEnvironment();
+        for(String key:List.of("MODEL_TOKEN_BOUND_CONTRACTS","MODEL_CREDENTIAL_KEYS","MODEL_ALLOWED_ORIGINS"))env.setProperty(key,environment.get(key));
+        var access=new com.iflytek.astron.console.commons.tenant.TenantAccessService(new com.iflytek.astron.console.commons.tenant.TenantAccessRepository(jdbc));
+        var models=new com.iflytek.astron.console.hub.platform.model.ModelConnectionService(jdbc,access,
+                new com.iflytek.astron.console.hub.platform.model.ModelCredentialCipher(env,json),
+                new com.iflytek.astron.console.hub.platform.model.ModelEndpointPolicy(env,json),env,json);
+        var input=new com.iflytek.astron.console.hub.platform.model.PlatformModelController.ModelInput("Local budget fixture",modelEndpoint,"contract-model",
+                true,true,true,5,30,90,null,"synthetic-model-key",0,false,"openai",false);
+        var tx=new org.springframework.transaction.support.TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbc.getDataSource()));
+        String connection=(String)tx.execute(ignored->models.save("space-10","test",null,input)).get("connectionId");
+        jdbc.update("UPDATE oa_agent_deployment SET model_connection_id=? WHERE deployment_id=?",connection,deployment);
+        issuer.start();firstPort=port();first=start(firstPort);ready(first,firstPort);
+        Path root=Path.of("../../..").toAbsolutePath().normalize();
+        for(String scenario:List.of("success","exhausted","lost_dispatch_reply")) {
+            long limit=scenario.equals("exhausted")?1032:1000000;
+            jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=? WHERE tenant_id='space-10' AND environment='test'",limit);
+            var scope=new RunLedger.Scope("space-10","test");
+            String run=ledger.submit(scope,deployment,"alice","budget-http-"+scenario,json.createObjectNode().put("message","Synthetic fixture only"),3600,()->{}).runId();
+            Path report=directory.resolve("budget-"+scenario+".json");
+            var process=new ProcessBuilder(python,root.resolve("tests/model_contract/run_budget_runtime.py").toString());
+            process.environment().clear();
+            for(String key:List.of("SystemRoot","WINDIR","SystemDrive","TEMP","TMP","PATH"))if(environment.containsKey(key))process.environment().put(key,environment.get(key));
+            process.environment().putAll(Map.of("PYTHONPATH",root.resolve("core").toString(),"PYTHONUTF8","1","LANGSMITH_TRACING","false","LANGCHAIN_TRACING_V2","false",
+                    "BUDGET_FIXTURE_CONTROL","http://127.0.0.1:"+firstPort,"BUDGET_FIXTURE_KEY",workerSecret,"BUDGET_FIXTURE_RUN",run,
+                    "BUDGET_FIXTURE_REPORT",report.toString(),"BUDGET_FIXTURE_SCENARIO",scenario,"BUDGET_FIXTURE_MODEL",modelEndpoint));
+            process.directory(root.toFile()).redirectErrorStream(true).redirectOutput(directory.resolve("budget-"+scenario+".log").toFile());
+            var child=process.start();owned.add(child);assertTrue(child.waitFor(150,TimeUnit.SECONDS),"Budget Python fixture timed out");
+            assertEquals(0,child.exitValue(),"Inspect private budget fixture log");
+            var result=json.readTree(report.toFile());assertEquals(!scenario.equals("success"),result.path("failed").asBoolean());
+            assertEquals(scenario.equals("success")?"succeeded":"failed",jdbc.queryForObject("SELECT state FROM oa_agent_run WHERE run_id=?",String.class,run));
+            var attempt=jdbc.queryForMap("SELECT * FROM oa_run_attempt WHERE run_id=?",run);
+            ledger.resourcesReleased(new RunLedger.Lease(scope,run,1,(String)attempt.get("lease_id"),((Number)attempt.get("fencing_token")).longValue(),"fixture-worker"));
+            int expected=scenario.equals("success")?2:3;assertEquals(expected,providerRequests.get());
+            record("budget_runtime_"+scenario,Map.of("actual_provider_requests_total",providerRequests.get(),"python_executor_exited",true,
+                    "run_terminal",true,"lease_released",true,"protocol_enabled_only_in_owned_fixture",true));
+        }
+        assertEquals(4,count("oa_run_model_token_call"));assertEquals(4,count("oa_model_token_reservation"));
+        assertEquals(48,jdbc.queryForObject("SELECT SUM(spent_tokens) FROM oa_model_token_day",java.math.BigDecimal.class).longValueExact());
+        assertEquals(1000,jdbc.queryForObject("SELECT SUM(held_tokens) FROM oa_model_token_day",java.math.BigDecimal.class).longValueExact());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_reservation WHERE phase='unknown'",Integer.class));
+        record("budget_runtime_accounting",Map.of("provider_requests",3,"settled_calls",3,"unknown_calls",1,"spent_tokens",48,"held_tokens",1000));
+        verified=true;
+    }
+
     void verifyTokenBudgetMigration(String retainedRun) throws Exception {
         verifyTokenBudgetMigration(retainedRun,"1.69","V1.70__reserve_model_token_budgets.sql");
     }
@@ -368,10 +439,11 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
         issuer.start();firstPort=port();
         for(var artifact:List.of(jar,previous,jar)) {
             first=start(firstPort,artifact);ready(first,firstPort);
-            assertEquals("1.71",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
+            assertEquals("1.72",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
             assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_reservation",Integer.class));
             assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_day",Integer.class));
             assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_bound",Integer.class));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_model_token_call",Integer.class));
             var response=call(firstPort,"GET","/api/v1/runs/"+retainedRun,alice,null,null,false);expect(response,200);
             assertEquals(retainedRun,body(response).path("data").path("run_id").asText());
             var quota=call(firstPort,"GET","/platform/tenants/space-10/environments/test/quotas",alice,null,null,false);expect(quota,200);
@@ -384,7 +456,7 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
             }
             assertEquals(1,count("oa_agent_run"));assertEquals(1,count("oa_run_outbox"));
             record(artifact.equals(previous)?"previous_api_on_upgraded_schema":"new_api_on_upgraded_schema",
-                    Map.of("schema","1.71","retained_run_readable",true,"budget_rows",0,"budget_enforced",false));
+                    Map.of("schema","1.72","retained_run_readable",true,"budget_rows",0,"budget_enforced",false));
             first.destroy();if(!first.waitFor(15,TimeUnit.SECONDS)){first.destroyForcibly();assertTrue(first.waitFor(15,TimeUnit.SECONDS));}
         }
         record("budget_migration_and_compatibility",Map.of("previous_api_sha256",previousSha,"real_flyway",true));

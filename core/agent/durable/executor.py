@@ -26,6 +26,7 @@ from agent.domain.models.endpoint_policy import EndpointPolicy, PinnedModelTrans
 from agent.domain.models.providers import create_provider_model
 from agent.durable.control import AttemptLease, ControlPlaneClient
 from agent.durable.permit import ExecutionPermit, PermitTransport
+from agent.durable.model_budget import ModelBudget
 from agent.durable.runtime_config import RuntimeBundle, RuntimeReleaseSource
 from agent.engine.deepagents_runner import DeepAgentsRunner
 from agent.engine.observations import ExecutionObservations
@@ -101,6 +102,7 @@ class RuntimeExecutor:
             raise RuntimeError("execution_configuration_invalid") from None
 
         permit = ExecutionPermit(self.control, lease, bundle.deadline)
+        model_budget = ModelBudget(self.control, lease, bundle.model.modelName) if bundle.modelBudgetProtocol == "v1" else None
         observations = ExecutionObservations(lambda phase, step: self.control.observation(lease, phase, step), secrets=(bundle.model.credential.get_secret_value(),))
         sequence = 0
 
@@ -154,7 +156,7 @@ class RuntimeExecutor:
                 )
                 client = httpx.AsyncClient(
                     transport=PermitTransport(
-                        permit, PinnedModelTransport(self.policy, verify=context)
+                        permit, PinnedModelTransport(self.policy, verify=context), model_budget=model_budget
                     ),
                     timeout=httpx.Timeout(
                         config.readTimeoutSeconds,
@@ -194,6 +196,8 @@ class RuntimeExecutor:
                 if attempt is not None:
                     runner.bind_attempt(attempt)
                 runner.bind_observations(observations)
+                if model_budget is not None:
+                    runner.bind_model_budget(model_budget)
                 archived: set[tuple[str,str]] = set()
 
                 async def publish_output(descriptor: dict, content):
@@ -282,6 +286,12 @@ class RuntimeExecutor:
                     pass
                 raise
             finally:
+                if model_budget is not None:
+                    try:
+                        async with asyncio.timeout(8):
+                            await model_budget.close()
+                    except Exception:
+                        pass  # A lost settlement remains held; cleanup is independent.
                 # Cancellation can finish existing steps with the same owned lease. A
                 # killed process leaves persisted starts explicitly incomplete instead.
                 try:

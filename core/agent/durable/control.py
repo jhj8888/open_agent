@@ -276,6 +276,27 @@ class ControlPlaneClient:
         )
         return row["permitted"] is True
 
+    async def model_budget(self, lease: AttemptLease, operation: str, call_id: str, request_sha: str,
+                           *, input_tokens: int | None = None, output_tokens: int | None = None) -> dict:
+        if operation not in {"prepare", "dispatch", "cancel", "unknown", "settle"}:
+            raise ControlPlaneError("CONTROL_BUDGET_INVALID")
+        try:
+            if str(UUID(call_id)) != call_id or not re.fullmatch(r"[a-f0-9]{64}", request_sha):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise ControlPlaneError("CONTROL_BUDGET_INVALID") from None
+        body = {"lease": lease.body(), "callId": call_id, "requestSha256": request_sha}
+        if operation == "settle":
+            if any(type(value) is not int or not 0 <= value <= 1_000_000_000 for value in (input_tokens, output_tokens)):
+                raise ControlPlaneError("CONTROL_BUDGET_INVALID")
+            body = {"call": body, "inputTokens": input_tokens, "outputTokens": output_tokens}
+        elif input_tokens is not None or output_tokens is not None:
+            raise ControlPlaneError("CONTROL_BUDGET_INVALID")
+        result = await self.request(f"/internal/platform/worker/runs/{lease.run.run_id}/model-calls/{operation}",body,limit=4096)
+        if not isinstance(result, dict):
+            raise ControlPlaneError("CONTROL_RESPONSE_INVALID")
+        return result
+
     async def permit(self, lease: AttemptLease) -> bool:
         row = await self.request(
             f"/internal/platform/worker/runs/{lease.run.run_id}/permit", lease.body()

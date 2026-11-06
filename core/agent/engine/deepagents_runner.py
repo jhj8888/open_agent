@@ -293,6 +293,13 @@ class DeepAgentsRunner(BaseModel):
     _outputs: Callable[[str,dict | None],Awaitable[None]] | None = PrivateAttr(default=None)
     _tool_step: str = PrivateAttr(default="")
     _observations: Any = PrivateAttr(default=None)
+    _model_budget: Any = PrivateAttr(default=None)
+
+    def bind_model_budget(self, callback: Any) -> None:
+        from agent.durable.model_budget import ModelBudget
+        if self._model_budget is not None or not isinstance(callback, ModelBudget):
+            raise ValueError("Invalid model budget callback")
+        self._model_budget = callback
 
     def bind_observations(self, callback: Any) -> None:
         from agent.engine.observations import ExecutionObservations
@@ -457,7 +464,8 @@ class DeepAgentsRunner(BaseModel):
                 {"messages": messages},
                 config={
                     "recursion_limit": 12 * (self.max_loop + 2),
-                    "callbacks": [usage_callback] + ([self._observations] if self._observations else []),
+                    "callbacks": [usage_callback] + ([self._observations] if self._observations else [])
+                    + ([self._model_budget] if self._model_budget else []),
                 },
                 stream_mode=["messages", "updates", "custom"],
             ),

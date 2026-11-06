@@ -121,8 +121,9 @@ def completion():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("adapter", ["openai", "deepseek"])
+@pytest.mark.parametrize("budgeted", [False, True])
 async def test_actual_engine_streams_events_and_usage_through_approved_fenced_transport(
-    execution, adapter,
+    execution, adapter, budgeted,
 ):
     lease, control, span, trace = execution
     requests = []
@@ -138,11 +139,21 @@ async def test_actual_engine_streams_events_and_usage_through_approved_fenced_tr
         endpoint = str(server.make_url("/v1"))
         config = bundle(endpoint)
         config = config.model_copy(update={"model": config.model.model_copy(update={"adapter": adapter, "thinkingEnabled": adapter == "deepseek"})})
+        if budgeted:
+            from agent.tests.test_model_budget import Ledger
+            budget_ledger=Ledger()
+            control.model_budget=budget_ledger.model_budget
+            config=config.model_copy(update={"modelBudgetProtocol":"v1"})
         result = await RuntimeExecutor(control, policy=policy(endpoint)).execute(
             lease, config, span, trace
         )
     assert result == {"prompt_tokens": 22, "completion_tokens": 10, "total_tokens": 32}
     assert len(requests) == 2 and requests[0]["stream"] is True
+    if budgeted:
+        assert len(budget_ledger.rows)==2
+        assert all(row["phase"]=="settled" for row in budget_ledger.rows.values())
+        assert sum(row["counts"]["input_tokens"] for row in budget_ledger.rows.values())==22
+        assert sum(row["counts"]["output_tokens"] for row in budget_ledger.rows.values())==10
     if adapter == "deepseek":
         assert all(request["thinking"] == {"type": "enabled"} for request in requests)
     model_steps = [call.args[2] for call in control.observation.await_args_list if call.args[1] == "finish" and call.args[2]["kind"] == "model"]
@@ -150,6 +161,8 @@ async def test_actual_engine_streams_events_and_usage_through_approved_fenced_tr
     assert sum(row["inputTokens"] for row in model_steps) == 22
     assert sum(row["outputTokens"] for row in model_steps) == 10
     assert len({row["stepId"] for row in model_steps}) == 2
+    if budgeted:
+        assert set(budget_ledger.rows) == {row["stepId"] for row in model_steps}
     names={tool["function"]["name"] for tool in requests[0]["tools"]}
     assert "write_file" in names and "execute" not in names and "task" not in names
     assert not requests[1].get("tools")

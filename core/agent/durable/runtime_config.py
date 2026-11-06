@@ -39,6 +39,8 @@ class RuntimeBundle(BaseModel):
     model: WorkerModel = Field(repr=False)
     deadline: datetime
     skills: Annotated[list[SkillBinding], Field(max_length=20)]
+    # Staged private protocol only. The control plane does not emit an enable value yet.
+    modelBudgetProtocol: Literal["v1"] | None = None
 
     @field_validator("deadline")
     @classmethod

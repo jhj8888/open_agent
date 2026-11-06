@@ -1,0 +1,213 @@
+{
+  "api_sha256": "31a78a84d97752829eca85232465f93d18765526cefe6b7d7201ad66b31cda94",
+  "previous_api_sha256": "db651c5cf524cc04632fbb26c877d4a574916140b2c27093ef7961f06bcf4c29",
+  "java_unique_checks_passed": 33,
+  "java_groups": {
+    "task_budget_mysql": 6,
+    "spring_startup": 6,
+    "worker_security": 19,
+    "packaged_api_python_mysql_runtime": 1,
+    "v171_to_v172_packaged_migration": 1
+  },
+  "python_checks_passed": 78,
+  "openspec_changes_validated": 12,
+  "runtime_integration": {
+    "child_processes_stopped": true,
+    "verified": true,
+    "stages": [
+      {
+        "result": "passed",
+        "details": {
+          "protocol_enabled_only_in_owned_fixture": true,
+          "lease_released": true,
+          "python_executor_exited": true,
+          "run_terminal": true,
+          "actual_provider_requests_total": 2
+        },
+        "stage": "budget_runtime_success"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "protocol_enabled_only_in_owned_fixture": true,
+          "lease_released": true,
+          "python_executor_exited": true,
+          "run_terminal": true,
+          "actual_provider_requests_total": 3
+        },
+        "stage": "budget_runtime_exhausted"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "protocol_enabled_only_in_owned_fixture": true,
+          "lease_released": true,
+          "python_executor_exited": true,
+          "run_terminal": true,
+          "actual_provider_requests_total": 3
+        },
+        "stage": "budget_runtime_lost_dispatch_reply"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "unknown_calls": 1,
+          "spent_tokens": 48,
+          "held_tokens": 1000,
+          "provider_requests": 3,
+          "settled_calls": 3
+        },
+        "stage": "budget_runtime_accounting"
+      }
+    ],
+    "elapsed_seconds": 89.2285604
+  },
+  "migration_compatibility": {
+    "child_processes_stopped": true,
+    "verified": true,
+    "stages": [
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.72",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "new_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.72",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "previous_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.72",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "new_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "previous_api_sha256": "db651c5cf524cc04632fbb26c877d4a574916140b2c27093ef7961f06bcf4c29",
+          "real_flyway": true
+        },
+        "stage": "budget_migration_and_compatibility"
+      }
+    ],
+    "elapsed_seconds": 45.3760251
+  },
+  "first_run_failure": "Test count helper omitted new table names; fixed explicit whitelist, reran full runtime fixture successfully.",
+  "model_provider": "synthetic loopback SSE provider; official SDK and actual Python executor",
+  "production_budget_enabled": false,
+  "real_provider_contract_approved": false,
+  "linux_frozen_worker": {
+    "checked_at": "2026-11-06T06:47:06.274334+00:00",
+    "source_sha256": "e3d3867d2568a23e13cc0e5e6d0887088d865522d82e9879e01d32b4b5144a75",
+    "tests_passed": 78,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "model_budget_callback_and_sdk_verified": true,
+    "real_model_provider": false,
+    "versions": {
+      "temporalio": "1.35.0",
+      "deepagents": "0.7.29",
+      "httpx": "0.28.1",
+      "aiohttp": "3.11.14",
+      "langchain-openai": "1.7.2"
+    },
+    "dependencies_unchanged": true,
+    "active_service_changed": false,
+    "cases": [
+      "test_parallel_contexts_and_inherited_context_replay_are_isolated",
+      "test_lost_dispatch_response_never_sends_model_or_releases_dispatched_budget",
+      "test_unknown_usage_cancellation_and_provider_failure_keep_reservation",
+      "test_lost_settlement_response_is_retried_without_repeating_model_and_zero_is_explicit",
+      "test_missing_foreign_cached_or_invalid_context_never_gets_budget",
+      "test_control_protocol_never_sends_declared_bound_and_rejects_implicit_zero",
+      "test_official_summarization_call_inherits_budget_and_has_its_own_receipt",
+      "test_skill_uuid_is_serialized_before_official_release_lookup",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[False-openai]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[False-deepseek]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[True-openai]",
+      "test_actual_engine_streams_events_and_usage_through_approved_fenced_transport[True-deepseek]",
+      "test_revoked_lease_cannot_reach_the_model",
+      "test_untrusted_input_cannot_supply_connection_or_host_execution_configuration",
+      "test_timeout_cancels_actual_http_call_without_retry",
+      "test_skills_cannot_silently_fall_back_to_host_or_unbound_backend",
+      "test_real_deepagents_state_file_is_archived_before_final_answer",
+      "test_heartbeat_loss_cancels_inflight_work_and_closes_late_operations",
+      "test_caller_cancel_waits_for_cleanup_and_never_keeps_monitor_running",
+      "test_every_model_request_requires_current_permission_and_network_failure_is_closed",
+      "test_stream_closes_when_deadline_or_local_revocation_is_observed",
+      "test_expired_deadline_performs_no_control_or_model_operation",
+      "test_observation_transport_retries_identical_body_and_does_not_replay_execution",
+      "test_control_service_credentials_require_tls_or_literal_loopback[http://control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://user:pass@control.internal]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal/base]",
+      "test_control_service_credentials_require_tls_or_literal_loopback[https://control.internal?token=x]",
+      "test_client_sends_service_identity_but_never_accepts_worker_identity_from_body",
+      "test_errors_never_echo_private_response_or_follow_redirects[302]",
+      "test_errors_never_echo_private_response_or_follow_redirects[401]",
+      "test_errors_never_echo_private_response_or_follow_redirects[403]",
+      "test_errors_never_echo_private_response_or_follow_redirects[409]",
+      "test_errors_never_echo_private_response_or_follow_redirects[503]",
+      "test_client_bounds_response_and_rejects_paths_outside_internal_namespace",
+      "test_slow_stream_cannot_extend_outbox_claim_indefinitely",
+      "test_runtime_secret_is_masked_and_invalid_runtime_errors_do_not_echo_it",
+      "test_artifact_transport_preserves_exact_bytes_and_bounds_download",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[recovered]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[twice]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[fenced]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[http_denied]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[bad_json]",
+      "test_runtime_retry_is_bounded_and_rechecks_lease[cancelled]",
+      "test_mutation_transport_failure_is_never_retried",
+      "test_each_leaf_call_has_provider_usage_and_parent_counts_are_not_repeated",
+      "test_unknown_tool_errors_and_interrupted_calls_are_not_reported_as_zero_usage",
+      "test_failed_start_prevents_call_and_unfinished_steps_are_interrupted",
+      "test_delta_inputs_reasoning_and_tool_results_are_redacted_without_mutating_history",
+      "test_partial_stream_retains_only_actually_returned_content",
+      "test_trusted_attempt_enables_native_tools_and_always_releases_sandbox[False]",
+      "test_trusted_attempt_enables_native_tools_and_always_releases_sandbox[True]",
+      "test_plain_answer_uses_real_graph_and_records_usage_once",
+      "test_tools_budget_and_answer_phase_preserve_platform_protocol",
+      "test_early_completion_transitions_to_final_answer",
+      "test_failure_result_is_visible_to_model_and_trace",
+      "test_model_error_has_stable_code_and_no_raw_secret",
+      "test_workflow_async_plugin_streams_and_accumulates_result",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[task]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[read_file]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[\\u5929\\u6c14\\u67e5\\u8be2]",
+      "test_model_tool_aliases_are_stable_and_do_not_shadow_builtins[weather has spaces]",
+      "test_duplicate_and_invalid_schemas_are_rejected",
+      "test_invalid_arguments_never_execute_business_plugin",
+      "test_close_after_knowledge_metadata_releases_model",
+      "test_cancellation_closes_active_plugin_and_model",
+      "test_requests_do_not_share_virtual_files_or_messages",
+      "test_unavailable_delegation_is_rejected_before_execution",
+      "test_final_answer_streams_before_generation_finishes",
+      "test_generation_capture_is_opt_in_and_usage_has_parent",
+      "test_official_provider_configuration_and_cleanup[openai-https://gateway.test/v1/chat/completions-https://gateway.test/v1]",
+      "test_official_provider_configuration_and_cleanup[anthropic-https://gateway.test/v1/messages-https://gateway.test]",
+      "test_official_provider_configuration_and_cleanup[google-https://gateway.test/v1beta/models/gemini:streamGenerateContent?alt=sse-https://gateway.test]",
+      "test_virtual_file_tools_are_executed_by_framework_and_reported",
+      "test_unicode_tool_alias_preserves_public_name",
+      "test_parallel_calls_keep_distinct_results_and_trace",
+      "test_compression_failure_is_sanitized_before_sse_and_tracing",
+      "test_real_anthropic_sdk_final_turn_never_uses_assistant_prefill[False]",
+      "test_real_anthropic_sdk_final_turn_never_uses_assistant_prefill[True]"
+    ]
+  }
+}

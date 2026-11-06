@@ -146,7 +146,7 @@ jobs:
           export TEMPORAL_TEST_BINARY="$PWD/.temporal-test/temporal"
           core/agent/.venv/bin/python -m pytest core/agent/tests/test_durable_control.py core/agent/tests/test_dispatch_environment.py \
             core/agent/tests/test_durable_workflow.py core/agent/tests/test_durable_permit.py \
-            core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py \
+            core/agent/tests/test_durable_executor.py core/agent/tests/test_durable_sandbox_journal.py core/agent/tests/test_model_budget.py \
             core/agent/tests/test_durable_supervision.py core/agent/tests/test_cluster_control.py \
             core/agent/tests/test_cluster_process.py core/agent/tests/test_cluster_child.py core/agent/tests/test_cluster_transport.py \
             core/agent/tests/test_cluster_supervisor.py core/agent/tests/test_cluster_service.py core/agent/tests/test_cluster_sandbox.py \

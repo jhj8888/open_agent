@@ -28,7 +28,7 @@ def main():
         assert model['max_total_tokens'] is None and model['token_bound_contract_sha256'] is None
         assert not set(('credential_cipher','credential_nonce','apiKey','credential'))&model.keys()
     assert before==sql('SELECT COUNT(*) FROM oa_agent_run;').strip()
-    report={'checked_at':datetime.now(timezone.utc).isoformat(),'read_only':True,'schema_version':'1.71',
+    report={'checked_at':datetime.now(timezone.utc).isoformat(),'read_only':True,'schema_version':'1.72',
             'api_artifact_sha256':ARTIFACT_SHA256,'migration_sha256':sha256(migration).hexdigest(),
             'existing_models_readable':len(models),'legacy_models_not_backfilled':True,
             'model_secrets_not_returned':True,'business_task_count_unchanged':True,

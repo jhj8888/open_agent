@@ -89,11 +89,15 @@ class ExecutionPermit:
 class PermitTransport(httpx.AsyncBaseTransport):
     """Wrap the approved/pinned model transport, including framework compression calls."""
 
-    def __init__(self, permit: ExecutionPermit, inner: httpx.AsyncBaseTransport):
+    def __init__(self, permit: ExecutionPermit, inner: httpx.AsyncBaseTransport, *, model_budget=None):
         self.permit, self.inner = permit, inner
+        self.model_budget = model_budget
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         await self.permit.check()
+        if self.model_budget is not None:
+            await self.model_budget.authorize(request)
+            self.permit.local_check()
         response = await self.inner.handle_async_request(request)
         try:
             self.permit.local_check()

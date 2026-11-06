@@ -33,4 +33,12 @@ V1.70 仅新增表与 FK/约束/索引，不修改已有业务数据。本次未
 
 ## Sources / Assumptions
 
+### 任务执行接线（V1.72）
+
+受信 RuntimeExecutor → 官方模型 SDK/继承回调 → HTTPX PermitTransport → 私有 worker model-calls API → RunLedger.withPermit/withAttempt → RunModelBudgetService → TokenBudgetLedger 与模型版本契约。准备与发起在同一租户/环境锁下重新检查任务租约、worker 身份、部署固定模型版本及有效契约；客户端只提交请求摘要，不提交总量上限。V1.72 的 oa_run_model_token_call 将调用 ID 绑定 run/attempt/lease、原模型版本与契约摘要，和预算预留原子提交。
+
+取消未发起预留、unknown 及实际结算使用精确历史 attempt 所有权，不要求任务仍运行或模型仍未撤销，确保迟到实际消费不丢失；它们不能获取新请求许可。预算不足只拒绝模型发起，不修改通用 permit、心跳、事件、产物和回收。保持现有内部 worker 认证和公网拒绝，沙盒没有这些凭据。共享身份、Kafka、Redis、对象存储协议保持不变。
+
+worker 使用官方 LangChain 逐调用回调关联逻辑调用与物理 HTTP 请求；只有持有单次调用上下文且取得数据库 dispatch 许可时 transport 才发送请求。无上下文、一个上下文重复物理请求和未知发起回复均拒绝。成功的官方 usage 结算；错误/中断/缺失 usage 保留 unknown。接入前仍需验证异步继承、压缩、并发、缓存命中及取消路径。完整诊断、治理开关与多副本策略门禁未交付前，运行时不提供生产启用路径，不能宣称整个环境已强制限额。
+
 当前没有 Context7 工具；沿用仓库已验证的 Spring JDBC 事务用法，无新 SDK。2026-11-06 查阅官方 [模型元数据](https://api-docs.deepseek.com/api/list-models/) 及 [Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。提供方上限约束仍需对实际配置验证；不能由文档推断全部内网接口支持，也不能将账本测试视为完整模型调用链已受控。
