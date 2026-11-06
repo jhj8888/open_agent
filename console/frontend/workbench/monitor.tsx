@@ -71,12 +71,16 @@ export function MonitorPage({
   const totals = data?.totals;
   return (
     <div className="monitor-page">
-      <ObservationStatistics key={`${api.tenant}-${api.environment}`} api={api} />
+      <ObservationStatistics
+        key={`${api.tenant}-${api.environment}`}
+        api={api}
+      />
       <div className="panel-heading">
         <div>
           <h2>任务运行概况</h2>
           <p className="muted">
-            统计当前租户与环境中的全部保留任务，每 30 秒刷新。
+            统计当前租户与环境中的历史任务，包含已删除任务的计量记录，每 30
+            秒刷新。
           </p>
         </div>
         <div className="top-actions">

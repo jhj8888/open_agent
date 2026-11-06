@@ -31,6 +31,12 @@ public class AgentRunController {
     @PostMapping("/runs/{id}/cancel") public ApiResult<?> cancel(@PathVariable UUID id) {
         return ApiResult.success(runs.cancel(DeploymentAuthorization.current(),id.toString()));
     }
+    @DeleteMapping("/runs/{id}") public ResponseEntity<?> delete(@PathVariable UUID id) {
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(ApiResult.success(runs.delete(DeploymentAuthorization.current(),id.toString())));
+    }
+    @GetMapping("/runs/{id}/deletion") public ApiResult<?> deletion(@PathVariable UUID id) {
+        return ApiResult.success(runs.deletion(DeploymentAuthorization.current(),id.toString()));
+    }
     @GetMapping(value="/runs/{id}/events",produces=MediaType.APPLICATION_JSON_VALUE)
     public ApiResult<?> events(@PathVariable UUID id,@RequestParam(defaultValue="0") long after) {
         return ApiResult.success(runs.events(DeploymentAuthorization.current(),id.toString(),after));

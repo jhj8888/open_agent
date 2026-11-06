@@ -71,6 +71,7 @@ public class RunLedger {
                 var previous = duplicate.getFirst();
                 // An idempotency key is not a capability to read another principal's result.
                 if (!actor.equals(previous.get("actor_id"))) throw new RunFailure("resource_unavailable");
+                if(count("SELECT COUNT(*) FROM oa_run_deletion WHERE run_id=?",previous.get("run_id"))!=0)throw new RunFailure("run_deleted");
                 if (!fingerprint.equals(previous.get("request_sha256"))) throw new RunFailure("idempotency_conflict");
                 return new Accepted((String) previous.get("run_id"), true);
             }

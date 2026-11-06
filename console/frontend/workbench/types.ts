@@ -49,7 +49,12 @@ export interface Deployment {
   state: 'test' | 'published' | 'disabled';
   created_at: string;
   admission_enabled?: boolean;
-  allowed_actions?: { create: boolean; read: boolean; cancel: boolean };
+  allowed_actions?: {
+    create: boolean;
+    read: boolean;
+    cancel: boolean;
+    delete?: boolean;
+  };
 }
 export interface AgentInput {
   displayName: string;

@@ -101,6 +101,26 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Run' }
         default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteRun
+      summary: Hide a terminal, fully released task and enqueue exact-key artifact cleanup
+      description: >-
+        Active tenant_admin in this environment only; deployment credentials are denied.
+        Idempotent. Details, events and artifacts become inaccessible. Accounting,
+        audit and submission idempotency records remain. Returns 409 while execution
+        resources remain held. Reusing the original submission key returns run_deleted.
+      responses:
+        '202': { $ref: '#/components/responses/Deletion' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/v1/runs/{runId}/deletion:
+    parameters:
+      - $ref: '#/components/parameters/runId'
+    get:
+      operationId: getRunDeletion
+      summary: Read artifact cleanup progress with current environment administrator authorization
+      responses:
+        '200': { $ref: '#/components/responses/Deletion' }
+        default: { $ref: '#/components/responses/Error' }
   /api/v1/runs/{runId}/cancel:
     parameters:
       - $ref: '#/components/parameters/runId'
@@ -173,6 +193,23 @@ components:
       required: true
       schema: { type: string, format: uuid }
   responses:
+    Deletion:
+      description: Durable deletion receipt; pending retains storage quota until exact-key cleanup succeeds
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    required: [run_id, deleted_at, files_status]
+                    properties:
+                      run_id: { type: string, format: uuid }
+                      deleted_at: { type: string, format: date-time }
+                      purged_at: { type: string, format: date-time, nullable: true }
+                      files_status: { type: string, enum: [pending, complete] }
     Error:
       description: >-
         Stable code in message, null data. 401 unauthenticated; 403 action
@@ -240,6 +277,7 @@ components:
             create: { type: boolean }
             read: { type: boolean }
             cancel: { type: boolean }
+            delete: { type: boolean }
     Run:
       type: object
       required: [run_id, state, trace_id]

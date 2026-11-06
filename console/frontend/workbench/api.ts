@@ -18,6 +18,10 @@ export class ApiError extends Error {
       429: '请求过于频繁或配额已用尽',
       503: '服务暂时不可用，请稍后重试',
     };
+    if (code === 'run_delete_not_ready')
+      reason[409] = '任务尚未结束或执行资源正在回收，请稍后再删除';
+    if (code === 'run_deleted')
+      reason[409] = '原任务已删除，请使用新请求创建任务';
     super(
       `${reason[status] ?? '操作未完成，请稍后重试'}${code ? `（${code}）` : ''}。`
     );
@@ -104,20 +108,35 @@ export class ApiScope {
     return response.text();
   }
   async downloadOutput(run: string, id: string, name: string): Promise<void> {
-    const response = await fetch(`/api/v1/runs/${encodeURIComponent(run)}/outputs/${encodeURIComponent(id)}/download`, {
-      headers: { Authorization: `Bearer ${await accessToken()}` },
-      credentials: 'omit', cache: 'no-store', signal: this.controller.signal,
-    });
+    const response = await fetch(
+      `/api/v1/runs/${encodeURIComponent(run)}/outputs/${encodeURIComponent(id)}/download`,
+      {
+        headers: { Authorization: `Bearer ${await accessToken()}` },
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: this.controller.signal,
+      }
+    );
     if (!response.ok) throw new ApiError(response.status, '');
     const blob = await response.blob();
     const expected = response.headers.get('X-Content-SHA256');
-    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
-    const actual = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-    if (!expected || actual !== expected) throw new Error('文件完整性校验失败，请重新下载。');
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      await blob.arrayBuffer()
+    );
+    const actual = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    if (!expected || actual !== expected)
+      throw new Error('文件完整性校验失败，请重新下载。');
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url; link.download = name; link.rel = 'noopener';
-    document.body.append(link); link.click(); link.remove();
+    link.href = url;
+    link.download = name;
+    link.rel = 'noopener';
+    document.body.append(link);
+    link.click();
+    link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async stream(

@@ -59,7 +59,7 @@ public class AgentRunService {
             var result=new LinkedHashMap<>(deployments.metadata(deployment.scope(),id));
             result.put("admission_enabled",admissionEnabled(deployment.scope().environment()));
             result.put("allowed_actions",Map.of("create",allows(caller,deployment,CREATE),
-                    "read",allows(caller,deployment,READ),"cancel",allows(caller,deployment,CANCEL)));
+                    "read",allows(caller,deployment,READ),"cancel",allows(caller,deployment,CANCEL),"delete",allows(caller,deployment,DELETE)));
             return result;});
     }
     private boolean admissionEnabled(String target) {
@@ -84,7 +84,7 @@ public class AgentRunService {
             List<Object> args=new ArrayList<>(List.of(deployment.scope().tenant(),deployment.scope().environment(),id));
             if(own) args.add(caller.actor());
             var rows=jdbc.queryForList("SELECT run_id,state,trace_id,error_code,usage_json,created_at,started_at,finished_at,deadline_at FROM oa_agent_run "
-                    +"WHERE tenant_id=? AND environment=? AND deployment_id=?"+(own?" AND actor_id=?":"")+" ORDER BY created_at DESC,run_id LIMIT 50",args.toArray());
+                    +"WHERE tenant_id=? AND environment=? AND deployment_id=? AND NOT EXISTS(SELECT 1 FROM oa_run_deletion d WHERE d.run_id=oa_agent_run.run_id)"+(own?" AND actor_id=?":"")+" ORDER BY created_at DESC,run_id LIMIT 50",args.toArray());
             rows.forEach(row -> row.put("usage",parse(row.remove("usage_json"))));
             return rows;
         });
@@ -100,6 +100,43 @@ public class AgentRunService {
         var deployment=authorization.runDeployment(runId);
         var result=ledger.cancel(deployment.scope(),runId,caller.actor(),()->authorization.require(caller,deployment,CANCEL,runId));
         return describe(deployment,result);
+    }
+    public Map<String,Object> delete(DeploymentAuthorization.Caller caller,String runId) {
+        var deployment=authorization.runDeployment(runId);
+        return tx.execute(status->{
+            deployments.lock(deployment.scope());authorization.require(caller,deployment,DELETE,runId);
+            var row=jdbc.queryForMap("SELECT state FROM oa_agent_run WHERE run_id=? FOR UPDATE",runId);
+            if(!jdbc.queryForList("SELECT run_id FROM oa_run_deletion WHERE run_id=?",runId).isEmpty())return deletionRecord(runId);
+            if(!RunState.parse((String)row.get("state")).terminal()
+                    || jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE run_id=? AND lease_state<>'released'",Integer.class,runId)!=0
+                    || jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_sandbox WHERE run_id=? AND phase<>'released'",Integer.class,runId)!=0)
+                throw new RunFailure("run_delete_not_ready");
+            // Match the reconciler's output-before-upload lock order.
+            jdbc.queryForList("SELECT output_id FROM oa_run_output WHERE run_id=? ORDER BY output_id FOR UPDATE",runId);
+            // Refuse to detach an object that would otherwise lose its durable cleanup key.
+            if(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output o WHERE run_id=? AND object_key IS NOT NULL AND NOT EXISTS(SELECT 1 FROM oa_run_output_upload u WHERE u.output_id=o.output_id AND u.object_key=o.object_key)",Integer.class,runId)!=0)
+                throw new RunFailure("run_delete_not_ready");
+            jdbc.update("INSERT INTO oa_run_deletion(run_id,tenant_id,environment,actor_id) VALUES(?,?,?,?)",
+                    runId,deployment.scope().tenant(),deployment.scope().environment(),caller.actor());
+            jdbc.update("UPDATE oa_run_output_upload u JOIN oa_run_output o ON o.output_id=u.output_id SET u.state='abandoned',u.reconcile_after=CURRENT_TIMESTAMP(3) WHERE o.run_id=?",runId);
+            jdbc.update("UPDATE oa_run_output SET state='failed',object_key=NULL WHERE run_id=?",runId);
+            int audited=jdbc.update("""
+                    INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,retain_until)
+                    SELECT tenant_id,environment,?,'run.deleted',?,TIMESTAMPADD(DAY,audit_retention_days,CURRENT_TIMESTAMP(3))
+                    FROM oa_tenant_environment WHERE tenant_id=? AND environment=?
+                    """,caller.actor(),runId,deployment.scope().tenant(),deployment.scope().environment());
+            if(audited!=1)throw new RunFailure("run_delete_not_ready");
+            org.slf4j.LoggerFactory.getLogger(getClass()).info("Task deletion recorded run_id={}",runId);
+            return deletionRecord(runId);
+        });
+    }
+    public Map<String,Object> deletion(DeploymentAuthorization.Caller caller,String runId) {
+        var deployment=authorization.runDeployment(runId);
+        return tx.execute(status->{deployments.lock(deployment.scope());authorization.require(caller,deployment,DELETE,runId);return deletionRecord(runId);});
+    }
+    private Map<String,Object> deletionRecord(String runId) {
+        var rows=jdbc.queryForList("SELECT run_id,deleted_at,purged_at,CASE WHEN purged_at IS NULL THEN 'pending' ELSE 'complete' END AS files_status FROM oa_run_deletion WHERE run_id=?",runId);
+        if(rows.isEmpty())throw new RunFailure("resource_unavailable");return rows.getFirst();
     }
     public Events events(DeploymentAuthorization.Caller caller,String runId,long after) {
         var deployment=authorization.runDeployment(runId);

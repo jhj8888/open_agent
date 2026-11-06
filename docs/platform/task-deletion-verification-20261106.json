@@ -1,0 +1,54 @@
+{
+  "checked_at": "2026-11-06T00:12:50.317706+00:00",
+  "run_id": "f410825d-4aba-4352-ba88-dcee6c2ab06a",
+  "https_verified": true,
+  "only_owned_synthetic_task_deleted": true,
+  "unauthenticated_rejected": true,
+  "repeated_delete_idempotent": true,
+  "status_events_sse_observations_outputs_hidden": true,
+  "removed_from_list": true,
+  "same_idempotency_key_cannot_replay": true,
+  "background_cleanup_status": "complete",
+  "submission_reuse_verified": true,
+  "browser_verification": false,
+  "deployment": {
+    "schema": "1.68",
+    "api_sha256": "18161e5d0665b0ca2bab3ae38080157c4125bfb90bc2adbf45cbf3dfa3df8479",
+    "console_sha256": "cf92f0b7831b545df13fa81188f553940441c220fabe4949ded2b95121bb1f85",
+    "maintenance_seconds": 41.568,
+    "private_backup_saved": true,
+    "cluster_bindings_enabled": false
+  },
+  "regression": {
+    "retained_steps": 58,
+    "retained_files": 2,
+    "download_digests_verified": true,
+    "cache_pages": 20,
+    "periods": [
+      "this_week",
+      "last_week",
+      "this_month",
+      "last_month"
+    ],
+    "original_model_or_tool_replayed": false,
+    "public_usage_checks": 21,
+    "static_asset_digests_verified": 3,
+    "trusted_tls": true
+  },
+  "checks": {
+    "initial_java": 29,
+    "deletion_and_restart_java": 24,
+    "cors_and_startup_java": 19,
+    "late_upload_java": 2,
+    "counts_overlap": true,
+    "new_mysql_deletion_cases": 6,
+    "openspec": 11,
+    "workbench_build": true,
+    "storage_fixture_phases": 17
+  },
+  "limitations": [
+    "Browser interaction has not been reverified.",
+    "Restoring older backups requires preserving later deletion tombstones; automatic merge remains pending.",
+    "Full production cluster/offline/capacity acceptance remains pending."
+  ]
+}

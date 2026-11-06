@@ -116,7 +116,8 @@ export function ObservationStatistics({ api }: { api: ApiScope }): JSX.Element {
         <div>
           <h2>Agent 周 / 月统计</h2>
           <p className="muted">
-            自然周从周一开始，自然月从一日开始 · Asia/Shanghai
+            自然周从周一开始，自然月从一日开始 · Asia/Shanghai ·
+            包含已删除任务的历史用量
           </p>
         </div>
         <div className="top-actions">

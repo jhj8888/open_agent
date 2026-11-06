@@ -42,6 +42,12 @@ export function RunConsole({
   const [error, setError] = useState('');
   const [connection, setConnection] = useState(0);
   const [streaming, setStreaming] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletion, setDeletion] = useState<{
+    run_id: string;
+    files_status: 'pending' | 'complete';
+  }>();
+  const deleted = useRef(new Set<string>());
   const pending = useRef<{ text: string; key: string }>();
   const alive = useRef(true);
   const updated = useRef(changed);
@@ -59,7 +65,8 @@ export function RunConsole({
           const items = await api.request<AgentRun[]>(
             `/api/v1/agent-deployments/${deployment.deployment_id}/runs`
           );
-          if (alive.current) setRows(items);
+          if (alive.current)
+            setRows(items.filter(item => !deleted.current.has(item.run_id)));
         }
       })
       .catch(failure => {
@@ -85,7 +92,8 @@ export function RunConsole({
           undefined,
           { signal: controller.signal }
         );
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || deleted.current.has(value.run_id))
+          return;
         setRun(value);
         setRows(previous =>
           [
@@ -109,7 +117,7 @@ export function RunConsole({
         selected,
         controller.signal,
         event => {
-          if (!controller.signal.aborted)
+          if (!controller.signal.aborted && !deleted.current.has(selected))
             setEvents(previous => [...previous, event]);
         },
         () => {
@@ -191,6 +199,50 @@ export function RunConsole({
       if (alive.current) setBusy(false);
     }
   };
+  const removeTask = async (): Promise<void> => {
+    if (!selected || busy || !run || !terminal(run.state)) return;
+    const id = selected;
+    setBusy(true);
+    setError('');
+    try {
+      const receipt = await api.request<{
+        run_id: string;
+        files_status: 'pending' | 'complete';
+      }>(`/api/v1/runs/${id}`, 'DELETE');
+      if (!alive.current) return;
+      deleted.current.add(id);
+      setRows(previous => previous.filter(item => item.run_id !== id));
+      setSelected(undefined);
+      setRun(undefined);
+      setEvents([]);
+      setPrompt('');
+      setInput('');
+      setHistory([]);
+      pending.current = undefined;
+      setConfirmDelete(false);
+      setDeletion(receipt);
+      updated.current();
+    } catch (failure) {
+      if (alive.current && !aborted(failure)) setError(errorMessage(failure));
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+  const refreshDeletion = async (): Promise<void> => {
+    if (!deletion || busy) return;
+    setBusy(true);
+    try {
+      const receipt = await api.request<{
+        run_id: string;
+        files_status: 'pending' | 'complete';
+      }>(`/api/v1/runs/${deletion.run_id}/deletion`);
+      if (alive.current) setDeletion(receipt);
+    } catch (failure) {
+      if (alive.current && !aborted(failure)) setError(errorMessage(failure));
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
   return (
     <div className="chat-backdrop">
       <section
@@ -218,9 +270,11 @@ export function RunConsole({
         <div className="chat-toolbar">
           <select
             aria-label="任务历史"
+            disabled={busy}
             value={selected ?? ''}
             onChange={event => {
               setSelected(event.target.value || undefined);
+              setConfirmDelete(false);
               setPrompt('');
               setHistory([]);
               pending.current = undefined;
@@ -236,8 +290,10 @@ export function RunConsole({
           </select>
           <button
             className="link"
+            disabled={busy}
             onClick={() => {
               setSelected(undefined);
+              setConfirmDelete(false);
               setPrompt('');
               setInput('');
               setHistory([]);
@@ -246,7 +302,53 @@ export function RunConsole({
           >
             新建任务
           </button>
+          {metadata?.allowed_actions?.delete && run && terminal(run.state) && (
+            <button
+              className="link"
+              disabled={busy}
+              onClick={() => setConfirmDelete(true)}
+            >
+              删除任务
+            </button>
+          )}
         </div>
+        {confirmDelete && selected && (
+          <div className="inline-note" role="alert">
+            删除任务 {selected.slice(0, 8)}{' '}
+            后，将无法查看任务详情或下载产物。文件由后台清理，历史用量与审计保留。此操作无法撤销。
+            <button
+              className="link"
+              disabled={busy}
+              onClick={() => void removeTask()}
+            >
+              确认删除
+            </button>
+            <button
+              className="link"
+              disabled={busy}
+              onClick={() => setConfirmDelete(false)}
+            >
+              保留任务
+            </button>
+          </div>
+        )}
+        {deletion && (
+          <div className="inline-note" role="status">
+            任务 {deletion.run_id.slice(0, 8)} 已删除；
+            {deletion.files_status === 'complete'
+              ? '产物清理已完成。'
+              : '产物正在后台清理，完成后释放存储配额。'}
+            {deletion.files_status === 'pending' && (
+              <button
+                className="link"
+                disabled={busy}
+                onClick={() => void refreshDeletion()}
+              >
+                刷新清理状态
+              </button>
+            )}
+          </div>
+        )}
         <ErrorBox
           message={error}
           retry={() => setConnection(value => value + 1)}
@@ -324,7 +426,13 @@ export function RunConsole({
                     )}
                   </div>
                   {run && <TaskOutputs key={run.run_id} api={api} run={run} />}
-                  {run && <TaskObservations key={`trace-${run.run_id}`} api={api} run={run} />}
+                  {run && (
+                    <TaskObservations
+                      key={`trace-${run.run_id}`}
+                      api={api}
+                      run={run}
+                    />
+                  )}
                   <details className="execution-details">
                     <summary>
                       <Icon name="terminal" size={14} />

@@ -185,6 +185,13 @@ def main(multipart_only=False):
         phases.append('multipart-uploader-sigkill')
         run_probe('multipart-reap',namespace)
         inspect_multipart('absent')
+        if not multipart_only:
+            run_probe('delete-prepare',namespace)
+            command('docker','kill','--signal=KILL',s3)
+            assert command('docker','wait',s3).stdout.strip()=='137'
+            run_probe('delete-outage',namespace)
+            command('docker','start',s3);time.sleep(8)
+            run_probe('delete-recover',namespace)
     finally:
         # Inspect exact identities and labels before any destructive operation.
         for identity in reversed(containers):
@@ -201,7 +208,7 @@ def main(multipart_only=False):
             path=folder/filename;assert path.parent==folder and not path.is_symlink();path.unlink(missing_ok=True)
     result={'checked_at':datetime.now(timezone.utc).isoformat(),'api_artifact_sha256':ARTIFACT_SHA256,
         'probe_sha256':sha256(probe.read_bytes()).hexdigest(),'mysql_image':MYSQL,'s3_image':SEAWEED,'phases':phases,
-        'actual_task_output_service_and_run_ledger':True,'migrations':'upstream dependency tables + V1.49 through V1.67 from verified release JAR',
+        'actual_task_output_service_and_run_ledger':True,'migrations':'upstream dependency tables + V1.49 through V1.68 from verified release JAR',
         'uploader_sigkill_after_s3_commit_before_publication':True,'writing_record_persisted':True,
         'offline_reconciliation_preserves_reaping_for_retry':True,'failed_upload_has_no_public_object_reference':True,
         'initial_recovery_cleared_uploads':3,'final_recovery_cleared_uploads':4,'retained_published_uploads':2,'retry_uses_different_immutable_key':True,
@@ -214,6 +221,9 @@ def main(multipart_only=False):
         'http_authorization_verified':False,'aging':'fixture created_at/reconcile_after advanced explicitly; no 15-minute/24-hour wall-clock wait'}
     if multipart_only:
         result={key:result[key] for key in ['checked_at','api_artifact_sha256','probe_sha256','mysql_image','s3_image','phases','multipart_interruption','fixture_containers_volumes_credentials_removed','production_data_modified','network']}
+    else:
+        result['task_deletion']={'real_authorization_and_service':True,'idempotent_audit':True,'read_hidden':True,
+            'storage_outage_pending':True,'recovery_clears_exact_object':True,'retained_file_digest_matches':True}
     private_file(ROOT/'output-multipart-verification.json',json.dumps(result,indent=2)+'\n',replace=True)
     print(json.dumps(result),flush=True)
 

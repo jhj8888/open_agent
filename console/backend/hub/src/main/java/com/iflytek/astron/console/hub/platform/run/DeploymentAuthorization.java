@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 /** Immutable verified identity may cross async boundaries; permissions never come from a stale cache. */
 @Component
 public class DeploymentAuthorization {
-    public enum Action { METADATA, CREATE, READ, CANCEL }
+    public enum Action { METADATA, CREATE, READ, CANCEL, DELETE }
     public record Caller(String uid,DeploymentKeys.Principal service) {
         public Caller {
             if((uid==null)==(service==null) || (uid!=null&&(uid.isBlank()||uid.length()>128))) throw new RunFailure("unauthenticated");
@@ -40,7 +40,10 @@ public class DeploymentAuthorization {
     }
     public void require(Caller caller,Deployment deployment,Action action,String runId) {
         var scope=deployment.scope();
+        if(runId!=null && action!=Action.DELETE && !jdbc.queryForList(
+                "SELECT run_id FROM oa_run_deletion WHERE run_id=?",runId).isEmpty())throw new RunFailure("resource_unavailable");
         if(caller.service()!=null) {
+            if(action==Action.DELETE)throw new RunFailure("action_forbidden");
             var rows=jdbc.queryForList("""
                     SELECT k.can_create,k.can_read,k.can_cancel FROM oa_deployment_credential k
                     JOIN oa_tenant t ON t.tenant_id=k.tenant_id
@@ -54,6 +57,10 @@ public class DeploymentAuthorization {
         }
         var context=memberships.findContext(caller.uid(),scope.tenant(),TenantEnvironment.parse(scope.environment())).orElseThrow(()->new RunFailure("resource_unavailable"));
         if(!TenantAccessPolicy.allows(context.role(),context.environment(),context.status(),TenantPermission.METADATA_READ)) throw new RunFailure("resource_unavailable");
+        if(action==Action.DELETE) {
+            if(context.role()!=TenantRole.TENANT_ADMIN || !"active".equals(context.status()))throw new RunFailure("action_forbidden");
+            return;
+        }
         if(action==Action.METADATA) return;
         var permission=switch(action) { case CREATE->TenantPermission.RUN_CREATE;case READ->TenantPermission.LOG_READ;case CANCEL->TenantPermission.RUN_CANCEL;default->throw new IllegalStateException(); };
         if(TenantAccessPolicy.allows(context.role(),context.environment(),context.status(),permission)) return;

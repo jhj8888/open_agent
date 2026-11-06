@@ -65,10 +65,10 @@ public class OutputReconciliationProbe {
         try(var files=Files.list(Path.of("/fixture/classes/db/migration"))) {
             files.forEach(path->{
                 var match=Pattern.compile("V1\\.(\\d+)__.*\\.sql").matcher(path.getFileName().toString());
-                if(match.matches()) {int version=Integer.parseInt(match.group(1));if(version>=49 && version<=67)migrations.put(version,path);}
+                if(match.matches()) {int version=Integer.parseInt(match.group(1));if(version>=49 && version<=68)migrations.put(version,path);}
             });
         }
-        require(migrations.size()==19);
+        require(migrations.size()==20);
         for(var path:migrations.values())scripts.addScript(new FileSystemResource(path));
         scripts.execute(source);
         jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',10)",TENANT,TENANT);
@@ -113,6 +113,13 @@ public class OutputReconciliationProbe {
         require(jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE output_id=?",String.class,keep.get("output_id")).equals("published"));
     }
     void ageUploads() {jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3)),reconcile_after=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3))");}
+    AgentRunService deletionApi() {
+        var membership=new com.iflytek.astron.console.commons.tenant.TenantAccessRepository(jdbc);
+        var authorization=new DeploymentAuthorization(jdbc,membership);
+        var manager=new DataSourceTransactionManager(source);
+        var deployments=new AgentDeploymentService(jdbc,new com.iflytek.astron.console.commons.tenant.TenantAccessService(membership),json,manager);
+        return new AgentRunService(ledger,authorization,deployments,jdbc,json,new StandardEnvironment(),manager);
+    }
     void execute(String mode) throws Exception {
         if(mode.equals("prepare")) {
             initialize();var lease=lease("keep");String id=reserve(lease,"keep.txt");
@@ -215,6 +222,33 @@ public class OutputReconciliationProbe {
                 require(jdbc.queryForObject("SELECT state FROM oa_run_output_upload WHERE object_key=?",String.class,key).equals("cleared"));
             }
             System.out.println("OUTPUT_MULTIPART_KEY="+key);retained();
+        } else if(mode.equals("delete-prepare")) {
+            jdbc.update("INSERT INTO user_info(uid,username,account_status,deleted) VALUES('output-admin','Fixture admin',1,0)");
+            jdbc.update("INSERT INTO agent_space(id,name,uid,deleted) VALUES(10,'Fixture','output-admin',0)");
+            jdbc.update("INSERT INTO agent_space_user(space_id,uid,role) VALUES(10,'output-admin',1)");
+            jdbc.update("INSERT INTO oa_tenant_member(tenant_id,environment,uid,role) VALUES(?,'test','output-admin','tenant_admin')",TENANT);
+            var lease=lease("delete-fixture");String id=reserve(lease,"deleted.txt");
+            outputs.upload(lease,id,new ByteArrayInputStream(CONTENT),CONTENT.length);
+            ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+            var caller=new DeploymentAuthorization.Caller("output-admin",null);var api=deletionApi();
+            require("pending".equals(api.delete(caller,lease.runId()).get("files_status")));
+            require("pending".equals(api.delete(caller,lease.runId()).get("files_status")));
+            rejected(()->api.status(caller,lease.runId()),"resource_unavailable");
+            rejected(()->api.events(caller,lease.runId(),0),"resource_unavailable");
+            require(jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='run.deleted'",Integer.class)==1);
+            retained();
+        } else if(mode.equals("delete-outage") || mode.equals("delete-recover")) {
+            var row=output("deleted.txt");String run=(String)row.get("run_id");
+            jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3)),reconcile_after=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE output_id=?",row.get("output_id"));
+            outputs.reconcile();
+            var receipt=deletionApi().deletion(new DeploymentAuthorization.Caller("output-admin",null),run);
+            require((mode.equals("delete-outage")?"pending":"complete").equals(receipt.get("files_status")));
+            if(mode.equals("delete-recover")) {
+                String key=jdbc.queryForObject("SELECT object_key FROM oa_run_output_upload WHERE output_id=?",String.class,row.get("output_id"));
+                try {s3.statObject(StatObjectArgs.builder().bucket(BUCKET).object(key).build());throw new IllegalStateException("deleted_object_remains");}
+                catch(io.minio.errors.ErrorResponseException failure) {require("NoSuchKey".equals(failure.errorResponse().code()));}
+                retained();
+            }
         } else throw new IllegalArgumentException("unknown_fixture_mode");
     }
     public static void main(String[] args) {

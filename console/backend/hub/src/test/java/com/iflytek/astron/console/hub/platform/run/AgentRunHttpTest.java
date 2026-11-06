@@ -39,6 +39,20 @@ class AgentRunHttpTest {
         when(decoder.decode("valid-user-jwt")).thenReturn(Jwt.withTokenValue("valid-user-jwt").header("alg","RS256")
                 .subject("alice").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300)).build());
     }
+    @Test void deletionIsAuthenticatedAcceptedAndReportsPendingCleanup() throws Exception {
+        mvc.perform(options("/api/v1/runs/"+RUN).header("Origin","https://console.example.test")
+                .header("Access-Control-Request-Method","DELETE").header("Access-Control-Request-Headers","authorization"))
+                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Methods",org.hamcrest.Matchers.containsString("DELETE")));
+        mvc.perform(delete("/api/v1/runs/"+RUN)).andExpect(status().isUnauthorized());
+        when(runs.delete(any(),eq(RUN))).thenReturn(Map.of("run_id",RUN,"files_status","pending"));
+        mvc.perform(delete("/api/v1/runs/"+RUN).header("Authorization","Bearer valid-user-jwt").header("Origin","https://console.example.test"))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.files_status").value("pending"));
+        when(runs.delete(any(),eq(RUN))).thenThrow(new RunFailure("run_delete_not_ready"));
+        mvc.perform(delete("/api/v1/runs/"+RUN).header("Authorization","Bearer valid-user-jwt")).andExpect(status().isConflict());
+        when(runs.deletion(any(),eq(RUN))).thenReturn(Map.of("run_id",RUN,"files_status","complete"));
+        mvc.perform(get("/api/v1/runs/"+RUN+"/deletion").header("Authorization","Bearer valid-user-jwt"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.files_status").value("complete"));
+    }
     @Test void missingOrInvalidCredentialsNeverReachAdmission() throws Exception {
         mvc.perform(post(SUBMIT).contentType("application/json").content(INPUT)).andExpect(status().isUnauthorized());
         when(keys.authenticate(KEY)).thenReturn(Optional.empty());

@@ -16,6 +16,14 @@
 
 ## Verification
 
+### Explicit task deletion
+
+工作台/API → `AgentRunService.delete` → 当前租户环境管理员授权 → 租户/环境/run 锁 → 终态及全部 attempt/沙盒释放核验 → `oa_run_deletion` 墓碑、审计和产物取消发布同一事务 → 既有 `TaskOutputService.reconcile` 精确键后台清理。删除不调用模型、工具或运行时，不修改共享 TenantPermission、Skill 对象、Redis/Kafka。服务凭据不授予删除权限；测试/生产均需当前 active tenant_admin。运行中、取消中或资源尚未释放返回冲突，不自动取消或释放资源。
+
+删除后列表隐藏，状态/事件/SSE/步骤/文件入口在事务内重新授权时拒绝；同权限 DELETE 幂等，独立 deletion 状态入口返回待清理/已清理。原幂等键仍保留且重提返回 run_deleted，不重新执行。保留任务账本、历史用量/统计、版本验证引用及审计，界面明确删除不是历史计量擦除。文件必须全部被既有上传记录覆盖后才允许取消发布；每个清理键仍需核对不存在其他发布引用。后台成功后设置 purged_at 并释放产物逻辑容量，失败保留容量与重试记录。既有 15 分钟候选年龄和退避/按日复查不变；无恢复按钮，备份按原保留策略独立管理。
+
+旧上传在删除清理完成后返回失败时，重新登记 abandoned 的同一事务清空 purged_at，恢复待清理状态和逻辑容量占用。新 DELETE 方法同时纳入公开 API 的 CORS 方法列表，保留 Bearer 身份要求，不授予匿名或服务凭据删除能力。
+
 ### Implementation boundary and defaults
 
 调用链为 `TaskOutputs → TaskOutputController → TaskOutputService → DeploymentAuthorization/RunLedger → MinioTaskOutputStore`；执行侧为 `RuntimeExecutor → DeepAgents official middleware → output publisher → OpenSandbox official command/range-file APIs → private worker output endpoint`。复用现有 S3 bucket 的独立 `task-outputs/v1/` 前缀，不修改 bucket policy、Skill 删除契约、Redis 或 Kafka。凭据仅在已有可信控制面/worker，沙盒内没有对象存储密钥。

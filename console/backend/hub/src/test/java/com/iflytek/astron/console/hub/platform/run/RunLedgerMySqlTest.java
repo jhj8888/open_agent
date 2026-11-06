@@ -58,6 +58,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.65__record_rejected_cluster_creations.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.66__bind_cluster_sandbox_resources.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.67__recheck_unpublished_output_uploads.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.68__record_task_deletion.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -283,6 +284,115 @@ class RunLedgerMySqlTest {
     }
     private TaskOutputService outputs(OutputStore store) {
         return new TaskOutputService(ledger,jdbc,store,authorization(),deployments(),new DataSourceTransactionManager(source),new org.springframework.mock.env.MockEnvironment());
+    }
+    @Test void taskDeletionRequiresAdministratorTerminalStateAndReleasedResources() {
+        actors();String id=submit("delete-gates").runId();
+        for(String uid:List.of("bob","operator","viewer"))code("action_forbidden",()->api().delete(caller(uid),id));
+        code("run_delete_not_ready",()->api().delete(caller("alice"),id));
+        var lease=claim(id);code("run_delete_not_ready",()->api().delete(caller("alice"),id));
+        ledger.finish(lease,RunState.SUCCEEDED,null);
+        code("run_delete_not_ready",()->api().delete(caller("alice"),id));
+        ledger.resourcesReleased(lease);
+        assertEquals("pending",api().delete(caller("alice"),id).get("files_status"));
+        assertEquals(id,api().delete(caller("alice"),id).get("run_id"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM oa_tenant_audit WHERE action='run.deleted'",Integer.class));
+        code("run_deleted",()->submit("delete-gates"));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        code("resource_unavailable",()->api().delete(caller("alice"),id));
+        code("resource_unavailable",()->api().deletion(caller("alice"),id));
+    }
+    @Test void taskDeletionHidesEveryReadAndRetriesFileCleanupWithoutTouchingAnotherTask() throws Exception {
+        actors();var store=new OutputStore();var service=outputs(store);
+        var lease=claim(submit("delete-files").runId());var other=claim(submit("keep-files").runId());
+        byte[] content="keep or delete".getBytes(StandardCharsets.UTF_8);
+        var descriptor=new TaskOutputService.Descriptor("/workspace/outputs/report.txt",content.length,RunJson.hash("keep or delete"),"final");
+        String target=(String)service.reserve(lease,descriptor).get("output_id");
+        String keep=(String)service.reserve(other,descriptor).get("output_id");
+        service.upload(lease,target,new java.io.ByteArrayInputStream(content),content.length);
+        service.upload(other,keep,new java.io.ByteArrayInputStream(content),content.length);
+        ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+        api().delete(caller("alice"),lease.runId());
+        assertTrue(api().list(caller("alice"),deployment).stream().noneMatch(r->r.get("run_id").equals(lease.runId())));
+        code("resource_unavailable",()->api().status(caller("alice"),lease.runId()));
+        code("resource_unavailable",()->api().events(caller("alice"),lease.runId(),0));
+        code("resource_unavailable",()->observations().list(caller("alice"),lease.runId(),0,100));
+        code("resource_unavailable",()->service.list(caller("alice"),lease.runId()));
+        code("resource_unavailable",()->service.download(caller("alice"),lease.runId(),target,false));
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        store.failRemove=key->true;service.reconcile();
+        assertEquals("pending",api().deletion(caller("alice"),lease.runId()).get("files_status"));
+        assertEquals(2,store.objects.size());
+        store.failRemove=key->false;
+        jdbc.update("UPDATE oa_run_output_upload SET reconcile_after=TIMESTAMPADD(MINUTE,-1,CURRENT_TIMESTAMP(3))");
+        outputs(store).reconcile();
+        assertEquals("complete",api().deletion(caller("alice"),lease.runId()).get("files_status"));
+        assertEquals(1,store.objects.size());
+        try(var bytes=service.download(caller("alice"),other.runId(),keep,false).content().getInputStream()){assertArrayEquals(content,bytes.readAllBytes());}
+        assertNotNull(ledger.get(scope,lease.runId())); // Accounting and idempotency evidence remain.
+    }
+    @Test void taskDeletionAuditFailureRollsBackTombstoneAndOutputDetach() {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("delete-rollback").runId());
+        var descriptor=new TaskOutputService.Descriptor("/workspace/outputs/a.txt",1,RunJson.hash("x"),"final");
+        String id=(String)service.reserve(lease,descriptor).get("output_id");
+        service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{120}),1);
+        ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);
+        jdbc.execute("CREATE TRIGGER fail_delete_audit BEFORE INSERT ON oa_tenant_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->api().delete(caller("alice"),lease.runId()));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_deletion",Integer.class));
+        assertEquals("available",service.list(caller("alice"),lease.runId()).getFirst().get("state"));
+        assertEquals("published",jdbc.queryForObject("SELECT state FROM oa_run_output_upload",String.class));
+    }
+    @Test void taskDeletionLateUploadFailureReopensCleanupStatus() {
+        actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("delete-late").runId());
+        String id=(String)service.reserve(lease,new TaskOutputService.Descriptor("/workspace/outputs/a.txt",1,RunJson.hash("x"),"final")).get("output_id");
+        store.afterPut=()->{
+            ledger.finish(lease,RunState.SUCCEEDED,null);ledger.resourcesReleased(lease);api().delete(caller("alice"),lease.runId());
+            jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+            service.reconcile();assertEquals("complete",api().deletion(caller("alice"),lease.runId()).get("files_status"));
+        };
+        code("lease_fenced",()->service.upload(lease,id,new java.io.ByteArrayInputStream(new byte[]{120}),1));
+        assertEquals("pending",api().deletion(caller("alice"),lease.runId()).get("files_status"));
+        assertEquals("abandoned",jdbc.queryForObject("SELECT state FROM oa_run_output_upload",String.class));
+        service.reconcile();assertEquals("complete",api().deletion(caller("alice"),lease.runId()).get("files_status"));
+    }
+    @Test void taskDeletionCannotRemoveAKeyStillReferencedByAnotherTask() {
+        actors();var store=new OutputStore();var service=outputs(store);
+        var a=claim(submit("delete-shared").runId());var b=claim(submit("keep-shared").runId());
+        var descriptor=new TaskOutputService.Descriptor("/workspace/outputs/a.txt",1,RunJson.hash("x"),"final");
+        String first=(String)service.reserve(a,descriptor).get("output_id"),second=(String)service.reserve(b,descriptor).get("output_id");
+        service.upload(a,first,new java.io.ByteArrayInputStream(new byte[]{120}),1);
+        service.upload(b,second,new java.io.ByteArrayInputStream(new byte[]{120}),1);
+        String shared=jdbc.queryForObject("SELECT object_key FROM oa_run_output WHERE output_id=?",String.class,first);
+        // Defensive corruption/import case: normal writers always generate distinct keys.
+        jdbc.update("UPDATE oa_run_output SET object_key=? WHERE output_id=?",shared,second);
+        ledger.finish(a,RunState.SUCCEEDED,null);ledger.resourcesReleased(a);api().delete(caller("alice"),a.runId());
+        jdbc.update("UPDATE oa_run_output_upload SET created_at=TIMESTAMPADD(MINUTE,-20,CURRENT_TIMESTAMP(3))");
+        service.reconcile();assertTrue(store.objects.containsKey(shared));
+        assertEquals("pending",api().deletion(caller("alice"),a.runId()).get("files_status"));
+    }
+    @Test @EnabledIfEnvironmentVariable(named="OA_RUN_TEST_RESTART_SIGNAL",matches=".+")
+    void taskDeletionSurvivesDatabaseRestartAndRequiresEachEnvironmentMembership() throws Exception {
+        actors();String id=submit("delete-restart").runId();ledger.cancel(scope,id,"alice",()->{});
+        var serviceCaller=new DeploymentAuthorization.Caller(null,new DeploymentKeys.Principal(UUID.randomUUID().toString(),UUID.randomUUID().toString()));
+        code("action_forbidden",()->api().delete(serviceCaller,id));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='bob'",A);
+        code("resource_unavailable",()->api().delete(caller("bob"),id));
+        api().delete(caller("alice"),id);
+        var prod=new RunLedger.Scope(A,"prod");String prodDeployment=seedDeployment(prod);
+        String prodRun=ledger.submit(prod,prodDeployment,"alice","delete-prod",json.createObjectNode().put("message","fixture"),60,()->{}).runId();
+        ledger.cancel(prod,prodRun,"alice",()->{});
+        code("action_forbidden",()->api().delete(caller("bob"),prodRun));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='prod' AND uid='alice'",A);
+        code("resource_unavailable",()->api().delete(caller("alice"),prodRun));
+        jdbc.update("INSERT INTO oa_tenant_member(tenant_id,environment,uid,role) VALUES(?,'prod','alice','tenant_admin')",A);
+        api().delete(caller("alice"),prodRun);
+        var signal=java.nio.file.Path.of(System.getenv("OA_RUN_TEST_RESTART_SIGNAL"));java.nio.file.Files.writeString(signal,"restart");
+        long until=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+        while(!java.nio.file.Files.readString(signal).equals("ready") && System.nanoTime()<until)Thread.sleep(100);
+        assertEquals("ready",java.nio.file.Files.readString(signal));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_deletion",Integer.class));
+        assertEquals(id,api().deletion(caller("alice"),id).get("run_id"));
+        code("resource_unavailable",()->api().status(caller("alice"),prodRun));
     }
     @Test void outputsPersistAcrossCleanupRestartRetentionAndRequireCurrentTaskAccess() throws Exception {
         actors();var store=new OutputStore();var service=outputs(store);var lease=claim(submit("outputs").runId());

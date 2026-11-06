@@ -26,4 +26,4 @@ Agent 将交付文件写到 `/workspace/outputs/`。DeepAgents 的工具完成�
 | 文本预览 | `GET /api/v1/runs/{runId}/outputs/{outputId}/preview` |
 | 授权下载 | `GET /api/v1/runs/{runId}/outputs/{outputId}/download` |
 
-备份需同时覆盖任务、`oa_run_output`、`oa_run_output_upload`、`oa_run_output_access` 及 S3 内容，恢复时重新校验摘要和引用。展示机已完成联合冷备份和隔离恢复，12 个产物下载摘要及授权复查通过，见[备份手册](../../deploy/platform/backup/README.md)。完整删除墓碑流程与生产集群备份策略仍待验收；本功能不会自动删除任何已有任务或已发布文件。
+备份需同时覆盖任务、`oa_run_output`、`oa_run_output_upload`、`oa_run_output_access`、V1.68 的 `oa_run_deletion` 及 S3 内容，恢复时重新校验摘要和引用。展示机已完成先前版本的联合冷备份和隔离恢复，12 个产物下载摘要及授权复查通过，见[备份手册](../../deploy/platform/backup/README.md)。显式管理员删除、墓碑和后台清理现已交付，见[任务删除](task-deletion.md)；不会按 TTL 自动删除既有任务或已发布文件。旧备份恢复时后续删除记录的合并及生产集群备份策略仍待验收。

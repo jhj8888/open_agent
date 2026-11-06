@@ -45,7 +45,7 @@ public class TaskOutputService {
                 return existing.getFirst();
             }
             var task=jdbc.queryForMap("SELECT COUNT(*) count,COALESCE(SUM(size_bytes),0) bytes FROM oa_run_output WHERE run_id=?",lease.runId());
-            long occupied=jdbc.queryForObject("SELECT COALESCE(SUM(size_bytes),0) FROM oa_run_output WHERE tenant_id=? AND environment=?",Long.class,lease.scope().tenant(),lease.scope().environment());
+            long occupied=jdbc.queryForObject("SELECT COALESCE(SUM(size_bytes),0) FROM oa_run_output o WHERE tenant_id=? AND environment=? AND NOT EXISTS(SELECT 1 FROM oa_run_deletion d WHERE d.run_id=o.run_id AND d.purged_at IS NOT NULL)",Long.class,lease.scope().tenant(),lease.scope().environment());
             if(((Number)task.get("count")).longValue()>=32 || ((Number)task.get("bytes")).longValue()+value.size()>128L*1024*1024
                     || occupied+value.size()>tenantBytes)throw new RunFailure("output_quota_exceeded");
             String id=UUID.randomUUID().toString();
@@ -86,6 +86,7 @@ public class TaskOutputService {
                 if(jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_output WHERE object_key=?",Integer.class,key)==0) {
                     jdbc.update("UPDATE oa_run_output_upload SET state='abandoned',reconcile_after=CURRENT_TIMESTAMP(3) WHERE upload_id=? AND state IN ('writing','reaping','cleared')",upload);
                     jdbc.update("UPDATE oa_run_output SET state='failed' WHERE output_id=? AND state<>'available'",id);
+                    jdbc.update("UPDATE oa_run_deletion SET purged_at=NULL WHERE run_id=?",lease.runId());
                 }return null;
             });throw failure;
         }
@@ -126,6 +127,13 @@ public class TaskOutputService {
                 }));
                 if(reap) {store.remove((String)row.get("object_key"));jdbc.update("UPDATE oa_run_output_upload SET state='cleared',reconcile_after=TIMESTAMPADD(DAY,1,CURRENT_TIMESTAMP(3)) WHERE upload_id=? AND state='reaping'",row.get("upload_id"));}
             } catch(RuntimeException failure) {org.slf4j.LoggerFactory.getLogger(getClass()).warn("Task output reconciliation deferred; upload={}",row.get("upload_id"));}
+        }
+        for(var deletion:jdbc.queryForList("SELECT run_id FROM oa_run_deletion d WHERE purged_at IS NULL AND NOT EXISTS(SELECT 1 FROM oa_run_output o JOIN oa_run_output_upload u ON u.output_id=o.output_id WHERE o.run_id=d.run_id AND u.state<>'cleared') ORDER BY deleted_at LIMIT 20")) {
+            jdbc.update("""
+                    UPDATE oa_run_deletion d SET purged_at=CURRENT_TIMESTAMP(3) WHERE run_id=? AND purged_at IS NULL
+                    AND NOT EXISTS(SELECT 1 FROM oa_run_output o JOIN oa_run_output_upload u ON u.output_id=o.output_id
+                        WHERE o.run_id=d.run_id AND u.state<>'cleared')
+                    """,deletion.get("run_id"));
         }
     }
 }

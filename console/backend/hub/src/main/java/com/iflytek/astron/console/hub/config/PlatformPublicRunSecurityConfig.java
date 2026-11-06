@@ -43,7 +43,7 @@ public class PlatformPublicRunSecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .cors(cors->cors.configurationSource(request->{
                     var config=new CorsConfiguration();config.setAllowedOriginPatterns(List.of("*"));
-                    config.setAllowedMethods(List.of("GET","POST","OPTIONS"));
+                    config.setAllowedMethods(List.of("GET","POST","DELETE","OPTIONS"));
                     config.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Idempotency-Key","Last-Event-ID"));
                     config.setAllowCredentials(false);return config;
                 }))

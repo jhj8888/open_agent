@@ -23,6 +23,7 @@ public class PlatformExceptionHandler {
         HttpStatus status = switch (exception.code()) {
             case "unauthenticated" -> HttpStatus.UNAUTHORIZED;
             case "action_forbidden" -> HttpStatus.FORBIDDEN;
+            case "run_delete_not_ready", "run_deleted" -> HttpStatus.CONFLICT;
             case "executor_unavailable", "stored_event_unavailable", "output_storage_unavailable", "output_integrity_failed" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "output_transfer_busy", "output_quota_exceeded", "observation_limit" -> HttpStatus.TOO_MANY_REQUESTS;
             case "observation_conflict", "observation_start_missing", "observation_claim_lost" -> HttpStatus.CONFLICT;
