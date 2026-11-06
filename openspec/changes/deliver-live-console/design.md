@@ -16,6 +16,8 @@
 
 ## Risks / Trade-offs
 
+任务历史调用链：工作台任务页 → JWT 管理接口 `/platform/tenants/{tenant}/environments/{environment}/runs` → 当前成员/生产部署委派授权 → `oa_agent_run` 与部署元数据/删除清单查询。新接口不改变外部每部署最近 50 条数组契约。采用 `(created_at, run_id)` 降序键集分页和每页最多 100 条；游标绑定用户、范围与筛选，不是授权凭据，服务端每次重查权限。复用现有租户锁保证同一请求内授权与查询一致，不引入共享缓存或新数据库迁移。状态变化实时反映，翻页不是数据库快照；新任务通过返回首页获取。Agent 名称字面子串搜索、任务 ID 前缀搜索均参数化，通配符转义。旧任务打开时按部署 ID 重新取元数据，不依赖最近部署列表。首页摘要仍明确为最近记录统计，周/月统计维持独立全量聚合。
+
 长会话验收补充：OIDC refresh_token 过期时使用官方 SDK 的 removeUser/UserUnloaded 事件清除内存身份并卸载当前租户范围，显示中文重新登录入口。只将 invalid_grant/login_required/interaction_required/consent_required 等明确身份失败视为会话结束；网络临时失败保留会话并返回可重试提示。不展示身份服务原始错误，不持久化表单或密钥，也不自动重放提交。
 
 公网展示入口必须实际验证 TLS、OIDC issuer/回调和跨站请求边界。已有 Casdoor 私有 issuer 配置需要受控迁移，保留密钥与用户数据。旧预览始终可访问以供视觉对照。

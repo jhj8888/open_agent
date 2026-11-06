@@ -1,0 +1,151 @@
+{
+  "checked_at": "2026-11-06T02:38:25.368459+00:00",
+  "api": {
+    "artifact_sha256": "0e2a86b923a4db487f9fee0a229966d8175563acb55965aef3d8016408f6de18",
+    "schema_version": "1.69",
+    "seconds": 44.201,
+    "finished_at": "2026-11-06T02:17:45.152814+00:00",
+    "backup_saved": true
+  },
+  "console": {
+    "owner": "open_agent.console.demo.v1",
+    "archive_sha256": "397dcdb9eed9f23e646617dbaf53b3ca751138fc16bfcd5475376bfc8d8e6329",
+    "files": {
+      "assets/index-CbickEKy.js": "44e2e25bd0235273c5d8990bfa628ced0dd464d6b94a6847655f010734fc8ad5",
+      "assets/index-CbL8AMT_.css": "9f3d6409ed559167a39ce77686925f11a79908f129aef7c4dc02f9d1c7d6ad5d",
+      "index.html": "b066428bd4c3433c4c6cfd6789d427382bab831575206616c63bd0e0444f0c14"
+    },
+    "previous": "11ce9437de2a16eda471cd739317ca63b504d8a0bebee70f282091e8a65b9350",
+    "published_unix": 1793932408,
+    "url": "https://120.26.81.83/open-agent/",
+    "browser_verified": false
+  },
+  "public_history": {
+    "checked_at": "2026-11-06T02:20:57.722259+00:00",
+    "read_only": true,
+    "public_https": true,
+    "rows": 31,
+    "pages": 5,
+    "page_size": 7,
+    "database_order_matches": true,
+    "usage_and_deployment_match_details": true,
+    "filters": {
+      "active": 0,
+      "succeeded": 21,
+      "failed": 7,
+      "cancelled": 3
+    },
+    "search_verified": true,
+    "invalid_cursor_and_queries_denied": true,
+    "cross_environment_cursor_denied": true,
+    "cross_tenant_history_and_cursor_denied": true,
+    "task_execution_replayed": false
+  },
+  "public_entry": {
+    "checked_at": "2026-11-06T02:34:38.373442+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "397dcdb9eed9f23e646617dbaf53b3ca751138fc16bfcd5475376bfc8d8e6329",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "retained_task": {
+    "live_services_active": [
+      "open-agent-supervisor.service",
+      "open-agent-temporal.service",
+      "open-agent-ingress.service",
+      "open-agent-mlflow.service",
+      "open-agent-trace-exporter.service"
+    ],
+    "original_retained_run": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "original_steps": 58,
+    "original_files_sha256_verified": 2,
+    "no_restore_containers_or_firewall_rules_left": true,
+    "maintenance_resume_retry_verified": true,
+    "cleanup_retry_verified": true,
+    "pending_observation_attempts": 0
+  },
+  "java_checks": [
+    {
+      "name": "com.iflytek.astron.console.hub.platform.run.RunLedgerMySqlTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "72.168"
+    },
+    {
+      "name": "com.iflytek.astron.platform.PlatformApplicationTest",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "14.601"
+    },
+    {
+      "name": "com.iflytek.astron.console.hub.platform.run.AgentRunHttpTest",
+      "tests": "14",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "14.998"
+    }
+  ],
+  "sources": {
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/TaskHistoryService.java": "87b0d1e5d53f74e1681327704950df07a2f56c92831ba10d76c4e1e08ba3a851",
+    "console/backend/hub/src/main/java/com/iflytek/astron/console/hub/platform/run/TaskHistoryController.java": "400baf3472eb89de68ceb17abad00898e057ad70b98b05c71226883f5241ec21",
+    "console/frontend/workbench/history.tsx": "6feb8ccd74159e43a1bc392c4eb000219ae34efaa32ad6b76cfbca897f4815e1",
+    "console/frontend/workbench/main.tsx": "fe060c79530f96a57ecfc7b817c5e62c77e9b4ad49fbe79930a297a7c5e55aa9",
+    "console/frontend/workbench/style.css": "670fcfbe348e3524d176c6fe4fec5282747cfd52a9feeaae2859df21d6ce1fe4",
+    "deploy/platform/control/verify_task_history.py": "94556e45e2c21ec94f594f7ec2c96a41191e802a6058c5684b4f7b07ce137d96"
+  },
+  "browser": {
+    "tool": "agent-browser 0.41.2 with installed Chrome, owned headless session",
+    "normal_oidc_login": true,
+    "pagination_page_rows": [
+      25,
+      6
+    ],
+    "previous_page_verified": true,
+    "page_size_10_verified": true,
+    "cancelled_filter_rows": 3,
+    "chinese_search_rows": 4,
+    "id_prefix_search_rows": 1,
+    "production_switch_resets_search": true,
+    "production_rows": 3,
+    "retained_task_opened": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "file_preview_verified": true,
+    "execution_region_visible": true,
+    "downloaded_files": [
+      {
+        "file_name": "步骤说明.txt",
+        "size_bytes": 302,
+        "sha256": "7f7296a4c39d3a27118e09a17beb2ff58f12cd859ede93d6b7bcf1e5459edfee"
+      },
+      {
+        "file_name": "步骤验收.csv",
+        "size_bytes": 59,
+        "sha256": "d0be281b76323947aa86a7555fefb03cee6a2267c30d8a3ebb3f114cd52c2fc5"
+      }
+    ],
+    "download_sha256_matches_api_metadata": true,
+    "final_script_asset": "/open-agent/assets/index-CbickEKy.js",
+    "screenshot_sha256": "7539d64673021774d2e7a8a4add26e22f0d9eb97393f610ba4ee301d43f098a7",
+    "session_closed": true,
+    "limitations": "Initial CLI download command produced extended Windows paths and cancelled downloads. Fresh owned session with a normal default download directory and ordinary UI clicks saved both files. No product download changes."
+  },
+  "scope": "Task history feature on single-host demo. No model/tool replay, production cluster or full offline capacity acceptance."
+}

@@ -77,6 +77,105 @@ class RunLedgerMySqlTest {
         return new DriverManagerDataSource(url, System.getenv("OA_RUN_TEST_DB_USER"), System.getenv("OA_RUN_TEST_DB_PASSWORD"));
     }
     private RunLedger instance() { return new RunLedger(new JdbcTemplate(source), new DataSourceTransactionManager(source), json); }
+    private TaskHistoryService history() { return new TaskHistoryService(jdbc,access(),deployments(),json,new DataSourceTransactionManager(source)); }
+    private String historyRun(RunLedger.Scope target,String targetDeployment,String actor,String state,String time) {
+        String id=UUID.randomUUID().toString();
+        jdbc.update("""
+                INSERT INTO oa_agent_run(tenant_id,environment,run_id,deployment_id,actor_id,idempotency_key,
+                  request_sha256,input_json,snapshot_json,snapshot_sha256,trace_id,deadline_at,retain_until,state,created_at,finished_at)
+                VALUES(?,?,?,?,?,?,?,'{}','{}',?,?,TIMESTAMPADD(HOUR,1,CURRENT_TIMESTAMP(3)),
+                  TIMESTAMPADD(DAY,30,CURRENT_TIMESTAMP(3)),?,?,?)
+                """,target.tenant(),target.environment(),id,targetDeployment,caller(actor).actor(),id,
+                RunJson.hash(id),RunJson.hash("{}"),UUID.randomUUID().toString(),state,Timestamp.valueOf(time),
+                RunState.parse(state).terminal()?Timestamp.valueOf(time):null);
+        return id;
+    }
+    @Test void taskHistoryPaginatesBeyondDeploymentAndRunCapsWithDeletionAndConcurrentInsert() {
+        actors();
+        // 105 newer deployments hide the original from the legacy deployment list.
+        jdbc.update("UPDATE oa_agent_deployment SET created_at='2026-01-01 00:00:00',display_name='旧任务 Agent' WHERE deployment_id=?",deployment);
+        for(int i=0;i<105;i++) jdbc.update("""
+                INSERT INTO oa_agent_deployment(tenant_id,environment,deployment_id,display_name,executor_kind,agent_version,
+                  model_connection_id,model_version,snapshot_json,snapshot_sha256,state,created_by,created_at)
+                SELECT tenant_id,environment,?,'newer','deepagents',agent_version,model_connection_id,model_version,
+                  snapshot_json,snapshot_sha256,state,created_by,'2026-02-01 00:00:00' FROM oa_agent_deployment WHERE deployment_id=?
+                """,UUID.randomUUID().toString(),deployment);
+        assertEquals(100,deployments().list(scope).size());
+        assertTrue(deployments().list(scope).stream().noneMatch(row->deployment.equals(row.get("deployment_id"))));
+        for(int i=0;i<116;i++) historyRun(scope,deployment,"alice","succeeded","2026-03-01 12:00:00.123");
+        var expected=jdbc.queryForList("SELECT run_id FROM oa_agent_run ORDER BY created_at DESC,run_id DESC",String.class);
+        var first=history().list(scope,50,null,"all","");
+        assertEquals(expected.subList(0,50),first.items().stream().map(row->row.get("run_id")).toList());
+        assertTrue(first.hasMore());assertNotNull(first.next());
+        assertTrue(first.items().stream().allMatch(row->row.get("usage")==null && row.get("agent_name").equals("旧任务 Agent")));
+        String boundary=(String)first.items().getLast().get("run_id");
+        jdbc.update("INSERT INTO oa_run_deletion(run_id,tenant_id,environment,actor_id) VALUES(?,?,'test','fixture')",boundary,A);
+        String newer=historyRun(scope,deployment,"alice","succeeded","2026-03-02 12:00:00.123");
+        var seen=new ArrayList<>(first.items().stream().map(row->(String)row.get("run_id")).toList());
+        var second=history().list(scope,50,first.next(),"all","");
+        seen.addAll(second.items().stream().map(row->(String)row.get("run_id")).toList());
+        var third=history().list(scope,50,second.next(),"all","");
+        seen.addAll(third.items().stream().map(row->(String)row.get("run_id")).toList());
+        assertEquals(expected,seen);assertEquals(16,third.items().size());assertFalse(third.hasMore());assertNull(third.next());
+        assertEquals(newer,history().list(scope,50,null,"all","").items().getFirst().get("run_id"));
+        assertTrue(history().list(scope,50,null,"all",boundary).items().isEmpty());
+        user("bob");code("invalid_cursor",()->history().list(scope,50,first.next(),"all",""));
+        user("alice");code("invalid_cursor",()->history().list(scope,50,first.next(),"succeeded",""));
+        code("invalid_cursor",()->history().list(scope,100,first.next(),"all",""));
+    }
+    @Test void taskHistorySearchIsLiteralAndStatesAndUnknownUsageArePreserved() {
+        actors();jdbc.update("UPDATE oa_agent_deployment SET display_name='报告 100%_!x' WHERE deployment_id=?",deployment);
+        for(String state:List.of("queued","running","cancel_requested","succeeded","failed","timed_out","cancelled"))
+            historyRun(scope,deployment,"alice",state,"2026-03-01 00:00:00.001");
+        var service=history();
+        assertEquals(7,service.list(scope,50,null,"all","100%_!x").items().size());
+        assertEquals(7,service.list(scope,50,null,"all","报告").items().size());
+        assertTrue(service.list(scope,50,null,"all","中文不存在").items().isEmpty());
+        assertTrue(service.list(scope,50,null,"all","100__").items().isEmpty());
+        assertTrue(service.list(scope,50,null,"all","%' OR 1=1 --").items().isEmpty());
+        assertEquals(3,service.list(scope,50,null,"active","").items().size());
+        assertEquals(2,service.list(scope,50,null,"failed","").items().size());
+        assertEquals(1,service.list(scope,50,null,"cancelled","").items().size());
+        var success=service.list(scope,50,null,"succeeded","").items().getFirst();
+        String id=(String)success.get("run_id");assertNull(success.get("usage"));
+        jdbc.update("UPDATE oa_agent_run SET usage_json='{\"prompt_tokens\":10,\"completion_tokens\":2,\"total_tokens\":12}' WHERE run_id=?",id);
+        var found=service.list(scope,50,null,"all",id.substring(0,12)).items();
+        assertEquals(1,found.size());assertEquals(12,((com.fasterxml.jackson.databind.JsonNode)found.getFirst().get("usage")).path("total_tokens").asInt());
+        assertEquals(id,service.list(scope,50,null,"all",id.toUpperCase(java.util.Locale.ROOT)).items().getFirst().get("run_id"));
+        assertEquals(java.util.Set.of("run_id","deployment_id","agent_name","state","trace_id","error_code","usage","created_at","started_at","finished_at","deadline_at"),found.getFirst().keySet());
+        for(String bad:List.of("*","x".repeat(513),java.util.Base64.getUrlEncoder().encodeToString("malformed".getBytes(StandardCharsets.UTF_8))))
+            code("invalid_cursor",()->service.list(scope,50,bad,"all",""));
+        code("invalid_history_query",()->service.list(scope,101,null,"all",""));
+        code("invalid_history_query",()->service.list(scope,0,null,"all",""));
+        code("invalid_history_query",()->service.list(scope,50,null,"unknown",""));
+        code("invalid_history_query",()->service.list(scope,50,null,"all","x".repeat(129)));
+        code("invalid_history_query",()->service.list(scope,50,null,"all","\n"));
+    }
+    @Test void taskHistoryRechecksTenantEnvironmentAndProductionOwnRunGrantsEveryPage() {
+        actors();var prod=new RunLedger.Scope(A,"prod");String granted=seedDeployment(prod),ungranted=seedDeployment(prod);
+        String bobOne=historyRun(prod,granted,"bob","succeeded","2026-03-02 00:00:00");
+        String bobTwo=historyRun(prod,granted,"bob","succeeded","2026-03-01 00:00:00");
+        historyRun(prod,granted,"alice","succeeded","2026-03-01 00:00:00");
+        historyRun(prod,ungranted,"bob","succeeded","2026-03-01 00:00:00");
+        historyRun(scope,deployment,"alice","succeeded","2026-03-01 00:00:00");
+        var other=new RunLedger.Scope(B,"test");historyRun(other,seedDeployment(other),"bob","succeeded","2026-03-01 00:00:00");
+        assertEquals(4,history().list(prod,50,null,"all","").items().size());
+        assertEquals(1,history().list(scope,50,null,"all","").items().size());
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->history().list(other,50,null,"all",""));
+        user("bob");code("action_forbidden",()->history().list(prod,50,null,"all",""));
+        jdbc.update("INSERT INTO oa_deployment_grant(tenant_id,environment,deployment_id,uid,granted_by) VALUES(?,'prod',?,'bob','alice')",A,granted);
+        var first=history().list(prod,1,null,"all","");assertEquals(bobOne,first.items().getFirst().get("run_id"));
+        assertEquals(bobTwo,history().list(prod,1,first.next(),"all","").items().getFirst().get("run_id"));
+        jdbc.update("DELETE FROM oa_deployment_grant WHERE deployment_id=?",granted);
+        code("action_forbidden",()->history().list(prod,1,first.next(),"all",""));
+        user("viewer");code("action_forbidden",()->history().list(scope,50,null,"all",""));
+        user("bob");assertEquals(1,history().list(scope,50,null,"all","").items().size());
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='bob'",A);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->history().list(scope,50,null,"all",""));
+        user("alice");jdbc.update("UPDATE oa_tenant SET status='suspended' WHERE tenant_id=?",A);
+        assertEquals(4,history().list(prod,50,null,"all","").items().size());
+        user("bob");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->history().list(prod,50,null,"all",""));
+    }
     @Test
     @EnabledIfEnvironmentVariable(named = "OA_RUN_DISPATCH_SCRIPT", matches = ".+")
     void durableOutboxSurvivesDispatcherProcessFailures() throws Exception {

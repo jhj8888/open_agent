@@ -547,3 +547,41 @@
 .step-content strong { display: block; color: #214b34; font-size: 13px; margin-bottom: 6px; }
 .step-content small, .step-content p { display: block; color: #65776a; font-size: 12px; margin: 5px 0; }
 .step-content pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; font-size: 12px; line-height: 1.65; margin: 8px 0 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+.history-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 16px;
+}
+.history-search input {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #e3e8e5);
+  border-radius: 8px;
+  font: inherit;
+}
+.history-pagination {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.task-history .panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.task-history .heading-actions {
+  padding-top: 0;
+  flex-wrap: wrap;
+}
+.history-pagination select {
+  padding: 8px;
+  border: 1px solid var(--border, #e3e8e5);
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+}

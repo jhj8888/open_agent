@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { User } from 'oidc-client-ts';
 import { auth, initializeAuth } from './auth';
@@ -14,6 +14,7 @@ import {
 } from './components';
 import { RunConsole } from './chat';
 import { MonitorPage } from './monitor';
+import { TaskHistory, type HistoryPage } from './history';
 import {
   AgentEditor,
   Credentials,
@@ -338,38 +339,16 @@ function Workspace({
     [api]
   );
   const runs = useResource(async () => {
-    const items = deployments.data ?? [];
-    const rows: ScopedRun[] = [];
-    let unavailable = 0;
-    for (let index = 0; index < items.length; index += 4) {
-      const batch = items.slice(index, index + 4);
-      const results = await Promise.allSettled(
-        batch.map(item =>
-          api.request<AgentRun[]>(
-            `/api/v1/agent-deployments/${item.deployment_id}/runs`
-          )
-        )
-      );
-      results.forEach((result, offset) => {
-        const agent = batch[offset]!;
-        if (result.status === 'fulfilled')
-          rows.push(
-            ...result.value.map(item => ({
-              ...item,
-              deployment_id: agent.deployment_id,
-              agentName: agent.display_name,
-            }))
-          );
-        else unavailable++;
-      });
-    }
+    const result = await api.list<HistoryPage>('runs?limit=50');
     return {
-      rows: rows.sort((a, b) => b.created_at.localeCompare(a.created_at)),
-      unavailable,
+      rows: result.items.map(item => ({ ...item, agentName: item.agent_name })),
     };
   }, [api, deployments.data]);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const [openError, setOpenError] = useState('');
+  const [openingRun, setOpeningRun] = useState(false);
+  const openSequence = useRef(0);
   const [dialog, setDialog] = useState<'agent' | 'upload' | 'promote'>();
   const [chat, setChat] = useState<{ deployment: Deployment; run?: string }>();
   const [credential, setCredential] = useState<Deployment>();
@@ -397,11 +376,7 @@ function Workspace({
     memberships.refresh();
   };
   useEffect(() => {
-    if (
-      !['tasks', 'monitor'].includes(page) &&
-      !rows.some(item => !terminal(item.state))
-    )
-      return;
+    if (page !== 'agents' && !rows.some(item => !terminal(item.state))) return;
     const timer = setInterval(runs.refresh, 10000);
     return () => clearInterval(timer);
   }, [page, runs.data]);
@@ -417,11 +392,24 @@ function Workspace({
     item.finished_at && item.started_at
       ? `${Math.max(0, (new Date(item.finished_at).getTime() - new Date(item.started_at).getTime()) / 1000).toFixed(1)} s`
       : '—';
-  const openRun = (item: ScopedRun): void => {
-    const deployment = available.find(
-      agent => agent.deployment_id === item.deployment_id
-    );
-    if (deployment) setChat({ deployment, run: item.run_id });
+  const openRun = (item: { deployment_id: string; run_id: string }): void => {
+    const sequence = ++openSequence.current;
+    setOpenError('');
+    setOpeningRun(true);
+    void api
+      .request<Deployment>(`/api/v1/agent-deployments/${item.deployment_id}`)
+      .then(deployment => {
+        if (!api.controller.signal.aborted && sequence === openSequence.current)
+          setChat({ deployment, run: item.run_id });
+      })
+      .catch(error => {
+        if (!api.controller.signal.aborted && sequence === openSequence.current)
+          setOpenError(errorMessage(error));
+      })
+      .finally(() => {
+        if (!api.controller.signal.aborted && sequence === openSequence.current)
+          setOpeningRun(false);
+      });
   };
   const taskTable = (items: ScopedRun[]): JSX.Element => (
     <div className="table-scroll">
@@ -507,6 +495,12 @@ function Workspace({
         </div>
       </div>
       <ErrorBox message={memberships.error} />
+      <ErrorBox message={openError} />
+      {openingRun && (
+        <div className="info-strip" role="status">
+          正在打开任务…
+        </div>
+      )}
       {!memberships.loading && !role && (
         <div className="info-strip">
           当前账号尚未获得此环境的成员权限。测试与生产环境独立授权。
@@ -558,16 +552,8 @@ function Workspace({
           ))}
         </div>
       )}
-      {['agents', 'tasks'].includes(page) && (
-        <>
-          <ErrorBox message={runs.error} retry={runs.refresh} />
-          {!!runs.data?.unavailable && (
-            <div className="info-strip">
-              {runs.data.unavailable}{' '}
-              个部署的任务记录不可读取，统计仅包含成功读取的记录。
-            </div>
-          )}
-        </>
+      {page === 'agents' && (
+        <ErrorBox message={runs.error} retry={runs.refresh} />
       )}
       {page === 'agents' && (
         <>
@@ -729,44 +715,7 @@ function Workspace({
         </>
       )}
       {page === 'tasks' && (
-        <div className="panel">
-          <div className="panel-toolbar">
-            <div className="category-tabs">
-              {[
-                ['all', '全部任务'],
-                ['active', '进行中'],
-                ['succeeded', '已完成'],
-                ['failed', '失败与超时'],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  className={filter === value ? 'selected' : ''}
-                  onClick={() => setFilter(value!)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button className="link" onClick={runs.refresh}>
-              刷新
-            </button>
-          </div>
-          {taskTable(
-            rows.filter(
-              item =>
-                filter === 'all' ||
-                (filter === 'active'
-                  ? !terminal(item.state)
-                  : filter === 'failed'
-                    ? ['failed', 'timed_out'].includes(item.state)
-                    : item.state === filter)
-            )
-          )}
-          <div className="inline-note">
-            每个可见部署最近 50 条任务，执行中每 10
-            秒更新。历史记录以服务端保存为准。
-          </div>
-        </div>
+        <TaskHistory api={api} revision={historyRevision} openRun={openRun} />
       )}
       {page === 'deployments' && (
         <>
@@ -906,7 +855,10 @@ function Workspace({
           deployment={chat.deployment}
           initialRun={chat.run}
           close={() => setChat(undefined)}
-          changed={runs.refresh}
+          changed={() => {
+            runs.refresh();
+            setHistoryRevision(value => value + 1);
+          }}
         />
       )}
       {credential && (

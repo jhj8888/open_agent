@@ -44,6 +44,36 @@ class PlatformApplicationTest {
     @MockBean JwtDecoder decoder;
     @MockBean TenantGovernanceService governance;
     @MockBean com.iflytek.astron.console.hub.platform.CurrentProfileService profiles;
+    @org.springframework.boot.test.mock.mockito.SpyBean
+    com.iflytek.astron.console.hub.platform.run.TaskHistoryService history;
+
+    @Test void taskHistoryUsesJwtManagementScopeAndBoundedQueryContract() throws Exception {
+        String path="/platform/tenants/space-10/environments/test/runs";
+        mvc.perform(get(path).header("X-User-Id","forged")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("X-Platform-Key-Id","worker").header("X-Platform-Service-Key","w".repeat(32)))
+                .andExpect(status().isUnauthorized());
+        when(decoder.decode("opaque-deployment-key")).thenThrow(new org.springframework.security.oauth2.jwt.BadJwtException("fixture"));
+        mvc.perform(get(path).header("Authorization","Bearer opaque-deployment-key")).andExpect(status().isUnauthorized());
+        when(decoder.decode("history-jwt")).thenReturn(Jwt.withTokenValue("history-jwt").header("alg","RS256")
+                .subject("verified-history-user").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build());
+        doAnswer(invocation->{
+            assertEquals("verified-history-user",RequestContextUtil.getUID());
+            assertEquals(new com.iflytek.astron.console.hub.platform.run.RunLedger.Scope("space-10","test"),invocation.getArgument(0));
+            assertEquals(50,(int)invocation.getArgument(1));assertNull(invocation.getArgument(2));
+            assertEquals("failed",invocation.getArgument(3));assertEquals("报告 100%",invocation.getArgument(4));
+            return new com.iflytek.astron.console.hub.platform.run.TaskHistoryService.Page(List.of(),null,false);
+        }).when(history).list(any(),anyInt(),any(),anyString(),anyString());
+        mvc.perform(get(path).param("state","failed").param("search","报告 100%")
+                .header("Authorization","Bearer history-jwt").header("X-User-Id","forged"))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(jsonPath("$.data.items").isArray()).andExpect(jsonPath("$.data.hasMore").value(false));
+        mvc.perform(get(path).param("limit","not-a-number").header("Authorization","Bearer history-jwt"))
+                .andExpect(status().isBadRequest());
+        doThrow(new com.iflytek.astron.console.hub.platform.run.RunFailure("invalid_cursor"))
+                .when(history).list(any(),anyInt(),any(),anyString(),anyString());
+        mvc.perform(get(path).param("before","bad").header("Authorization","Bearer history-jwt"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.message").value("invalid_cursor"));
+    }
 
     @Test void profileUsesVerifiedSubjectOnlyAndDoesNotAcceptForgedGrants() throws Exception {
         mvc.perform(post("/platform/profile").header("X-User-Id","forged"))
