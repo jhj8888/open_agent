@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-11-06T05:35:04.374336+00:00",
+  "read_only": true,
+  "api_artifact_sha256": "2ee376381acc919abd9cabfc005e54d048ad97c0225e0b11669afddbbb6b7cd2",
+  "migration_sha256": "7f5e7456bd774957d37c12f048a87220b21dcb1c81d9bbb19a0be8fd5491c73c",
+  "schema_version": "1.70",
+  "successful_migration_rows": 1,
+  "ledger_tables_empty": true,
+  "token_budget_enforced": false,
+  "existing_daily_task_metering_present": true,
+  "business_task_count_unchanged": true,
+  "enforcement_end_to_end_verified": false
+}

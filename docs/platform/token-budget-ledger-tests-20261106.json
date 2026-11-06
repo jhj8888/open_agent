@@ -1,0 +1,64 @@
+{
+  "checked_at": "2026-11-06T05:32:05.384662+00:00",
+  "java_unique_checks_passed": 24,
+  "real_mysql_checks": 13,
+  "governance_security_checks": 5,
+  "spring_application_checks": 6,
+  "budget_ledger_cases": 9,
+  "real_packaged_migration_cases": 1,
+  "db_forced_restart_verified": true,
+  "first_compile_type_inference_error_fixed": true,
+  "migration": {
+    "child_processes_stopped": true,
+    "verified": true,
+    "stages": [
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.70",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "new_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.70",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "previous_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "schema": "1.70",
+          "retained_run_readable": true,
+          "budget_enforced": false,
+          "budget_rows": 0
+        },
+        "stage": "new_api_on_upgraded_schema"
+      },
+      {
+        "result": "passed",
+        "details": {
+          "previous_api_sha256": "6bb3b96b70da19e9b0bc321b7d411adc4a473d2bb27aabea7125dee0a705e643",
+          "real_flyway": true
+        },
+        "stage": "budget_migration_and_compatibility"
+      }
+    ],
+    "elapsed_seconds": 46.0489064
+  },
+  "artifacts": {
+    "new_api_sha256": "2ee376381acc919abd9cabfc005e54d048ad97c0225e0b11669afddbbb6b7cd2",
+    "previous_api_sha256": "6bb3b96b70da19e9b0bc321b7d411adc4a473d2bb27aabea7125dee0a705e643",
+    "real_flyway": true,
+    "previous_api_on_v170": true,
+    "new_api_resumed": true
+  },
+  "ledger_table_only_not_enforcement_end_to_end": true
+}

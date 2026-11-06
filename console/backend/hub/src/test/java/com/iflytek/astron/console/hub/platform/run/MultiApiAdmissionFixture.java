@@ -344,10 +344,50 @@ final class MultiApiAdmissionFixture implements AutoCloseable {
     private int port() throws Exception {
         try (var socket = new ServerSocket()) { socket.bind(new InetSocketAddress("127.0.0.1", 0)); return socket.getLocalPort(); }
     }
-    private Process start(int port) throws Exception {
+    void verifyTokenBudgetMigration(String retainedRun) throws Exception {
+        Path previous=Path.of(System.getenv("OA_BUDGET_PREVIOUS_API_JAR")).toAbsolutePath();
+        String previousSha=System.getenv("OA_BUDGET_PREVIOUS_API_SHA256");
+        assertNotNull(previousSha);assertTrue(previousSha.matches("[a-f0-9]{64}"));
+        var digest=java.security.MessageDigest.getInstance("SHA-256");
+        try(var input=new java.security.DigestInputStream(Files.newInputStream(previous),digest)) {
+            input.transferTo(java.io.OutputStream.nullOutputStream());
+        }
+        assertEquals(previousSha,java.util.HexFormat.of().formatHex(digest.digest()));
+        try(var current=new JarFile(jar.toFile());var old=new JarFile(previous.toFile())) {
+            String migration="BOOT-INF/classes/db/migration/V1.70__reserve_model_token_budgets.sql";
+            assertNotNull(current.getEntry(migration));assertNull(old.getEntry(migration));
+            assertNotNull(old.getEntry("BOOT-INF/classes/db/migration/V1.69__preserve_deleted_requests_after_restore.sql"));
+        }
+        // This owned fixture has a populated 1.69 schema and no Flyway history.
+        // Only here baseline it at 1.69 so the real new JAR executes the new migration.
+        environment.put("PLATFORM_FLYWAY_ENABLED","true");
+        environment.put("SPRING_FLYWAY_BASELINE_ON_MIGRATE","true");
+        environment.put("SPRING_FLYWAY_BASELINE_VERSION","1.69");
+        issuer.start();firstPort=port();
+        for(var artifact:List.of(jar,previous,jar)) {
+            first=start(firstPort,artifact);ready(first,firstPort);
+            assertEquals("1.70",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_reservation",Integer.class));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_model_token_day",Integer.class));
+            var response=call(firstPort,"GET","/api/v1/runs/"+retainedRun,alice,null,null,false);expect(response,200);
+            assertEquals(retainedRun,body(response).path("data").path("run_id").asText());
+            var quota=call(firstPort,"GET","/platform/tenants/space-10/environments/test/quotas",alice,null,null,false);expect(quota,200);
+            assertTrue(body(quota).path("data").has("dailyTaskTokens"));
+            assertEquals(false,body(quota).path("data").path("tokenBudgetEnforced").asBoolean(true));
+            assertEquals(1,count("oa_agent_run"));assertEquals(1,count("oa_run_outbox"));
+            record(artifact.equals(previous)?"previous_api_on_upgraded_schema":"new_api_on_upgraded_schema",
+                    Map.of("schema","1.70","retained_run_readable",true,"budget_rows",0,"budget_enforced",false));
+            first.destroy();if(!first.waitFor(15,TimeUnit.SECONDS)){first.destroyForcibly();assertTrue(first.waitFor(15,TimeUnit.SECONDS));}
+        }
+        record("budget_migration_and_compatibility",Map.of("previous_api_sha256",previousSha,"real_flyway",true));
+        verified=true;
+    }
+
+    private Process start(int port) throws Exception {return start(port,jar);}
+    private Process start(int port,Path artifact) throws Exception {
         String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
         var builder = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", executable).toString(),
-                "-Xms64m", "-Xmx384m", "-jar", jar.toString());
+                "-Xms64m", "-Xmx384m", "-jar", artifact.toString());
         builder.environment().clear(); builder.environment().putAll(environment);
         builder.environment().put("PLATFORM_PORT", Integer.toString(port));
         builder.directory(directory.toFile()).redirectErrorStream(true)

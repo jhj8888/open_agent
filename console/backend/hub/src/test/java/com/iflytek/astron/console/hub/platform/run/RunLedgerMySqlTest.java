@@ -60,6 +60,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.67__recheck_unpublished_output_uploads.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.68__record_task_deletion.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.69__preserve_deleted_requests_after_restore.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.70__reserve_model_token_budgets.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -80,6 +81,185 @@ class RunLedgerMySqlTest {
     private TaskHistoryService history() { return new TaskHistoryService(jdbc,access(),deployments(),json,new DataSourceTransactionManager(source)); }
     private com.iflytek.astron.console.hub.platform.TenantGovernanceService governance() {
         return new com.iflytek.astron.console.hub.platform.TenantGovernanceService(jdbc,access(),json);
+    }
+    private TokenBudgetLedger budget(String instant) {
+        return new TokenBudgetLedger(jdbc,new DataSourceTransactionManager(source),
+                java.time.Clock.fixed(java.time.Instant.parse(instant),java.time.ZoneOffset.UTC));
+    }
+    private TokenBudgetLedger budget() {return budget("2026-11-06T04:00:00Z");}
+    private static final String TOKEN_REQUEST=RunJson.hash("trusted-model-version-and-call-request");
+    private void budgetUsage(TokenBudgetLedger service,RunLedger.Scope target,String date,long held,long spent,boolean breached) {
+        var day=service.usage(target,java.time.LocalDate.parse(date),()->{});
+        assertEquals(held,day.heldTokens().longValueExact());assertEquals(spent,day.spentTokens().longValueExact());
+        assertEquals(held+spent,day.occupiedTokens().longValueExact());assertEquals(breached,day.blockedByBreach());
+        var actual=jdbc.queryForMap("""
+                SELECT COALESCE(SUM(CASE WHEN phase IN ('prepared','dispatched','unknown') THEN bound_tokens ELSE 0 END),0) AS held,
+                  COALESCE(SUM(CASE WHEN phase IN ('settled','breached') THEN input_tokens+output_tokens ELSE 0 END),0) AS spent
+                FROM oa_model_token_reservation WHERE tenant_id=? AND environment=? AND budget_day=?
+                """,target.tenant(),target.environment(),date);
+        assertEquals(held,((Number)actual.get("held")).longValue());assertEquals(spent,((Number)actual.get("spent")).longValue());
+    }
+
+    @Test void tokenBudgetSerializesCompetingInstancesAndDispatchesOnce() throws Exception {
+        jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=1000 WHERE tenant_id=? AND environment='test'",A);
+        var one=budget();var two=budget();List<Callable<String>> work=new ArrayList<>();
+        for(int i=0;i<12;i++) {var target=i%2==0?one:two;String id=UUID.randomUUID().toString();work.add(()->{
+            try {target.prepare(scope,id,TOKEN_REQUEST,300,()->{});return id;}
+            catch(RunFailure denied){assertEquals("token_budget_exhausted",denied.code());return null;}
+        });}
+        var granted=concurrent(work).stream().filter(java.util.Objects::nonNull).toList();assertEquals(3,granted.size());
+        budgetUsage(one,scope,"2026-11-06",900,0,false);
+        String id=granted.getFirst();
+        concurrent(List.of(()->one.prepare(scope,id,TOKEN_REQUEST,300,()->{}),()->two.prepare(scope,id,TOKEN_REQUEST,300,()->{})));
+        assertEquals(3,count("oa_model_token_reservation"));
+        List<Boolean> permits=concurrent(List.of(()->one.dispatch(scope,id,TOKEN_REQUEST,()->{}),()->two.dispatch(scope,id,TOKEN_REQUEST,()->{})));
+        assertEquals(1,permits.stream().filter(Boolean::booleanValue).count());
+        assertFalse(one.dispatch(scope,id,TOKEN_REQUEST,()->{}));
+        assertEquals("unknown",two.unknown(scope,id,TOKEN_REQUEST,()->{}).phase());
+        assertFalse(one.cancelPrepared(scope,id,TOKEN_REQUEST,()->{}));
+        two.settle(scope,id,TOKEN_REQUEST,100,20,()->{});
+        one.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,280,()->{});
+        budgetUsage(two,scope,"2026-11-06",880,120,false);
+        code("token_budget_exhausted",()->one.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,1,()->{}));
+        code("token_request_conflict",()->one.prepare(scope,id,RunJson.hash("other"),300,()->{}));
+        code("token_request_conflict",()->one.prepare(scope,id,TOKEN_REQUEST,301,()->{}));
+    }
+
+    @Test void tokenBudgetUnknownAndIdempotentSettlementNeverFabricateZero() throws Exception {
+        var one=budget();String id=UUID.randomUUID().toString();one.prepare(scope,id,TOKEN_REQUEST,500,()->{});
+        code("token_call_not_dispatched",()->one.settle(scope,id,TOKEN_REQUEST,10,5,()->{}));
+        assertTrue(one.dispatch(scope,id,TOKEN_REQUEST,()->{}));one.unknown(scope,id,TOKEN_REQUEST,()->{});
+        var two=budget();assertEquals("unknown",two.prepare(scope,id,TOKEN_REQUEST,500,()->{}).phase());
+        assertFalse(two.dispatch(scope,id,TOKEN_REQUEST,()->{}));assertFalse(two.cancelPrepared(scope,id,TOKEN_REQUEST,()->{}));
+        budgetUsage(two,scope,"2026-11-06",500,0,false);
+        concurrent(List.of(()->one.settle(scope,id,TOKEN_REQUEST,300,100,()->{}),()->two.settle(scope,id,TOKEN_REQUEST,300,100,()->{})));
+        assertEquals("settled",one.unknown(scope,id,TOKEN_REQUEST,()->{}).phase());
+        code("token_usage_conflict",()->one.settle(scope,id,TOKEN_REQUEST,399,1,()->{}));
+        code("invalid_token_usage",()->one.settle(scope,id,TOKEN_REQUEST,-1,100,()->{}));
+        budgetUsage(two,scope,"2026-11-06",0,400,false);
+        String zero=UUID.randomUUID().toString();one.prepare(scope,zero,TOKEN_REQUEST,100,()->{});
+        one.dispatch(scope,zero,TOKEN_REQUEST,()->{});one.settle(scope,zero,TOKEN_REQUEST,0,0,()->{});
+        budgetUsage(two,scope,"2026-11-06",0,400,false);
+    }
+
+    @Test void tokenBudgetPinsAdmissionDayAndRejectsUndispatchedMidnightCarryover() {
+        var before=budget("2026-11-06T15:59:59.999Z");var after=budget("2026-11-06T16:00:00Z");
+        String dispatched=UUID.randomUUID().toString(),prepared=UUID.randomUUID().toString();
+        before.prepare(scope,dispatched,TOKEN_REQUEST,400,()->{});before.prepare(scope,prepared,TOKEN_REQUEST,400,()->{});
+        assertTrue(before.dispatch(scope,dispatched,TOKEN_REQUEST,()->{}));
+        code("token_reservation_expired",()->after.dispatch(scope,prepared,TOKEN_REQUEST,()->{}));
+        after.unknown(scope,dispatched,TOKEN_REQUEST,()->{});after.settle(scope,dispatched,TOKEN_REQUEST,250,50,()->{});
+        budgetUsage(after,scope,"2026-11-06",400,300,false);budgetUsage(after,scope,"2026-11-07",0,0,false);
+        assertTrue(after.cancelPrepared(scope,prepared,TOKEN_REQUEST,()->{}));assertTrue(after.cancelPrepared(scope,prepared,TOKEN_REQUEST,()->{}));
+        assertFalse(after.dispatch(scope,prepared,TOKEN_REQUEST,()->{}));
+        assertEquals("cancelled",after.prepare(scope,prepared,TOKEN_REQUEST,400,()->{}).phase());
+        after.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,400,()->{});
+        budgetUsage(after,scope,"2026-11-06",0,300,false);budgetUsage(after,scope,"2026-11-07",400,0,false);
+    }
+
+    @Test void tokenBudgetLoweringPreservesInFlightAndFencesPreparedCalls() {
+        actors();jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=1000 WHERE tenant_id=? AND environment='test'",A);
+        var one=budget();String running=UUID.randomUUID().toString(),pending=UUID.randomUUID().toString();
+        one.prepare(scope,running,TOKEN_REQUEST,300,()->{});one.prepare(scope,pending,TOKEN_REQUEST,300,()->{});
+        one.dispatch(scope,running,TOKEN_REQUEST,()->{});
+        governanceTx(()->{governance().setQuotas(A,"test",new com.iflytek.astron.console.hub.platform.PlatformTenantController.QuotaUpdate(2,2,2,100,365,0));return null;});
+        code("token_budget_exhausted",()->one.dispatch(scope,pending,TOKEN_REQUEST,()->{}));
+        assertEquals("settled",one.settle(scope,running,TOKEN_REQUEST,200,50,()->{}).phase());
+        assertTrue(one.cancelPrepared(scope,pending,TOKEN_REQUEST,()->{}));
+        budgetUsage(one,scope,"2026-11-06",0,250,false);
+        code("token_budget_exhausted",()->one.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,1,()->{}));
+        governanceTx(()->{governance().setQuotas(A,"test",new com.iflytek.astron.console.hub.platform.PlatformTenantController.QuotaUpdate(2,2,2,300,365,1));return null;});
+        String next=UUID.randomUUID().toString();one.prepare(scope,next,TOKEN_REQUEST,50,()->{});assertTrue(one.dispatch(scope,next,TOKEN_REQUEST,()->{}));
+        budgetUsage(one,scope,"2026-11-06",50,250,false);
+        jdbc.update("UPDATE oa_tenant_environment SET daily_token_budget=0 WHERE tenant_id=? AND environment='prod'",A);
+        code("token_budget_exhausted",()->one.prepare(new RunLedger.Scope(A,"prod"),UUID.randomUUID().toString(),TOKEN_REQUEST,1,()->{}));
+    }
+
+    @Test void tokenBudgetBreachPersistsActualUsageAndBlocksAcrossDays() {
+        var one=budget();String running=UUID.randomUUID().toString(),pending=UUID.randomUUID().toString();
+        one.prepare(scope,running,TOKEN_REQUEST,300,()->{});one.prepare(scope,pending,TOKEN_REQUEST,100,()->{});
+        one.dispatch(scope,running,TOKEN_REQUEST,()->{});
+        assertEquals("breached",one.settle(scope,running,TOKEN_REQUEST,400,100,()->{}).phase());
+        assertEquals("breached",one.settle(scope,running,TOKEN_REQUEST,400,100,()->{}).phase());
+        budgetUsage(one,scope,"2026-11-06",100,500,true);
+        code("token_bound_breached",()->one.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,1,()->{}));
+        code("token_bound_breached",()->one.dispatch(scope,pending,TOKEN_REQUEST,()->{}));
+        var tomorrow=budget("2026-11-07T04:00:00Z");
+        code("token_bound_breached",()->tomorrow.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,1,()->{}));
+        assertTrue(tomorrow.cancelPrepared(scope,pending,TOKEN_REQUEST,()->{}));
+        budgetUsage(tomorrow,scope,"2026-11-06",0,500,true);budgetUsage(tomorrow,scope,"2026-11-07",0,0,true);
+    }
+
+    @Test void tokenBudgetReauthorizesBeforeReadingOrChangingAnotherScope() {
+        actors();var one=budget();String id=UUID.randomUUID().toString();
+        Runnable authorized=()->access().require(A,"test",com.iflytek.astron.console.commons.tenant.TenantPermission.QUOTA_MANAGE);
+        one.prepare(scope,id,TOKEN_REQUEST,100,authorized);
+        user("viewer");
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.prepare(scope,id,TOKEN_REQUEST,100,authorized));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.dispatch(scope,id,TOKEN_REQUEST,authorized));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.cancelPrepared(scope,id,TOKEN_REQUEST,authorized));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.usage(scope,java.time.LocalDate.parse("2026-11-06"),authorized));
+        user("alice");assertTrue(one.dispatch(scope,id,TOKEN_REQUEST,authorized));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='alice'",A);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.settle(scope,id,TOKEN_REQUEST,1,1,authorized));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->one.unknown(scope,id,TOKEN_REQUEST,authorized));
+        var prod=new RunLedger.Scope(A,"prod");var other=new RunLedger.Scope(B,"test");
+        code("token_reservation_missing",()->one.dispatch(prod,id,TOKEN_REQUEST,()->{}));
+        code("token_reservation_missing",()->one.settle(other,id,TOKEN_REQUEST,1,1,()->{}));
+        one.prepare(prod,id,TOKEN_REQUEST,200,()->{});one.prepare(other,id,TOKEN_REQUEST,300,()->{});
+        budgetUsage(one,scope,"2026-11-06",100,0,false);budgetUsage(one,prod,"2026-11-06",200,0,false);budgetUsage(one,other,"2026-11-06",300,0,false);
+        code("invalid_token_call",()->one.prepare(scope,"not-a-uuid",TOKEN_REQUEST,1,()->{}));
+        code("invalid_token_bound",()->one.prepare(scope,UUID.randomUUID().toString(),TOKEN_REQUEST,0,()->{}));
+    }
+
+    @Test void tokenBudgetCounterFailuresRollbackReservationAndSettlement() {
+        var one=budget();String id=UUID.randomUUID().toString();
+        jdbc.execute("CREATE TRIGGER budget_fail BEFORE UPDATE ON oa_model_token_day FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic budget failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->one.prepare(scope,id,TOKEN_REQUEST,100,()->{}));
+        assertEquals(0,count("oa_model_token_reservation"));assertEquals(0,count("oa_model_token_day"));
+        jdbc.execute("DROP TRIGGER budget_fail");one.prepare(scope,id,TOKEN_REQUEST,100,()->{});one.dispatch(scope,id,TOKEN_REQUEST,()->{});
+        jdbc.execute("CREATE TRIGGER budget_fail BEFORE UPDATE ON oa_model_token_day FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic budget failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->one.settle(scope,id,TOKEN_REQUEST,30,20,()->{}));
+        assertEquals("dispatched",one.prepare(scope,id,TOKEN_REQUEST,100,()->{}).phase());budgetUsage(one,scope,"2026-11-06",100,0,false);
+        jdbc.execute("DROP TRIGGER budget_fail");one.settle(scope,id,TOKEN_REQUEST,30,20,()->{});
+        budgetUsage(one,scope,"2026-11-06",0,50,false);
+    }
+
+    @Test void tokenBudgetUsesSharedDatabaseClockAndPhysicalConstraints() {
+        var one=new TokenBudgetLedger(jdbc,new DataSourceTransactionManager(source));
+        String before=jdbc.queryForObject("SELECT DATE_FORMAT(TIMESTAMPADD(HOUR,8,UTC_TIMESTAMP(3)),'%Y-%m-%d')",String.class);
+        String id=UUID.randomUUID().toString();var receipt=one.prepare(scope,id,TOKEN_REQUEST,100,()->{});
+        String after=jdbc.queryForObject("SELECT DATE_FORMAT(TIMESTAMPADD(HOUR,8,UTC_TIMESTAMP(3)),'%Y-%m-%d')",String.class);
+        assertTrue(List.of(before,after).contains(receipt.day().toString()));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_model_token_day SET held_tokens=-1"));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_model_token_reservation SET phase='settled' WHERE call_id=?",id));
+        assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_model_token_reservation SET bound_tokens=0 WHERE call_id=?",id));
+        budgetUsage(one,scope,receipt.day().toString(),100,0,false);
+    }
+
+    @Test @EnabledIfEnvironmentVariable(named="OA_RUN_TEST_RESTART_SIGNAL",matches=".+")
+    void tokenBudgetDatabaseCrashRetainsUnknownAndSingleDispatch() throws Exception {
+        var one=budget();String id=UUID.randomUUID().toString(),pending=UUID.randomUUID().toString();
+        one.prepare(scope,id,TOKEN_REQUEST,400,()->{});one.prepare(scope,pending,TOKEN_REQUEST,300,()->{});
+        assertTrue(one.dispatch(scope,id,TOKEN_REQUEST,()->{}));one.unknown(scope,id,TOKEN_REQUEST,()->{});
+        var signal=java.nio.file.Path.of(System.getenv("OA_RUN_TEST_RESTART_SIGNAL"));
+        java.nio.file.Files.writeString(signal,"restart");long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(60);
+        while(!java.nio.file.Files.readString(signal).equals("ready")&&System.nanoTime()<until)Thread.sleep(100);
+        assertEquals("ready",java.nio.file.Files.readString(signal));
+        var restored=budget();assertFalse(restored.dispatch(scope,id,TOKEN_REQUEST,()->{}));
+        assertEquals("unknown",restored.prepare(scope,id,TOKEN_REQUEST,400,()->{}).phase());
+        assertFalse(restored.cancelPrepared(scope,id,TOKEN_REQUEST,()->{}));budgetUsage(restored,scope,"2026-11-06",700,0,false);
+        assertTrue(restored.dispatch(scope,pending,TOKEN_REQUEST,()->{}));assertFalse(restored.dispatch(scope,pending,TOKEN_REQUEST,()->{}));
+        restored.settle(scope,id,TOKEN_REQUEST,180,20,()->{});budgetUsage(restored,scope,"2026-11-06",300,200,false);
+    }
+
+    @Test @EnabledIfEnvironmentVariable(named="OA_BUDGET_PREVIOUS_API_JAR",matches=".+")
+    void tokenBudgetPackagedMigrationKeepsOldApiCompatible() throws Exception {
+        actors();String run=submit("budget-migration-retained").runId();
+        assertEquals(0,count("oa_model_token_reservation"));assertEquals(0,count("oa_model_token_day"));
+        // Only this test's freshly owned schema; recreate the 1.69 pre-migration state.
+        jdbc.execute("DROP TABLE oa_model_token_reservation");jdbc.execute("DROP TABLE oa_model_token_day");
+        try(var fixture=new MultiApiAdmissionFixture(source,jdbc)){fixture.verifyTokenBudgetMigration(run);}
     }
     private <T> T governanceTx(java.util.function.Supplier<T> action) {
         return new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source)).execute(status->action.get());
