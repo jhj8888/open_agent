@@ -424,22 +424,27 @@ export function ModelsPage({
 }): JSX.Element {
   const [edit, setEdit] = useState<ModelConnection | 'new'>();
   const [probing, setProbing] = useState('');
-  const [result, setResult] = useState('');
+  const [results, setResults] = useState<Record<string, ProbeResult>>({});
+  const probeLock = useRef(false);
   const [error, setError] = useState('');
   const probe = async (id: string): Promise<void> => {
+    if (probeLock.current) return;
+    probeLock.current = true;
     setProbing(id);
     setError('');
-    setResult('');
+    setResults(previous => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
     try {
       const value = await api.mutate<ProbeResult>(`models/${id}/probe`, {});
-      setResult(
-        value.ok
-          ? `连接验证通过 · ${value.durationMs} ms · 工具调用${value.toolsVerified ? '已验证' : '未验证'} · 用量${value.usage === 'reported' ? '已报告' : '未报告'}`
-          : `验证未通过：${value.error ?? '模型接口未就绪'}`
-      );
+      if (!api.controller.signal.aborted)
+        setResults(previous => ({ ...previous, [id]: value }));
     } catch (failure) {
       if (!aborted(failure)) setError(errorMessage(failure));
     } finally {
+      probeLock.current = false;
       setProbing('');
     }
   };
@@ -457,7 +462,9 @@ export function ModelsPage({
         </button>
       </div>
       <ErrorBox message={error} />
-      {result && <div className="info-strip">{result}</div>}
+      <p className="form-note">
+        能力标签来自连接配置。验证会按当前配置发送固定测试消息，最多进行三次模型调用；结果保存到审计记录。
+      </p>
       <div className="agent-grid">
         {models.map(item => (
           <article className="agent-card" key={item.connection_id}>
@@ -475,10 +482,19 @@ export function ModelsPage({
               {item.supports_tools && <span>工具调用</span>}
               {item.supports_usage && <span>Token 用量</span>}
             </div>
+            {results[item.connection_id] && (
+              <ModelProbeReport
+                result={results[item.connection_id]!}
+                currentVersion={item.current_version}
+              />
+            )}
             <footer>
               <button
                 className="link"
-                disabled={!!probing || !canProbe}
+                disabled={!!probing || !canProbe || !item.supports_stream}
+                title={
+                  !item.supports_stream ? '请先在配置中启用流式输出' : undefined
+                }
                 onClick={() => {
                   void probe(item.connection_id);
                 }}
@@ -487,7 +503,7 @@ export function ModelsPage({
               </button>
               <button
                 className="link"
-                disabled={!canEdit}
+                disabled={!canEdit || probing === item.connection_id}
                 onClick={() => setEdit(item)}
               >
                 编辑 <Icon name="chevron" size={14} />
@@ -511,6 +527,82 @@ export function ModelsPage({
         />
       )}
     </>
+  );
+}
+
+function ModelProbeReport({
+  result,
+  currentVersion,
+}: {
+  result: ProbeResult;
+  currentVersion: number;
+}): JSX.Element {
+  const errors: Record<string, string> = {
+    MODEL_AUTH_FAILED: '接口认证失败，请检查凭据',
+    MODEL_RATE_LIMITED: '接口限流，请稍后重试',
+    MODEL_TIMEOUT: '验证超时',
+    MODEL_CONNECTION_FAILED: '连接失败或响应流中断',
+    MODEL_ENDPOINT_DENIED: '地址或重定向未获批准',
+    MODEL_UPSTREAM_ERROR: '模型接口返回错误',
+    MODEL_PROTOCOL_ERROR: '响应不符合接口协议',
+    MODEL_RESPONSE_LIMIT: '响应超过验证大小限制',
+    MODEL_RESPONSE_INCOMPLETE: '未收到完整文本和正常结束标记',
+    MODEL_TOOL_CALL_INVALID: '未返回唯一有效的测试工具调用',
+    MODEL_TOOL_ARGUMENTS_INVALID: '测试工具参数不符合要求',
+    MODEL_TOOL_RESULT_INVALID: '工具结果回传未通过',
+  };
+  const names = {
+    stream: '流式文本',
+    tool_call: '工具调用',
+    tool_result: '结果回传',
+  };
+  const stale = result.version !== currentVersion;
+  return (
+    <div className="model-probe-report" aria-live="polite">
+      <strong>
+        {stale
+          ? '配置已更新，请重新验证'
+          : result.ok
+            ? '连接验证通过'
+            : '连接验证未通过'}
+      </strong>
+      <div className="muted">
+        v{result.version} · {(result.durationMs / 1000).toFixed(2)} s
+        {result.adapter === 'deepseek' &&
+          ` · 思考模式${result.thinkingEnabled ? '开启' : '关闭'}`}
+      </div>
+      {result.steps?.map(step => (
+        <div className="model-probe-step" key={step.name}>
+          <div>
+            <span>{names[step.name]}</span>
+            <span>
+              {step.status === 'passed'
+                ? '通过'
+                : step.status === 'failed'
+                  ? '失败'
+                  : '未执行'}
+              {step.status !== 'skipped' &&
+                ` · ${(step.durationMs / 1000).toFixed(2)} s`}
+            </span>
+          </div>
+          {step.status !== 'skipped' && (
+            <small>
+              输入 {step.inputTokens ?? '未报告'} / 输出{' '}
+              {step.outputTokens ?? '未报告'} Token
+            </small>
+          )}
+          {step.error && (
+            <small className="probe-error">
+              {errors[step.error] ?? '验证失败，请检查模型接口'}
+            </small>
+          )}
+        </div>
+      ))}
+      {result.ok && !result.toolsVerified && (
+        <small>未验证工具能力；当前配置未启用工具调用。</small>
+      )}
+      {!result.steps && <small>当前服务尚未提供分步验证结果。</small>}
+    </div>
   );
 }
 

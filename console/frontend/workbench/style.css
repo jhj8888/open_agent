@@ -585,3 +585,17 @@
   background: white;
   font: inherit;
 }
+.model-probe-report {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border, #e3e8e5);
+  border-radius: 10px;
+  background: #f7faf8;
+  font-size: 13px;
+}
+.model-probe-report > .muted { margin-top: 5px; }
+.model-probe-step { padding: 9px 0; border-bottom: 1px solid #e3e8e5; }
+.model-probe-step:last-child { border-bottom: 0; }
+.model-probe-step > div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.model-probe-report small { display: block; margin-top: 5px; color: #65756c; }
+.model-probe-report .probe-error { color: #a33737; }

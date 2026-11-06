@@ -1,0 +1,224 @@
+{
+  "feature": "model-connection-capability-probe",
+  "api": {
+    "artifact_sha256": "c88584c6340b4c3b06d8cb84b1f3c784b0ba6c4d110851125818638e3c8ed2cb",
+    "schema_version": "1.69",
+    "seconds": 45.595,
+    "finished_at": "2026-11-06T03:08:29.076213+00:00",
+    "backup_saved": true
+  },
+  "console": {
+    "owner": "open_agent.console.demo.v1",
+    "archive_sha256": "da8dd1b1ea78430233d78b6a848d020299c809612cd5247c0dd7b484ade40d64",
+    "files": {
+      "assets/index-DiBikjYy.js": "5b610279d281f6c4c33a3e4ab6c1ccc05263e1934f812a66fd941bda85a3c50d",
+      "assets/index-Dr7_9Fji.css": "b97fcd65813a0badc26ba987930b5ae5f081096bb46446139bf10d11e8e2b7c6",
+      "index.html": "0f357a5dccad8244344b5020028303689f3784aede520f2fa8dc20e204ae6f97"
+    },
+    "previous": "397dcdb9eed9f23e646617dbaf53b3ca751138fc16bfcd5475376bfc8d8e6329",
+    "published_unix": 1793934536,
+    "url": "https://120.26.81.83/open-agent/",
+    "browser_verified": false
+  },
+  "public_probe": {
+    "checked_at": "2026-11-06T03:09:20.533543+00:00",
+    "public_https": true,
+    "connections_checked": 1,
+    "reports": [
+      {
+        "ok": true,
+        "version": 2,
+        "durationMs": 4380,
+        "stream": true,
+        "toolsVerified": true,
+        "usage": "reported",
+        "adapter": "deepseek",
+        "thinkingEnabled": true,
+        "error": null,
+        "steps": [
+          {
+            "name": "stream",
+            "status": "passed",
+            "durationMs": 2946,
+            "inputTokens": 46,
+            "outputTokens": 17,
+            "error": null
+          },
+          {
+            "name": "tool_call",
+            "status": "passed",
+            "durationMs": 965,
+            "inputTokens": 339,
+            "outputTokens": 79,
+            "error": null
+          },
+          {
+            "name": "tool_result",
+            "status": "passed",
+            "durationMs": 441,
+            "inputTokens": 431,
+            "outputTokens": 2,
+            "error": null
+          }
+        ]
+      }
+    ],
+    "audit_matches": true,
+    "cross_tenant_denied": true,
+    "business_task_count_unchanged": true,
+    "scope": "authorized public demo endpoint; not internal offline acceptance"
+  },
+  "public_console": {
+    "checked_at": "2026-11-06T03:09:58.381881+00:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "da8dd1b1ea78430233d78b6a848d020299c809612cd5247c0dd7b484ade40d64",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "retained_usage": {
+    "checked_at": "2026-11-06T03:09:55.814906+00:00",
+    "run_id": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "steps": 58,
+    "pages_verified": 20,
+    "model_calls": 6,
+    "task": {
+      "cacheReadTokens": 15232,
+      "uncachedInputTokens": 6042,
+      "cacheReportedModelCalls": 6,
+      "unknownCacheModelCalls": 0
+    },
+    "periods": {
+      "this_week": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_week": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      },
+      "this_month": {
+        "modelCalls": 49,
+        "inputTokens": 167806,
+        "cacheReadTokens": 142080,
+        "uncachedInputTokens": 25726,
+        "cacheReportedModelCalls": 49,
+        "unknownCacheModelCalls": 0
+      },
+      "last_month": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": null,
+        "uncachedInputTokens": null,
+        "cacheReportedModelCalls": 0,
+        "unknownCacheModelCalls": 0
+      }
+    },
+    "task_total_unchanged": true,
+    "other_tenant_denied": true,
+    "model_or_tool_replayed": false,
+    "examples": [
+      {
+        "step_id": "01a1a959-ed68-766d-9c9c-523d9f4309db",
+        "input": 3355,
+        "cached": 0,
+        "new": 3355,
+        "output": 66
+      },
+      {
+        "step_id": "01a1a959-fbd2-72f0-be01-74f45a59399b",
+        "input": 3609,
+        "cached": 3328,
+        "new": 281,
+        "output": 233
+      },
+      {
+        "step_id": "01a1a95a-0c62-75eb-ab85-0c3d324879fe",
+        "input": 3865,
+        "cached": 3712,
+        "new": 153,
+        "output": 246
+      }
+    ]
+  },
+  "health": {
+    "live_services_active": [
+      "open-agent-supervisor.service",
+      "open-agent-temporal.service",
+      "open-agent-ingress.service",
+      "open-agent-mlflow.service",
+      "open-agent-trace-exporter.service"
+    ],
+    "original_retained_run": "e6eaaf2e-08a1-4c67-b5b0-e75910ddcf8d",
+    "original_steps": 58,
+    "original_files_sha256_verified": 2,
+    "no_restore_containers_or_firewall_rules_left": true,
+    "maintenance_resume_retry_verified": true,
+    "cleanup_retry_verified": true,
+    "pending_observation_attempts": 0
+  },
+  "checks": {
+    "java": 53,
+    "python_shared_contracts": 48,
+    "openspec": 11,
+    "frontend_build": true
+  },
+  "browser": {
+    "engine": "Chrome via agent-browser 0.41.2",
+    "actual_click": true,
+    "three_steps_passed": true,
+    "duration_seconds_displayed": 3.64,
+    "usage_displayed": [
+      [
+        46,
+        17
+      ],
+      [
+        339,
+        116
+      ],
+      [
+        468,
+        2
+      ]
+    ],
+    "busy_buttons_disabled": true,
+    "buttons_reenabled": true,
+    "production_report_count": 0,
+    "production_probe_disabled": true,
+    "session_closed": true
+  },
+  "limitations": [
+    "connection-level diagnostic, not complete runtime/publish gate acceptance",
+    "public authorized demonstration does not replace internal offline endpoint acceptance",
+    "offline API image archive not refreshed",
+    "cluster execution admission remains disabled"
+  ],
+  "dependency": {
+    "spring_ai_version": "1.1.2",
+    "license": "Apache-2.0",
+    "license_sha256": "aac73b3148f6d1d7111dbca32099f68d26c644c6813ae1e4f05f6579aa2663fe",
+    "stored_beside_deployed_api_jar": true
+  }
+}

@@ -160,6 +160,16 @@ export interface ProbeResult {
   usage?: 'reported' | 'unknown';
   toolsVerified?: boolean;
   error?: string;
+  adapter?: 'openai' | 'deepseek';
+  thinkingEnabled?: boolean;
+  steps?: {
+    name: 'stream' | 'tool_call' | 'tool_result';
+    status: 'passed' | 'failed' | 'skipped';
+    durationMs: number;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    error: string | null;
+  }[];
 }
 
 export interface SkillRelease {

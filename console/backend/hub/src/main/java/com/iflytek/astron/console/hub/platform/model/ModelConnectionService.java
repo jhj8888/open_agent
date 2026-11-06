@@ -7,11 +7,9 @@ import com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException;
 import com.iflytek.astron.console.commons.tenant.TenantPermission;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.hub.platform.model.PlatformModelController.ModelInput;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -33,6 +31,7 @@ public class ModelConnectionService {
     private final ModelEndpointPolicy policy;
     private final Environment environment;
     private final ObjectMapper json;
+    private final java.util.concurrent.Semaphore probeSlots = new java.util.concurrent.Semaphore(4);
 
     public ModelConnectionService(JdbcTemplate jdbc, TenantAccessService access, ModelCredentialCipher cipher,
             ModelEndpointPolicy policy, Environment environment, ObjectMapper json) {
@@ -164,18 +163,40 @@ public class ModelConnectionService {
         return new BoundModel(model, ((Number)row.get("version")).longValue(), ((Number)row.get("total_timeout_seconds")).intValue(), tools, stream);
     }
 
-    public Map<String,Object> probe(String tenant, String env, String id) {
-        BoundModel bound = forRun(tenant, env, id, false, true);
-        long started = System.nanoTime();
+    public ModelCapabilityProbe.Result probe(String tenant, String env, String id) {
+        access.require(tenant, env, TenantPermission.RUN_CREATE);
+        var row=current(tenant,env,id);
+        long version=((Number)row.get("version")).longValue();
+        if(!Boolean.TRUE.equals(row.get("supports_stream")))
+            throw new IllegalArgumentException("Streaming must be enabled for the capability probe");
+        if(!probeSlots.tryAcquire()) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,"Model probes are busy");
         try {
-            var responses = bound.model().stream(new Prompt("Reply with OK. This is a platform connection test; do not call tools."))
-                    .timeout(Duration.ofSeconds(bound.totalTimeoutSeconds())).collectList().block(Duration.ofSeconds(bound.totalTimeoutSeconds() + 1));
-            if (responses == null || responses.isEmpty()) throw new IllegalStateException("Empty model response");
-            boolean usage = responses.stream().anyMatch(response -> response.getMetadata().getUsage() != null && response.getMetadata().getUsage().getTotalTokens() > 0);
-            return Map.of("ok", true, "version", bound.version(), "stream", true, "usage", usage ? "reported" : "unknown", "durationMs", (System.nanoTime()-started)/1000000,
-                    "toolsVerified", false);
-        } catch (Exception exception) {
-            return Map.of("ok", false, "version", bound.version(), "error", ModelFailure.from(exception).code(), "durationMs", (System.nanoTime()-started)/1000000);
-        }
+            var approved=policy.resolve((String)row.get("endpoint"));
+            var transport=ModelHttpClients.create(approved,((Number)row.get("connect_timeout_seconds")).intValue(),
+                    ((Number)row.get("read_timeout_seconds")).intValue(),caFile((String)row.get("ca_ref")));
+            var uri=approved.uri();
+            String path=uri.getRawPath();
+            if(path==null||path.isBlank()||path.equals("/")) path="/v1/chat/completions";
+            else if(!path.endsWith("/chat/completions")) path=path.replaceAll("/+$","")+"/chat/completions";
+            var probe=new ModelCapabilityProbe(transport,uri.getScheme()+"://"+uri.getRawAuthority(),path,
+                    secret(tenant,env,id,row),(String)row.get("model_name"),"deepseek".equals(row.get("adapter"))?"deepseek":"openai",
+                    Boolean.TRUE.equals(row.get("thinking_enabled")),Boolean.TRUE.equals(row.get("supports_usage")),
+                    Boolean.TRUE.equals(row.get("supports_tools")),version,((Number)row.get("total_timeout_seconds")).intValue());
+            var result=probe.run(()->{
+                access.require(tenant,env,TenantPermission.RUN_CREATE);
+                if(((Number)current(tenant,env,id).get("version")).longValue()!=version)
+                    throw new OptimisticLockingFailureException("Model configuration changed during probe");
+            });
+            String report;
+            try { report=json.writeValueAsString(result); }
+            catch(com.fasterxml.jackson.core.JsonProcessingException error) { throw new IllegalStateException("Probe report unavailable"); }
+            jdbc.update("""
+                    INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,after_value,retain_until)
+                    SELECT tenant_id,environment,?,'model.probe.completed',?,CAST(? AS JSON),
+                    TIMESTAMPADD(DAY,audit_retention_days,CURRENT_TIMESTAMP(3)) FROM oa_tenant_environment WHERE tenant_id=? AND environment=?
+                    """,RequestContextUtil.getUID(),id,report,tenant,env);
+            return result;
+        } finally { probeSlots.release(); }
     }
 }

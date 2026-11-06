@@ -30,4 +30,10 @@ Python provider 已支持自定义 base_url；Java 独立聊天使用 Spring AI�
 
 ## Migration Plan
 
+2026-11-06 能力诊断增量：调用链为模型管理页面 → 已鉴权 `/models/{id}/probe` → 当前租户/环境的固定配置版本 → 原有目的地址校验及 DNS 固定传输 → Spring AI 1.1.2 官方 Chat Completions SDK。最多三次流式请求验证文本、唯一 `add_numbers(2,3)` 和结果回传，不装载任何租户 Skill，不调用运行账本或修改任务统计。每步前及返回前重新核验权限和版本；报告写入现有环境审计保留策略。单 API 实例最多四个同时诊断，模型交互总截止时间不超过配置值与 60 秒的较小值；逐请求响应上限 1 MiB。
+
+官方 SDK 差异：1.1.2 的高层 DeepSeekChatModel 序列化 assistant 时丢弃 reasoning_content，且请求选项缺少 thinking/stream_options，因此诊断直接使用官方 DeepSeekApi DTO、SSE 和工具分片合并，在官方 Jackson JsonAppend 扩展中添加这两个配置字段；工具历史保留 SDK 返回的 reasoning_content。同一 Chat Completions 诊断也覆盖 OpenAI-compatible 连接，后者不发送 DeepSeek thinking 字段。该改动仅影响诊断，不替换现有 OpenAI ChatModel 或 Python DeepAgents 运行适配器；诊断通过不能替代这两条执行路径的完整联调和发布门禁。
+
+前端按连接和版本展示步骤、耗时、服务端输入/输出 Token；缺失用量保留未知，未声明工具能力则标为未执行。配置变更后的旧结果明确过期。切换租户/环境或关闭浏览器会中止客户端等待，但不声称能够取消同步服务端诊断；服务端按截止时间结束，不重放请求。模型正文、思考文本、工具参数及凭据不进入报告或审计。
+
 保留旧模型配置 ID，回填协议/环境字段，先为测试 Agent 开启新版配置校验；真实内网接口通过契约测试后用于生产。回滚适配器时保留配置版本与审计，不回退到公共 endpoint。

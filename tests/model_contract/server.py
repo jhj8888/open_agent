@@ -68,7 +68,21 @@ async def completion(request: Request):
         return JSONResponse({}, status_code=307, headers={"Location": "http://169.254.169.254/latest/meta-data/"})
     messages = body.get("messages", [])
     has_tool_result = any(message.get("role") == "tool" for message in messages)
-    tool_mode = model == "contract-tools" and not has_tool_result
+    probe = model.startswith("contract-probe-")
+    if probe:
+        # Verify actual wire settings and the SDK's assistant/tool history.
+        expected_thinking = "enabled" if "thinking" in model else "disabled"
+        if "deepseek" in model and body.get("thinking") != {"type": expected_thinking}:
+            return JSONResponse({"error": "Incorrect thinking setting"}, status_code=400)
+        if "deepseek" not in model and "thinking" in body:
+            return JSONResponse({"error": "Unexpected vendor setting"}, status_code=400)
+        if has_tool_result:
+            assistant, tool = messages[-2:]
+            if (assistant.get("role") != "assistant" or tool.get("content") != "5"
+                    or tool.get("tool_call_id") != "call-contract-1"
+                    or ("thinking" in model and assistant.get("reasoning_content") != "Synthetic reasoning.")):
+                return JSONResponse({"error": "Incorrect tool history"}, status_code=400)
+    tool_mode = (model == "contract-tools" or (probe and body.get("tools") and "no-tool" not in model)) and not has_tool_result
     if tool_mode:
         tools = body.get("tools", [])
         name = tools[0]["function"]["name"] if tools else "add_numbers"
@@ -78,14 +92,28 @@ async def completion(request: Request):
         if isinstance(choice, dict):
             name = choice.get("function", {}).get("name", name)
         message = {"role": "assistant", "content": None, "tool_calls": [{"id": "call-contract-1", "type": "function", "function": {"name": name, "arguments": '{"a":2,"b":3}'}}]}
+        if "bad-args" in model:
+            message["tool_calls"][0]["function"]["arguments"] = '{"a":2,"b":4}'
     else:
         message = {"role": "assistant", "content": "5" if has_tool_result else "Contract response"}
-    usage = model != "contract-no-usage"
+    usage = model != "contract-no-usage" and "no-usage" not in model
     if not body.get("stream"):
         return JSONResponse(response(model, message, usage=usage))
 
     async def stream():
         yield event(chunk(model, {"role": "assistant"}))
+        if probe and "thinking" in model:
+            yield event(chunk(model, {"reasoning_content": "Synthetic "}))
+            yield event(chunk(model, {"reasoning_content": "reasoning."}))
+        if probe and "oversize" in model:
+            for _ in range(80):
+                yield event(chunk(model, {"content": "x" * 1024}))
+            return
+        if probe and "trickle" in model:
+            for _ in range(30):
+                yield event(chunk(model, {"content": "x"}))
+                await asyncio.sleep(0.15)
+            return
         if model == "contract-malformed-sse":
             yield b'data: {"malformed":\n\n'
             return
@@ -94,13 +122,15 @@ async def completion(request: Request):
             raise ConnectionResetError("Synthetic stream interruption")
         if tool_mode:
             call = message["tool_calls"][0]
-            yield event(chunk(model, {"tool_calls": [{"index": 0, "id": call["id"], "type": "function", "function": {"name": call["function"]["name"], "arguments": '{"a":2,'}}]}))
-            yield event(chunk(model, {"tool_calls": [{"index": 0, "function": {"arguments": '"b":3}'}}]}))
+            arguments = call["function"]["arguments"]
+            yield event(chunk(model, {"tool_calls": [{"index": 0, "id": call["id"], "type": "function", "function": {"name": call["function"]["name"], "arguments": arguments[:7]}}]}))
+            yield event(chunk(model, {"tool_calls": [{"index": 0, "function": {"arguments": arguments[7:]}}]}))
         else:
             for word in [message["content"][:4], message["content"][4:]]:
                 if word:
                     yield event(chunk(model, {"content": word}))
-        yield event(chunk(model, {}, "tool_calls" if tool_mode else "stop"))
+        if "no-finish" not in model:
+            yield event(chunk(model, {}, "tool_calls" if tool_mode else "stop"))
         if usage and body.get("stream_options", {}).get("include_usage"):
             last = chunk(model, {})
             last["choices"] = []

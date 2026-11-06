@@ -57,14 +57,20 @@ Authorization: Bearer <user-token>
 }
 ```
 
-`GET .../models` 返回脱敏配置；`PUT .../models/{connectionId}` 带当前 `expectedVersion` 更新，版本不匹配返回 409；密钥留空继承当前密钥并重新加密。`POST .../models/{connectionId}/probe` 使用合成提示检查流式连接，并显示 reported/unknown 用量。当前 probe 不证明工具调用能力，界面明确显示“工具调用尚未验证”；发布前工具能力探测仍待接入。
+`GET .../models` 返回脱敏配置；`PUT .../models/{connectionId}` 带当前 `expectedVersion` 更新，版本不匹配返回 409；密钥留空继承当前密钥并重新加密。
+
+`POST .../models/{connectionId}/probe` 验证当前配置版本：流式文本 → 固定 `add_numbers(2,3)` → 工具结果回传。使用配置中的 DeepSeek 思考模式，保留往返要求的 reasoning_content；不执行 Skill、Shell 或用户工具。页面按步骤显示耗时及服务端输入/输出 Token，无 usage 显示“未报告”。未声明工具能力时跳过后两步，`toolsVerified=false`。配置标签是能力声明，不能等同于验证结果。
+
+每步前及返回前重新检查执行权限和当前版本；配置更新返回 409，权限撤销中止后续请求。诊断不重试，模型交互最多持续 `min(totalTimeoutSeconds,60)` 秒，每请求最多 1 MiB、单条 SSE 最多 64 KiB；每 API 实例最多四个并发验证。关闭页面仅中止浏览器等待，服务端按截止时间结束，不能视为已取消服务端请求。
+
+返回的 `steps` 含 `name/status/durationMs/inputTokens/outputTokens/error`；顶层含 `version/adapter/thinkingEnabled/ok/stream/toolsVerified/usage/durationMs/error`。模型错误使用固定代码，不返回响应正文或密钥。成功和模型失败报告均写入 `model.probe.completed` 环境审计，沿用审计保留期；不创建业务任务，不计入任务周/月统计。连接级诊断不代替 Agent 执行链验收，发布前的持久能力门禁仍待闭环。
 
 ## 验证记录与剩余工作
 
 - [共享 HTTP/SSE 样本](../../tests/model_contract/README.md)：离线文本、SSE、分片 tool_calls、401/429、超时、畸形数据、中途断流和重定向。
 - Python 共享契约与原 BaseBuilder/LLMCompletion/DeepAgents 回归合计 118 项通过；Java 共享契约与地址/凭据作用域测试通过。
 - MySQL 8.4.13 六项迁移/约束/授权测试通过，包含 V1.50 模型版本及跨环境外键拒绝。
-- 仍需将模型 connection/version 引用绑定到不可变 Agent/Skill 发布和持久任务，完成内部服务凭据引用解析、能力验证持久化及完整 UI 联调。旧资源入口统一租户授权随 `manage-tenant-access` 继续完成。
+- 模型 connection/version 已绑定部署快照和受信 worker 凭据解析；连接级诊断报告进入审计。仍需完成发布能力门禁、完整管理 UI/取消日志验收；旧资源入口统一租户授权随 `manage-tenant-access` 继续完成。
 - 已授权公网 DeepSeek 探测不替代生产禁外网环境的真实模型验收；OpenSpec 的生产验收项保留未完成。
 
 官方 API 依据：[HTTPX transports](https://www.python-httpx.org/advanced/transports/)、[HTTPX SNI 扩展](https://www.python-httpx.org/advanced/extensions/#sni_hostname)、[Reactor Netty HTTP Client](https://projectreactor.io/docs/netty/release/reference/http-client.html)。具体构造参数另通过锁定版本安装包核对：HTTPX 0.28.1、Reactor Netty 1.2.8、Spring AI 1.1.2。Context7 在本次环境中未提供工具，使用上述官方文档与安装源码。

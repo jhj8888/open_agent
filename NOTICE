@@ -39,6 +39,12 @@ Its package license is retained in the frozen Python environment. The small
 platform subclass preserves reasoning_content in tool history; all provider
 HTTP, streaming and usage parsing remain in the official integration.
 
+The Java model integration uses Spring AI 1.1.2, including spring-ai-openai
+and spring-ai-deepseek (https://github.com/spring-projects/spring-ai), under
+Apache License 2.0. The upstream license is retained in
+deploy/platform/control/LICENSE-spring-ai. The diagnostic uses the official
+SDK unchanged; platform request extensions and orchestration are separate.
+
 The optional private observation service uses MLflow 3.18.0
 (https://github.com/mlflow/mlflow), licensed under Apache License 2.0,
 and the official OpenTelemetry Python SDK / OTLP HTTP exporter 1.45.1,
