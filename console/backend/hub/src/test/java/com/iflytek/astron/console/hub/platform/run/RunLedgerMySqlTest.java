@@ -1343,7 +1343,7 @@ class RunLedgerMySqlTest {
     @Test void apiKeyActionsExpiryAndTenantSuspensionAreRechecked() {
         actors();var key=keys().issue(scope,deployment,new DeploymentKeys.KeyInput("create only",true,false,false,1));
         var caller=caller(key);String run=api().submit(caller,deployment,"create",input()).run_id();
-        assertEquals(Map.of("create",true,"read",false,"cancel",false),api().deployment(caller,deployment).get("allowed_actions"));
+        assertEquals(Map.of("create",true,"read",false,"cancel",false,"delete",false),api().deployment(caller,deployment).get("allowed_actions"));
         code("action_forbidden",()->api().status(caller,run));code("action_forbidden",()->api().cancel(caller,run));
         jdbc.update("UPDATE oa_deployment_credential SET expires_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE key_id=?",key.keyId());
         assertTrue(keys().authenticate(key.token()).isEmpty());code("resource_unavailable",()->api().submit(caller,deployment,"expired",input()));
@@ -2027,7 +2027,7 @@ class RunLedgerMySqlTest {
         assertFalse(ledger.heartbeat(lease)); assertEquals("timed_out", ledger.finish(lease, RunState.SUCCEEDED, null).get("state"));
     }
 
-    @Test void revokedModelAndSuspendedTenantFailClosed() {
+    @Test void revokedModelAndSuspendedTenantRejectNewWorkButAllowExplicitCancellation() {
         String id = submit("a").runId();
         jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=?", A);
         code("deployment_unavailable", () -> submit("b"));
@@ -2035,8 +2035,89 @@ class RunLedgerMySqlTest {
         jdbc.update("UPDATE oa_model_connection_version SET revoked=false WHERE tenant_id=?", A);
         String running = submit("c").runId(); var lease = claim(running);
         jdbc.update("UPDATE oa_tenant SET status='suspended' WHERE tenant_id=?", A);
-        code("tenant_inactive", () -> submit("d")); assertFalse(ledger.heartbeat(lease));
+        code("tenant_inactive", () -> submit("d")); assertTrue(ledger.heartbeat(lease));
         assertEquals("cancel_requested", ledger.cancel(scope, running, "alice", () -> {}).get("state"));
+        assertFalse(ledger.heartbeat(lease));
+    }
+
+    @Test void suspendedTenantDrainsAcceptedWorkAndRejectsNewAdmission() {
+        actors();bindSkill(scope,deployment);jdbc.update("INSERT INTO oa_platform_admin(uid) VALUES('alice')");
+        var held=reserved("before-suspension-running");
+        var queued=api().submit(caller("alice"),deployment,"before-suspension-queued",input());
+        var cancelled=api().submit(caller("alice"),deployment,"before-suspension-cancel",input());
+        governanceTx(()->{governance().setStatus(A,"suspended",0);return null;});
+        code("action_forbidden",()->api().submit(caller("alice"),deployment,"after-suspension",input()));
+        code("tenant_inactive",()->submit("internal-after-suspension"));
+        assertEquals(3,count("oa_agent_run"));assertEquals(3,count("oa_run_outbox"));
+        assertTrue(ledger.heartbeat(held));assertEquals("authorized",ledger.withPermit(held,()->"authorized"));
+        assertEquals(3,ledger.append(held,"after-pause","message.delta",json.createObjectNode().put("text","accepted work")));
+        var second=claim(queued.run_id());assertTrue(ledger.heartbeat(second));
+        journal().reserve(second,"gvisor-demo",IMAGE);
+        assertEquals("cancelled",api().cancel(caller("alice"),cancelled.run_id()).get("state"));
+        assertTrue(ledger.claim(scope,cancelled.run_id(),"worker").isEmpty());
+        assertEquals("succeeded",ledger.finish(held,RunState.SUCCEEDED,null).get("state"));
+        assertEquals("succeeded",ledger.finish(second,RunState.SUCCEEDED,null).get("state"));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE lease_state='cleanup_pending'",Integer.class));
+        code("sandbox_cleanup_pending",()->ledger.resourcesReleased(held));
+        journal().releaseVerified(held,"synthetic-verifier",UUID.randomUUID().toString());
+        journal().releaseVerified(second,"synthetic-verifier",UUID.randomUUID().toString());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_attempt WHERE lease_state<>'released'",Integer.class));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_sandbox WHERE phase<>'released'",Integer.class));
+        assertEquals("succeeded",api().status(caller("alice"),held.runId()).get("state"));
+        assertEquals(1,governance().auditEntries(A,"test",Long.MAX_VALUE,"tenant.status_changed").size());
+    }
+
+    @Test void suspendedTenantRetainsRevocationCancellationAndLeaseFences() {
+        actors();jdbc.update("UPDATE oa_tenant_environment SET max_concurrent_runs=8 WHERE tenant_id=? AND environment='test'",A);
+        var revoked=claim(submit("revoke-after-pause").runId());
+        var cancelled=claim(submit("cancel-after-pause").runId());
+        var expired=claim(submit("expire-after-pause").runId());
+        var deadline=claim(submit("deadline-after-pause").runId());
+        jdbc.update("UPDATE oa_tenant SET status='suspended' WHERE tenant_id=?",A);
+        var forged=new RunLedger.Lease(scope,revoked.runId(),revoked.attempt(),revoked.leaseId(),revoked.fencingToken(),"wrong-worker");
+        code("lease_fenced",()->ledger.withPermit(forged,()->true));
+        assertEquals("cancel_requested",api().cancel(caller("operator"),cancelled.runId()).get("state"));
+        assertFalse(ledger.heartbeat(cancelled));code("lease_fenced",()->ledger.withPermit(cancelled,()->true));
+        code("lease_fenced",()->ledger.append(cancelled,"late","message.delta",json.createObjectNode().put("text","late")));
+        assertEquals("cancelled",ledger.finish(cancelled,RunState.SUCCEEDED,null).get("state"));
+        jdbc.update("UPDATE oa_run_attempt SET heartbeat_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE lease_id=?",expired.leaseId());
+        assertFalse(ledger.heartbeat(expired));code("lease_fenced",()->ledger.withPermit(expired,()->true));
+        assertEquals("outcome_unknown",ledger.finish(expired,RunState.SUCCEEDED,null).get("error_code"));
+        jdbc.update("UPDATE oa_agent_run SET deadline_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3)) WHERE run_id=?",deadline.runId());
+        assertFalse(ledger.heartbeat(deadline));assertEquals("timed_out",ledger.finish(deadline,RunState.SUCCEEDED,null).get("state"));
+        jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=?",A);
+        code("deployment_unavailable",()->ledger.withPermit(revoked,()->true));
+        assertEquals("permission_revoked",ledger.finish(revoked,RunState.SUCCEEDED,null).get("error_code"));
+    }
+
+    @Test void suspendedTenantAdmissionRaceHasOneDatabaseBoundary() throws Exception {
+        actors();jdbc.update("INSERT INTO oa_platform_admin(uid) VALUES('alice')");
+        String before=api().submit(caller("alice"),deployment,"before-pause-race",input()).run_id();
+        var work=new ArrayList<Callable<String>>();
+        work.add(()->{user("alice");governanceTx(()->{governance().setStatus(A,"suspended",0);return null;});return "suspended";});
+        for(int i=0;i<8;i++) {
+            final int index=i;
+            work.add(()->{user("alice");try{return api().submit(caller("alice"),deployment,"pause-race-"+index,input()).run_id();}
+                catch(RunFailure denied){assertEquals("action_forbidden",denied.code());return "denied";}});
+        }
+        var results=concurrent(work);
+        assertEquals(1,results.stream().filter("suspended"::equals).count());
+        long accepted=results.stream().filter(value->!value.equals("suspended")&&!value.equals("denied")).count()+1;
+        assertEquals(accepted,count("oa_agent_run"));assertEquals(accepted,count("oa_run_outbox"));
+        code("action_forbidden",()->api().submit(caller("alice"),deployment,"definitely-after-pause",input()));
+        var lease=claim(before);assertTrue(ledger.heartbeat(lease));
+        assertEquals("succeeded",ledger.finish(lease,RunState.SUCCEEDED,null).get("state"));
+        assertEquals(1,governance().auditEntries(A,"test",Long.MAX_VALUE,"tenant.status_changed").size());
+    }
+
+    @Test void archivedTenantDoesNotReceiveSuspendedExecutionPermission() {
+        var running=claim(submit("archived-running").runId());var queued=submit("archived-queued");
+        jdbc.update("UPDATE oa_tenant SET status='archived' WHERE tenant_id=?",A);
+        assertFalse(ledger.heartbeat(running));assertTrue(ledger.claim(scope,queued.runId(),"worker").isEmpty());
+        code("tenant_inactive",()->submit("archived-new"));
+        code("lease_fenced",()->ledger.withPermit(running,()->true));
+        code("lease_fenced",()->ledger.append(running,"late","message.delta",json.createObjectNode().put("text","late")));
+        assertEquals("permission_revoked",ledger.finish(running,RunState.SUCCEEDED,null).get("error_code"));
     }
 
     @Test void eventsAreOrderedDeduplicatedBoundedAndReconnectable() {

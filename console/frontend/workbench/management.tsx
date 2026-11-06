@@ -1240,6 +1240,10 @@ export function TenantPage({
         </div>
       </div>
       <ErrorBox message={error} />
+      <div className="info-strip">
+        暂停租户会停止接收新任务；已接收的排队和运行任务继续执行。
+        如需停止已有任务，请在任务中心取消。
+      </div>
       <div className="panel">
         <div className="panel-heading">
           <h2>环境配额</h2>

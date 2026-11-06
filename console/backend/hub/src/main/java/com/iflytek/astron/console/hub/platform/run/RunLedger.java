@@ -123,8 +123,8 @@ public class RunLedger {
                 transition(scope, run, RunState.TIMED_OUT, "deadline_exceeded");
                 return Optional.empty();
             }
-            // Suspended tenants remain queued; no new model or tool operation may start.
-            if (!"active".equals(quota.get("status"))) return Optional.empty();
+            // Suspension closes submit(), while previously accepted work drains normally.
+            if (!acceptedRunAllowed(quota)) return Optional.empty();
             try { deployment(scope, (String) run.get("deployment_id")); }
             catch (RunFailure unavailable) {
                 transition(scope, run, RunState.FAILED, "configuration_unavailable");
@@ -196,7 +196,7 @@ public class RunLedger {
             var run = run(lease.scope(), lease.runId());
             var attempt = attempt(lease);
             Instant now = now();
-            if (!"active".equals(quota.get("status")) || !permit(run, attempt, now)) return false;
+            if (!acceptedRunAllowed(quota) || !permit(run, attempt, now)) return false;
             jdbc.update("UPDATE oa_run_attempt SET heartbeat_until=? WHERE lease_id=?",
                     Timestamp.from(min(now.plusSeconds(30), instant(run, "deadline_at"))), lease.leaseId());
             return true;
@@ -209,7 +209,7 @@ public class RunLedger {
             var quota = lockScope(lease.scope(), false);
             var run = run(lease.scope(), lease.runId());
             var attempt = attempt(lease);
-            if (!"active".equals(quota.get("status")) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
+            if (!acceptedRunAllowed(quota) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
             deployment(lease.scope(), (String) run.get("deployment_id"));
             return read.get();
         });
@@ -236,7 +236,7 @@ public class RunLedger {
                 // Revocation may race the final model response. Recheck before
                 // recording success so a revoked run cannot authorize promotion.
                 try {
-                    requireActive(quota);
+                    if (!acceptedRunAllowed(quota)) throw new RunFailure("tenant_inactive");
                     deployment(lease.scope(),(String)run.get("deployment_id"));
                 } catch(RunFailure revoked) {
                     next=RunState.FAILED;code="permission_revoked";
@@ -283,7 +283,7 @@ public class RunLedger {
             var quota = lockScope(lease.scope(), false);
             var run = run(lease.scope(), lease.runId());
             var attempt = attempt(lease);
-            if (!"active".equals(quota.get("status")) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
+            if (!acceptedRunAllowed(quota) || !permit(run, attempt, now())) throw new RunFailure("lease_fenced");
             long sequence=event(lease.scope(), lease.runId(), "worker:" + eventKey, type, body, true);
             if(type.equals("usage")) {
                 for(String field:List.of("prompt_tokens","completion_tokens","total_tokens")) {
@@ -336,6 +336,9 @@ public class RunLedger {
     }
     private void requireActive(Map<String, Object> quota) {
         if (!"active".equals(quota.get("status"))) throw new RunFailure("tenant_inactive");
+    }
+    private boolean acceptedRunAllowed(Map<String, Object> quota) {
+        return "active".equals(quota.get("status")) || "suspended".equals(quota.get("status"));
     }
     private Map<String, Object> deployment(Scope scope, String id) {
         var rows = jdbc.queryForList("""

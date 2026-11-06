@@ -28,6 +28,10 @@ core/workflow/service/chat_service.py 使用 asyncio.create_task；event_registr
 
 ## Risks / Trade-offs
 
+### 暂停与在途任务
+
+租户 suspended 仅停止新任务准入，已持久接收的 queued/running 任务继续通过同一账本取得受限执行许可；治理变更和任务准入均先锁租户，消除暂停提交边界的竞态。领取、心跳、withPermit、事件与最终成功使用同一 active/suspended 判定，避免部分链路仍将暂停解释为撤销。deployment/模型/Skill 撤销、显式取消、截止、失效租约及 worker 身份检查维持原有边界；终态仍需独立回收后才释放配额。archived 及未知状态不允许继续执行。
+
 ### SQL/HTTP/Temporal 联合故障验证
 
 新增验收复用打包平台 API、独占 MySQL 与官方 Temporal CLI/SDK。SQL trigger 只存在于一次性测试 schema，用于在 outbox 写入时中止事务；另以插入间隙锁及 performance_schema 的真实锁等待定位提交前边界，再强杀 API 并检查回滚。API 与独立 Python 调度子进程在已观察的边界被强制终止。真实 ControlPlaneClient 通过 HTTP 领取 60 秒租约，真实 OutboxDispatcher 执行 start/ack；仅测试子类在确认 RPC 前后暂停，由父进程终止，不向业务代码加入故障开关。自然等待领取到期，不修改数据库时间或回填状态。测试 activity 使用真实 claim/permit/event/finish 记录一个明确的合成事件，不调用模型或执行用户代码。其 reconcile 仅读取账本终态，保留 cleanup_pending 配额，不冒充生产独立回收。此证据覆盖投递边界，不能替代未知实体、物理回收或生产 Temporal HA 验收。
