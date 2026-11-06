@@ -14,7 +14,7 @@
     "browser_verified": false
   },
   "public_verification": {
-    "checked_at": "2026-11-06T08:24:41.515537+08:00",
+    "checked_at": "2026-11-06T00:24:41.515537+00:00",
     "origin": "https://120.26.81.83",
     "console_archive_sha256": "12d3fb49a99fba0bdb8afe9e5fe1288c727e19883749f1498670f6ec0f9ba818",
     "asset_digests_verified": 3,
