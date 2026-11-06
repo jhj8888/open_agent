@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-11-06T05:59:54.868196+00:00",
+  "java_unique_checks_passed": 62,
+  "model_bound_policy_checks": 5,
+  "real_mysql_model_bound_checks": 3,
+  "real_packaged_migration_checks": 1,
+  "model_security_checks": 21,
+  "shared_http_model_contract_checks": 26,
+  "spring_application_checks": 6,
+  "helm_checks_passed": 24,
+  "openspec_changes_validated": 12,
+  "first_test_count_variable_compile_error_fixed": true,
+  "migration": {
+    "child_processes_stopped": true,
+    "elapsed_seconds": 43.7613442,
+    "stages": [
+      {
+        "result": "passed",
+        "stage": "new_api_on_upgraded_schema",
+        "details": {
+          "schema": "1.71",
+          "budget_rows": 0,
+          "budget_enforced": false,
+          "retained_run_readable": true
+        }
+      },
+      {
+        "result": "passed",
+        "stage": "previous_api_on_upgraded_schema",
+        "details": {
+          "schema": "1.71",
+          "budget_rows": 0,
+          "budget_enforced": false,
+          "retained_run_readable": true
+        }
+      },
+      {
+        "result": "passed",
+        "stage": "new_api_on_upgraded_schema",
+        "details": {
+          "schema": "1.71",
+          "budget_rows": 0,
+          "budget_enforced": false,
+          "retained_run_readable": true
+        }
+      },
+      {
+        "result": "passed",
+        "stage": "budget_migration_and_compatibility",
+        "details": {
+          "real_flyway": true,
+          "previous_api_sha256": "2ee376381acc919abd9cabfc005e54d048ad97c0225e0b11669afddbbb6b7cd2"
+        }
+      }
+    ],
+    "verified": true
+  },
+  "artifacts": {
+    "new_api_sha256": "db651c5cf524cc04632fbb26c877d4a574916140b2c27093ef7961f06bcf4c29",
+    "previous_api_sha256": "2ee376381acc919abd9cabfc005e54d048ad97c0225e0b11669afddbbb6b7cd2",
+    "real_flyway": true,
+    "previous_api_on_v171": true,
+    "new_api_resumed": true
+  },
+  "contracts_are_synthetic_fixtures": true,
+  "real_provider_contract_approved": false,
+  "model_enforcement_end_to_end_verified": false
+}

@@ -67,6 +67,8 @@ Authorization: Bearer <user-token>
 
 ## 验证记录与剩余工作
 
+预算控制前置条件：V1.71 增加由平台运维配置的[模型总量上限契约](model-token-bounds.md)，保存模型新版本时捕获不可变快照，旧版本不回填。租户请求不能自报上限；未匹配、契约撤销/变更或失效均无严格准入资格。实际任务和诊断尚未接入预算，`tokenBudgetEnforced=false`。
+
 - [共享 HTTP/SSE 样本](../../tests/model_contract/README.md)：离线文本、SSE、分片 tool_calls、401/429、超时、畸形数据、中途断流和重定向。
 - Python 共享契约与原 BaseBuilder/LLMCompletion/DeepAgents 回归合计 118 项通过；Java 共享契约与地址/凭据作用域测试通过。
 - MySQL 8.4.13 六项迁移/约束/授权测试通过，包含 V1.50 模型版本及跨环境外键拒绝。

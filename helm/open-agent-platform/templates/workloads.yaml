@@ -105,6 +105,9 @@ spec:
                 secretKeyRef: {name: {{ $.Values.apiTls.existingSecret }}, key: tls.password}
           {{- end }}
           {{- if eq $component "api" }}
+            - name: MODEL_TOKEN_BOUND_CONTRACTS
+              valueFrom:
+                secretKeyRef: {name: {{ $.Values.existingSecret }}, key: MODEL_TOKEN_BOUND_CONTRACTS, optional: true}
             - name: PLATFORM_CLUSTER_RECONCILERS
               valueFrom:
                 secretKeyRef: {name: {{ $.Values.existingSecret }}, key: PLATFORM_CLUSTER_RECONCILERS, optional: true}

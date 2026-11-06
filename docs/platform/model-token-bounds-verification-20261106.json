@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-11-06T06:02:23.310384+00:00",
+  "read_only": true,
+  "schema_version": "1.71",
+  "api_artifact_sha256": "db651c5cf524cc04632fbb26c877d4a574916140b2c27093ef7961f06bcf4c29",
+  "migration_sha256": "b0cc683e84b4aa6796d86a72c2b56e618d70aa20e1bff7370d20c94e6983208e",
+  "existing_models_readable": 1,
+  "legacy_models_not_backfilled": true,
+  "model_secrets_not_returned": true,
+  "business_task_count_unchanged": true,
+  "token_budget_enforced": false,
+  "real_provider_contract_approved": false
+}

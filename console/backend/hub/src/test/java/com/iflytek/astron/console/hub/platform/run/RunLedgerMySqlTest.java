@@ -61,6 +61,7 @@ class RunLedgerMySqlTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.68__record_task_deletion.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.69__preserve_deleted_requests_after_restore.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.70__reserve_model_token_budgets.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1.71__bind_model_token_contracts.sql")).execute(source);
         for (String tenant : List.of(A, B)) {
             jdbc.update("INSERT INTO oa_tenant(tenant_id,display_name,scope_kind,space_id) VALUES(?,?,'space',?)", tenant, tenant, tenant.equals(A) ? 10 : 20);
             jdbc.update("INSERT INTO oa_tenant_environment(tenant_id,environment,max_concurrent_runs,max_queued_runs) VALUES(?,'test',2,20),(?,'prod',2,20)", tenant, tenant);
@@ -258,11 +259,96 @@ class RunLedgerMySqlTest {
         actors();String run=submit("budget-migration-retained").runId();
         assertEquals(0,count("oa_model_token_reservation"));assertEquals(0,count("oa_model_token_day"));
         // Only this test's freshly owned schema; recreate the 1.69 pre-migration state.
-        jdbc.execute("DROP TABLE oa_model_token_reservation");jdbc.execute("DROP TABLE oa_model_token_day");
+        jdbc.execute("DROP TABLE oa_model_token_bound");jdbc.execute("DROP TABLE oa_model_token_reservation");jdbc.execute("DROP TABLE oa_model_token_day");
         try(var fixture=new MultiApiAdmissionFixture(source,jdbc)){fixture.verifyTokenBudgetMigration(run);}
     }
     private <T> T governanceTx(java.util.function.Supplier<T> action) {
         return new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source)).execute(status->action.get());
+    }
+
+    private com.iflytek.astron.console.hub.platform.model.ModelConnectionService boundedModels(long tokens) {
+        String contracts=tokens==0?"[]":"""
+                [{"endpoint":"https://model.example/v1","modelName":"contract-model","adapter":"deepseek","thinkingEnabled":true,
+                  "maxTotalTokens":%d,"sourceRef":"synthetic-test-contract","evidenceSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "verifiedAt":"2000-01-01T00:00:00Z","validUntil":"2099-01-01T00:00:00Z"}]
+                """.formatted(tokens);
+        var env=new org.springframework.mock.env.MockEnvironment().withProperty("MODEL_TOKEN_BOUND_CONTRACTS",contracts)
+                .withProperty("MODEL_ALLOWED_ORIGINS","[\"https://model.example\"]")
+                .withProperty("MODEL_CREDENTIAL_KEYS","{\"v1\":\""+java.util.Base64.getEncoder().encodeToString(new byte[32])+"\"}");
+        return new com.iflytek.astron.console.hub.platform.model.ModelConnectionService(jdbc,access(),
+                new com.iflytek.astron.console.hub.platform.model.ModelCredentialCipher(env,json),
+                new com.iflytek.astron.console.hub.platform.model.ModelEndpointPolicy(env,json),env,json);
+    }
+    private com.iflytek.astron.console.hub.platform.model.PlatformModelController.ModelInput boundModelInput(long version,boolean thinking,boolean revoke) {
+        return new com.iflytek.astron.console.hub.platform.model.PlatformModelController.ModelInput("Contract fixture","https://model.example/v1",
+                "contract-model",true,true,true,10,60,120,null,version==0?"synthetic-bound-key":null,version,revoke,"deepseek",thinking);
+    }
+
+    @Test void modelTokenBoundSnapshotsVersionsWithoutBackfillingOrLeakingCredentials() throws Exception {
+        actors();var models=boundedModels(1000);
+        String legacy=jdbc.queryForObject("SELECT model_connection_id FROM oa_agent_deployment WHERE deployment_id=?",String.class,deployment);
+        assertThrows(IllegalStateException.class,()->models.tokenBoundForAuthorizedVersion(A,"test",legacy,1));
+        String id=(String)governanceTx(()->models.save(A,"test",null,boundModelInput(0,true,false))).get("connectionId");
+        var snapshot=models.tokenBoundForAuthorizedVersion(A,"test",id,1);assertEquals(1000,snapshot.maxTotalTokens());
+        var listed=models.list(A,"test").stream().filter(row->id.equals(row.get("connection_id"))).findFirst().orElseThrow();
+        assertEquals(1000,((Number)listed.get("max_total_tokens")).longValue());
+        String publicJson=json.writeValueAsString(listed);assertFalse(publicJson.contains("synthetic-bound-key"));assertFalse(publicJson.contains("credential_cipher"));
+        var audit=json.readTree(jdbc.queryForObject("SELECT after_value FROM oa_tenant_audit WHERE subject_id=? ORDER BY id DESC LIMIT 1",String.class,id));
+        assertEquals(snapshot.contractSha256(),audit.path("tokenBoundContractSha256").asText());
+        assertEquals(1000,audit.path("maxTotalTokens").asLong());assertFalse(audit.toString().contains("synthetic-bound-key"));
+        var changed=boundedModels(2000);
+        assertThrows(IllegalStateException.class,()->changed.tokenBoundForAuthorizedVersion(A,"test",id,1));
+        governanceTx(()->changed.save(A,"test",id,boundModelInput(1,true,false)));
+        assertEquals(2000,changed.tokenBoundForAuthorizedVersion(A,"test",id,2).maxTotalTokens());
+        assertEquals(snapshot,models.tokenBoundForAuthorizedVersion(A,"test",id,1));
+        assertThrows(IllegalStateException.class,()->boundedModels(0).tokenBoundForAuthorizedVersion(A,"test",id,2));
+        governanceTx(()->changed.save(A,"test",id,boundModelInput(2,false,false)));
+        assertThrows(IllegalStateException.class,()->changed.tokenBoundForAuthorizedVersion(A,"test",id,3));
+        assertEquals(2,count("oa_model_token_bound"));
+        assertEquals(1000,jdbc.queryForObject("SELECT max_total_tokens FROM oa_model_token_bound WHERE connection_id=? AND version=1",Long.class,id));
+    }
+
+    @Test void modelTokenBoundRejectsRevokedVersionsScopesAndUnauthorizedChanges() {
+        actors();var models=boundedModels(1000);
+        String id=(String)governanceTx(()->models.save(A,"test",null,boundModelInput(0,true,false))).get("connectionId");
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->models.tokenBoundForAuthorizedVersion(B,"test",id,1));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->models.tokenBoundForAuthorizedVersion(A,"prod",id,1));
+        user("viewer");long audits=count("oa_tenant_audit");
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->governanceTx(()->models.save(A,"test",id,boundModelInput(1,true,true))));
+        assertEquals(audits,count("oa_tenant_audit"));assertEquals(1,count("oa_model_token_bound"));
+        user("alice");governanceTx(()->models.save(A,"test",id,boundModelInput(1,true,true)));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->models.tokenBoundForAuthorizedVersion(A,"test",id,1));
+        assertEquals(1000,models.tokenBoundForAuthorizedVersion(A,"test",id,2).maxTotalTokens());
+        jdbc.update("UPDATE oa_model_connection SET enabled=false WHERE connection_id=?",id);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->models.tokenBoundForAuthorizedVersion(A,"test",id,2));
+        assertEquals(2,count("oa_model_token_bound"));
+    }
+
+    @Test void modelTokenBoundFailureRollsBackWholeVersionAndDatabaseRejectsInvalidSnapshots() {
+        actors();var models=boundedModels(1000);
+        String id=(String)governanceTx(()->models.save(A,"test",null,boundModelInput(0,true,false))).get("connectionId");
+        long audits=count("oa_tenant_audit"),versions=count("oa_model_connection_version");
+        jdbc.execute("CREATE TRIGGER bound_insert_failure BEFORE INSERT ON oa_model_token_bound FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='owned test failure'");
+        assertThrows(org.springframework.dao.DataAccessException.class,()->governanceTx(()->models.save(A,"test",id,boundModelInput(1,true,true))));
+        jdbc.execute("DROP TRIGGER bound_insert_failure");
+        assertEquals(1,jdbc.queryForObject("SELECT current_version FROM oa_model_connection WHERE connection_id=?",Long.class,id));
+        assertEquals(versions,count("oa_model_connection_version"));assertEquals(audits,count("oa_tenant_audit"));assertEquals(1,count("oa_model_token_bound"));
+        assertEquals(1000,models.tokenBoundForAuthorizedVersion(A,"test",id,1).maxTotalTokens());
+        for(String invalid:List.of("max_total_tokens=0","verified_at_ms=valid_until_ms","environment='prod'"))
+            assertThrows(org.springframework.dao.DataAccessException.class,()->jdbc.update("UPDATE oa_model_token_bound SET "+invalid+" WHERE connection_id=?",id));
+        governanceTx(()->models.save(A,"test",id,boundModelInput(1,true,false)));
+        assertEquals(2,count("oa_model_token_bound"));
+        jdbc.update("UPDATE oa_model_token_bound SET max_total_tokens=999 WHERE connection_id=? AND version=2",id);
+        assertThrows(IllegalStateException.class,()->models.tokenBoundForAuthorizedVersion(A,"test",id,2));
+    }
+
+    @Test @EnabledIfEnvironmentVariable(named="OA_BUDGET_PREVIOUS_API_JAR",matches=".+")
+    void modelTokenBoundPackagedMigrationKeepsV170ApiCompatible() throws Exception {
+        actors();String run=submit("bound-migration-retained").runId();
+        assertEquals(0,count("oa_model_token_bound"));jdbc.execute("DROP TABLE oa_model_token_bound");
+        try(var fixture=new MultiApiAdmissionFixture(source,jdbc)) {
+            fixture.verifyTokenBudgetMigration(run,"1.70","V1.71__bind_model_token_contracts.sql");
+        }
     }
 
     @Test void governanceKeepsAnAdministratorWhoCanActuallyEnterTheSpace() {

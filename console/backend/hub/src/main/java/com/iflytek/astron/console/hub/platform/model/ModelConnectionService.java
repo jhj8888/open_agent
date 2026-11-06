@@ -24,24 +24,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ModelConnectionService {
     private static final String PUBLIC_COLUMNS = "c.connection_id,c.display_name,c.current_version,c.enabled,v.endpoint,v.model_name,v.protocol,"
-            + "v.supports_stream,v.supports_tools,v.supports_usage,v.connect_timeout_seconds,v.read_timeout_seconds,v.total_timeout_seconds,v.ca_ref,v.credential_ref,v.revoked,v.adapter,v.thinking_enabled";
+            + "v.supports_stream,v.supports_tools,v.supports_usage,v.connect_timeout_seconds,v.read_timeout_seconds,v.total_timeout_seconds,v.ca_ref,v.credential_ref,v.revoked,v.adapter,v.thinking_enabled,"
+            + "b.max_total_tokens,b.source_ref AS token_bound_source,b.contract_sha256 AS token_bound_contract_sha256,b.valid_until_ms AS token_bound_valid_until_ms";
     private final JdbcTemplate jdbc;
     private final TenantAccessService access;
     private final ModelCredentialCipher cipher;
     private final ModelEndpointPolicy policy;
     private final Environment environment;
     private final ObjectMapper json;
+    private final ModelTokenBoundPolicy tokenBounds;
     private final java.util.concurrent.Semaphore probeSlots = new java.util.concurrent.Semaphore(4);
 
     public ModelConnectionService(JdbcTemplate jdbc, TenantAccessService access, ModelCredentialCipher cipher,
             ModelEndpointPolicy policy, Environment environment, ObjectMapper json) {
         this.jdbc=jdbc; this.access=access; this.cipher=cipher; this.policy=policy; this.environment=environment; this.json=json;
+        this.tokenBounds=new ModelTokenBoundPolicy(environment,json);
     }
 
     public List<Map<String,Object>> list(String tenant, String env) {
         access.require(tenant, env, TenantPermission.METADATA_READ);
         return jdbc.queryForList("SELECT " + PUBLIC_COLUMNS + " FROM oa_model_connection c JOIN oa_model_connection_version v "
                 + "ON v.tenant_id=c.tenant_id AND v.environment=c.environment AND v.connection_id=c.connection_id AND v.version=c.current_version "
+                + "LEFT JOIN oa_model_token_bound b ON b.tenant_id=v.tenant_id AND b.environment=v.environment AND b.connection_id=v.connection_id AND b.version=v.version "
                 + "WHERE c.tenant_id=? AND c.environment=? ORDER BY c.created_at DESC", tenant, env);
     }
 
@@ -56,6 +60,9 @@ public class ModelConnectionService {
             throw new IllegalArgumentException("Thinking mode requires the DeepSeek adapter");
         if (input.totalTimeoutSeconds() < input.readTimeoutSeconds()) throw new IllegalArgumentException("Total timeout must cover the read timeout");
         caFile(input.caRef());
+        var tokenBound=tokenBounds.isEmpty()?null:tokenBounds.capture(
+                new ModelTokenBoundPolicy.Identity(input.endpoint(),input.modelName(),adapter,input.thinkingEnabled()),
+                databaseNow(),input.totalTimeoutSeconds());
         String id = existingId == null ? UUID.randomUUID().toString() : existingId;
         long version = input.expectedVersion() + 1;
         String key = input.apiKey();
@@ -80,12 +87,19 @@ public class ModelConnectionService {
                 """, tenant, env, id, version, input.endpoint(), input.modelName(), input.supportsStream(), input.supportsTools(), input.supportsUsage(),
                 input.connectTimeoutSeconds(), input.readTimeoutSeconds(), input.totalTimeoutSeconds(), input.caRef(), credentialRef,
                 encrypted.keyId(), encrypted.nonce(), encrypted.ciphertext(),adapter,input.thinkingEnabled());
+        if(tokenBound!=null)jdbc.update("""
+                INSERT INTO oa_model_token_bound(tenant_id,environment,connection_id,version,max_total_tokens,
+                  source_ref,evidence_sha256,contract_sha256,verified_at_ms,valid_until_ms) VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,tenant,env,id,version,tokenBound.maxTotalTokens(),tokenBound.sourceRef(),tokenBound.evidenceSha256(),
+                tokenBound.contractSha256(),tokenBound.verifiedAt().toEpochMilli(),tokenBound.validUntil().toEpochMilli());
         if (input.revokePrevious()) jdbc.update("UPDATE oa_model_connection_version SET revoked=true WHERE tenant_id=? AND environment=? AND connection_id=? AND version<?", tenant, env, id, version);
         jdbc.update("""
                 INSERT INTO oa_tenant_audit(tenant_id,environment,actor_uid,action,subject_id,after_value,retain_until)
-                SELECT tenant_id,environment,?,'model.version.created',?,JSON_OBJECT('version',?,'credentialRef',?,'revokedPrevious',?),
+                SELECT tenant_id,environment,?,'model.version.created',?,JSON_OBJECT('version',?,'credentialRef',?,'revokedPrevious',?,
+                  'tokenBoundContractSha256',?,'maxTotalTokens',?),
                 TIMESTAMPADD(DAY,audit_retention_days,CURRENT_TIMESTAMP(3)) FROM oa_tenant_environment WHERE tenant_id=? AND environment=?
-                """, RequestContextUtil.getUID(), id, version, credentialRef, input.revokePrevious(), tenant, env);
+                """, RequestContextUtil.getUID(), id, version, credentialRef, input.revokePrevious(),
+                tokenBound==null?null:tokenBound.contractSha256(),tokenBound==null?null:tokenBound.maxTotalTokens(),tenant, env);
         return Map.of("connectionId", id, "version", version, "credentialRef", credentialRef);
     }
 
@@ -115,6 +129,35 @@ public class ModelConnectionService {
     }
 
     public record BoundModel(OpenAiChatModel model, long version, int totalTimeoutSeconds, boolean tools, boolean stream) {}
+
+    /** Internal only: caller must reauthorize the exact version under the tenant/environment lock.
+     * No credential is resolved and no network call occurs here. Recheck before dispatch, not only prepare.
+     */
+    public ModelTokenBoundPolicy.Bound tokenBoundForAuthorizedVersion(String tenant,String env,String id,long version) {
+        var rows=jdbc.queryForList("""
+                SELECT v.endpoint,v.model_name,v.adapter,v.thinking_enabled,v.total_timeout_seconds,b.*
+                FROM oa_model_connection_version v JOIN oa_model_connection c
+                  ON c.tenant_id=v.tenant_id AND c.environment=v.environment AND c.connection_id=v.connection_id
+                LEFT JOIN oa_model_token_bound b ON b.tenant_id=v.tenant_id AND b.environment=v.environment
+                  AND b.connection_id=v.connection_id AND b.version=v.version
+                WHERE v.tenant_id=? AND v.environment=? AND v.connection_id=? AND v.version=? AND v.revoked=false AND c.enabled=true
+                """,tenant,env,id,version);
+        if(rows.isEmpty())throw new TenantAccessDeniedException();
+        var row=rows.getFirst();
+        ModelTokenBoundPolicy.Bound snapshot=row.get("max_total_tokens")==null?null:new ModelTokenBoundPolicy.Bound(
+                ((Number)row.get("max_total_tokens")).longValue(),(String)row.get("source_ref"),(String)row.get("evidence_sha256"),
+                java.time.Instant.ofEpochMilli(((Number)row.get("verified_at_ms")).longValue()),
+                java.time.Instant.ofEpochMilli(((Number)row.get("valid_until_ms")).longValue()),
+                (String)row.get("contract_sha256"));
+        return tokenBounds.require(new ModelTokenBoundPolicy.Identity((String)row.get("endpoint"),(String)row.get("model_name"),
+                (String)row.get("adapter"),Boolean.TRUE.equals(row.get("thinking_enabled"))),snapshot,databaseNow(),
+                ((Number)row.get("total_timeout_seconds")).intValue());
+    }
+
+    private java.time.Instant databaseNow() {
+        var epoch=jdbc.queryForObject("SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))",java.math.BigDecimal.class);
+        return java.time.Instant.ofEpochMilli(epoch.movePointRight(3).longValueExact());
+    }
 
     /** Transient response for the authenticated run worker broker, never user APIs or Temporal payloads. */
     public record WorkerModel(String endpoint, String modelName, String credential, long version,

@@ -64,6 +64,8 @@ def test_chart_renders_hardened_workloads_and_private_dependencies(tmp_path, env
                 assert not secrets
             else:
                 assert secrets and {s['name'] for s in secrets} == {f'open-agent-{environment}-control'}
+                contract = next(s for s in secrets if s['key'] == 'MODEL_TOKEN_BOUND_CONTRACTS')
+                assert contract['optional'] is True  # Missing is unbounded; never an implicit enable switch.
     for service in [d for d in documents if d['kind'] == 'Service']:
         assert service['spec']['type'] == 'ClusterIP'
     policies = [d for d in documents if d['kind'] == 'NetworkPolicy']

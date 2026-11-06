@@ -45,6 +45,8 @@ PLATFORM_RECONCILER_WORKERS    # 当前可为空 JSON 对象，不能拿管理 J
 
 ## 渲染与安装流程
 
+API 的环境 Secret 还可提供 `MODEL_TOKEN_BOUND_CONTRACTS`（JSON 数组，缺失等同空数组），用于运维批准的模型总量上限契约；只注入 API，不传给 web 或沙盒。配置格式、来源核实与全副本重启要求见[模型上限契约](../../docs/platform/model-token-bounds.md)。这个配置不会启用自动预算；现有离线 API 镜像须更新至含 V1.71 的制品后才支持捕获契约，不能只更新 chart。
+
 `examples/test.yaml`、`examples/prod.yaml` 是待审核示例，`.invalid` 主机名与选择器必须替换；未提供镜像摘要时默认校验失败。prod 示例为 2 个 API 副本、2 个 web 副本、PDB 及可选 CPU HPA；资源值是起点，不是吞吐承诺，不据此推算模型/GPU 容量。
 
 先按[镜像交付说明](../../deploy/platform/images/README.md)导入镜像，生成 `registry-images.json`，再为环境预置 namespace（建议启用 Pod Security `restricted`）、独立数据/身份服务、Secret 和企业网关路由。以下命令只在目标集群凭据已审核的安装机执行：
