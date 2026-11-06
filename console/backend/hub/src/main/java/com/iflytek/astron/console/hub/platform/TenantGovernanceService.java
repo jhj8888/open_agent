@@ -25,11 +25,18 @@ public class TenantGovernanceService {
     private final JdbcTemplate jdbc;
     private final TenantAccessService access;
     private final ObjectMapper json;
+    private final java.time.Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public TenantGovernanceService(JdbcTemplate jdbc, TenantAccessService access, ObjectMapper json) {
+        this(jdbc,access,json,java.time.Clock.systemUTC());
+    }
+
+    public TenantGovernanceService(JdbcTemplate jdbc, TenantAccessService access, ObjectMapper json, java.time.Clock clock) {
         this.jdbc = jdbc;
         this.access = access;
         this.json = json;
+        this.clock = clock;
     }
 
     public boolean isPlatformAdmin() {
@@ -75,6 +82,7 @@ public class TenantGovernanceService {
     @Transactional(readOnly=true, isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> quotas(String tenantId, String environment) {
         access.require(tenantId, environment, TenantPermission.METADATA_READ);
+        var sampledAt=clock.instant();
         var result=quotaRow(tenantId, environment);
         result.put("usage",jdbc.queryForMap("""
                 SELECT (SELECT COUNT(*) FROM oa_agent_run WHERE tenant_id=? AND environment=? AND state='queued') AS queuedRuns,
@@ -82,8 +90,37 @@ public class TenantGovernanceService {
                   (SELECT COUNT(*) FROM oa_run_sandbox WHERE tenant_id=? AND environment=? AND phase<>'released') AS sandboxes
                 """,tenantId,environment,tenantId,environment,tenantId,environment));
         result.put("tokenBudgetEnforced",false);
-        result.put("sampledAt",java.time.Instant.now());
+        result.put("dailyTaskTokens",dailyTaskTokens(tenantId,environment,sampledAt));
+        result.put("sampledAt",sampledAt);
         return result;
+    }
+
+    private Map<String,Object> dailyTaskTokens(String tenantId,String environment,java.time.Instant now) {
+        var zone=AgentPeriodStatistics.ZONE;
+        var date=now.atZone(zone).toLocalDate();
+        var start=date.atStartOfDay(zone).toInstant();
+        var end=date.plusDays(1).atStartOfDay(zone).toInstant();
+        // Only leaf model steps carry usage. Deleted/cancelled tasks retain their metering.
+        var usage=jdbc.queryForMap("""
+                SELECT COUNT(*) AS modelCalls,
+                  COUNT(CASE WHEN usage_source='unknown' THEN 1 END) AS unknownModelCalls,
+                  COALESCE(SUM(input_tokens),0) AS inputTokens,
+                  COALESCE(SUM(output_tokens),0) AS outputTokens,
+                  COALESCE(SUM(input_tokens+output_tokens),0) AS knownTotalTokens,
+                  SUM(cache_read_tokens) AS cacheReadTokens,
+                  SUM(input_tokens-cache_read_tokens) AS uncachedInputTokens,
+                  COUNT(CASE WHEN cache_read_tokens IS NULL THEN 1 END) AS unknownCacheModelCalls
+                FROM oa_run_step WHERE tenant_id=? AND environment=? AND kind='model'
+                  AND ended_at>=? AND ended_at<?
+                """,tenantId,environment,java.sql.Timestamp.from(start),java.sql.Timestamp.from(now));
+        // Include unfinished calls from previous days: no usage and no evidence of completion.
+        usage.put("unsettledModelCalls",jdbc.queryForObject("""
+                SELECT COUNT(*) FROM oa_run_step WHERE tenant_id=? AND environment=?
+                  AND kind='model' AND ended_at IS NULL AND started_at<?
+                """,Long.class,tenantId,environment,java.sql.Timestamp.from(now)));
+        usage.put("date",date.toString());usage.put("timezone",zone.toString());
+        usage.put("start",start);usage.put("end",end);usage.put("asOf",now);
+        return usage;
     }
 
     private Map<String, Object> quotaRow(String tenantId, String environment) {

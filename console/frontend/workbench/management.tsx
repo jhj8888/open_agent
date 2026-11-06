@@ -1288,10 +1288,19 @@ export function TenantPage({
                   </small>
                 )}
                 {label === '并发沙盒' && (
-                  <small>未释放 {quotas.data?.usage?.sandboxes ?? '未知'}</small>
+                  <small>
+                    未释放 {quotas.data?.usage?.sandboxes ?? '未知'}
+                  </small>
                 )}
                 {label === '每日 Token' && (
                   <small>
+                    {quotas.data?.dailyTaskTokens && (
+                      <>
+                        今日任务已知用量{' '}
+                        {quotas.data.dailyTaskTokens.knownTotalTokens.toLocaleString()}
+                        <br />
+                      </>
+                    )}
                     {quotas.data?.tokenBudgetEnforced
                       ? '预算限制已启用'
                       : '预算已记录，自动限额尚未启用'}
@@ -1307,6 +1316,33 @@ export function TenantPage({
             {quotas.data.sampledAt &&
               ` 占用采样：${dateText(quotas.data.sampledAt)}`}
           </p>
+        )}
+        {canRead && quotas.data?.dailyTaskTokens && (
+          <div className="quota-note">
+            <p>
+              {quotas.data.dailyTaskTokens.date} · 北京时间 · 任务模型调用{' '}
+              {quotas.data.dailyTaskTokens.modelCalls.toLocaleString()} 次；输入{' '}
+              {quotas.data.dailyTaskTokens.inputTokens.toLocaleString()} / 输出{' '}
+              {quotas.data.dailyTaskTokens.outputTokens.toLocaleString()}。
+              已报告缓存{' '}
+              {quotas.data.dailyTaskTokens.cacheReadTokens?.toLocaleString() ??
+                '未知'}{' '}
+              / 新增输入{' '}
+              {quotas.data.dailyTaskTokens.uncachedInputTokens?.toLocaleString() ??
+                '未知'}
+              （缓存已包含在输入内）。
+            </p>
+            <p>
+              {quotas.data.dailyTaskTokens.unknownModelCalls.toLocaleString()}{' '}
+              次已结束调用未报告用量；{' '}
+              {quotas.data.dailyTaskTokens.unsettledModelCalls.toLocaleString()}{' '}
+              次调用尚未结算（含此前日期）；{' '}
+              {quotas.data.dailyTaskTokens.unknownCacheModelCalls.toLocaleString()}{' '}
+              次已结束调用缓存明细未知。
+              按调用结束时间统计，失败、取消和已删除任务的实际用量仍计入；不含模型连接诊断。
+              存在未知或未结算调用时，已知用量不代表全部消耗。
+            </p>
+          </div>
         )}
       </div>
       <div className="panel recent">

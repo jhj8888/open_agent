@@ -28,6 +28,22 @@ export interface Quotas {
   revision: number;
   usage?: { queuedRuns: number; executionSlots: number; sandboxes: number };
   tokenBudgetEnforced?: boolean;
+  dailyTaskTokens?: {
+    date: string;
+    timezone: string;
+    start: string;
+    end: string;
+    asOf: string;
+    modelCalls: number;
+    unknownModelCalls: number;
+    unsettledModelCalls: number;
+    inputTokens: number;
+    outputTokens: number;
+    knownTotalTokens: number;
+    cacheReadTokens: number | null;
+    uncachedInputTokens: number | null;
+    unknownCacheModelCalls: number;
+  };
   sampledAt?: string;
 }
 export interface AuditEntry {

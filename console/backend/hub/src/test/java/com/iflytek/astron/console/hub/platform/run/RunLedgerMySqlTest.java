@@ -149,6 +149,69 @@ class RunLedgerMySqlTest {
         assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.auditEntries(A,"test",Long.parseLong((String)one.getLast().get("nextBeforeId"))));
     }
 
+    @Test void dailyTaskTokensUseShanghaiCompletionDayAndKeepUnknowns() {
+        actors();String run=submit("daily-tokens").runId();
+        // More than a UI page, including a call that crosses midnight.
+        for(int i=0;i<105;i++)jdbc.update("""
+                INSERT INTO oa_run_step(tenant_id,environment,run_id,attempt_no,step_id,kind,name,
+                  started_at,ended_at,status,usage_source,input_tokens,output_tokens,cache_read_tokens,start_json,start_hash)
+                VALUES(?,'test',?,1,?,'model','fixture','2026-11-01 15:59:59','2026-11-01 16:00:00',
+                  'succeeded','provider',10,2,5,'{}',?)
+                """,A,run,"daily-"+i,RunJson.hash("start"));
+        jdbc.update("UPDATE oa_run_step SET ended_at='2026-11-01 15:59:59.999' WHERE step_id='daily-0'");
+        jdbc.update("UPDATE oa_run_step SET ended_at='2026-11-02 16:00:00' WHERE step_id='daily-1'");
+        jdbc.update("UPDATE oa_run_step SET usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL,status='failed' WHERE step_id='daily-2'");
+        jdbc.update("UPDATE oa_run_step SET ended_at=NULL,usage_source='unknown',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL,status='running' WHERE step_id='daily-3'");
+        jdbc.update("UPDATE oa_run_step SET kind='chain',usage_source='aggregate',input_tokens=NULL,output_tokens=NULL,cache_read_tokens=NULL WHERE step_id='daily-4'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=NULL WHERE step_id='daily-5'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=0 WHERE step_id='daily-6'");
+        jdbc.update("UPDATE oa_run_step SET cache_read_tokens=10,status='interrupted' WHERE step_id='daily-7'");
+        // Deletion and cancellation retain the immutable usage history.
+        ledger.cancel(scope,run,"alice",()->{});
+        assertEquals(run,api().delete(caller("alice"),run).get("run_id"));
+        var clock=java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T15:59:59.999Z"),java.time.ZoneOffset.UTC);
+        var service=new com.iflytek.astron.console.hub.platform.TenantGovernanceService(jdbc,access(),json,clock);
+        var snapshot=governanceTx(()->service.quotas(A,"test"));var daily=(Map<?,?>)snapshot.get("dailyTaskTokens");
+        assertEquals("2026-11-02",daily.get("date"));assertEquals("Asia/Shanghai",daily.get("timezone"));
+        assertEquals(java.time.Instant.parse("2026-11-01T16:00:00Z"),daily.get("start"));
+        assertEquals(java.time.Instant.parse("2026-11-02T16:00:00Z"),daily.get("end"));
+        assertEquals(snapshot.get("sampledAt"),daily.get("asOf"));
+        for(var expected:Map.of("modelCalls",101L,"unknownModelCalls",1L,"unsettledModelCalls",1L,
+                "inputTokens",1000L,"outputTokens",200L,"knownTotalTokens",1200L,
+                "cacheReadTokens",495L,"uncachedInputTokens",495L,"unknownCacheModelCalls",2L).entrySet())
+            assertEquals(expected.getValue(),((Number)daily.get(expected.getKey())).longValue(),expected.getKey());
+        assertEquals(false,snapshot.get("tokenBudgetEnforced"));
+        var next=new com.iflytek.astron.console.hub.platform.TenantGovernanceService(jdbc,access(),json,
+                java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T16:00:00.001Z"),java.time.ZoneOffset.UTC));
+        var nextDay=(Map<?,?>)next.quotas(A,"test").get("dailyTaskTokens");
+        assertEquals("2026-11-03",nextDay.get("date"));
+        assertEquals(12L,((Number)nextDay.get("knownTotalTokens")).longValue());
+        assertEquals(1L,((Number)nextDay.get("unsettledModelCalls")).longValue());
+    }
+
+    @Test void dailyTaskTokensKeepScopeAndEmptyCacheUnknown() {
+        actors();var service=governance();
+        var empty=(Map<?,?>)service.quotas(A,"test").get("dailyTaskTokens");
+        assertEquals(0L,((Number)empty.get("knownTotalTokens")).longValue());
+        assertNull(empty.get("cacheReadTokens"));assertNull(empty.get("uncachedInputTokens"));
+        assertEquals(0L,((Number)empty.get("unsettledModelCalls")).longValue());
+        var lease=claim(submit("daily-scope").runId());var obs=observations();
+        var start=java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS).minusMillis(10);
+        obs.record(lease,"start",observation("scope-call","model",start,false));
+        obs.record(lease,"finish",observation("scope-call","model",start,true));
+        var used=(Map<?,?>)service.quotas(A,"test").get("dailyTaskTokens");
+        assertEquals(15L,((Number)used.get("knownTotalTokens")).longValue());
+        var prod=(Map<?,?>)service.quotas(A,"prod").get("dailyTaskTokens");
+        assertEquals(0L,((Number)prod.get("knownTotalTokens")).longValue());
+        user("bob");var other=(Map<?,?>)service.quotas(B,"test").get("dailyTaskTokens");
+        assertEquals(0L,((Number)other.get("knownTotalTokens")).longValue());
+        user("alice");assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(B,"test"));
+        user("viewer");assertNotNull(service.quotas(A,"test"));
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(A,"prod"));
+        jdbc.update("DELETE FROM oa_tenant_member WHERE tenant_id=? AND environment='test' AND uid='viewer'",A);
+        assertThrows(com.iflytek.astron.console.commons.tenant.TenantAccessDeniedException.class,()->service.quotas(A,"test"));
+    }
+
     @Test void governanceLifecycleSeparatesPlatformAuthorityAndEnvironmentMembership() {
         actors();var service=governance();
         jdbc.update("INSERT INTO oa_platform_admin(uid) VALUES('alice')");
@@ -432,6 +495,9 @@ class RunLedgerMySqlTest {
         assertEquals(7L,((Number)totals.get("cacheReadTokens")).longValue());
         assertEquals(5L,((Number)totals.get("uncachedInputTokens")).longValue());
         assertEquals(0L,((Number)totals.get("unknownCacheModelCalls")).longValue());
+        var day=(Map<?,?>)governance().quotas(A,"test").get("dailyTaskTokens");
+        assertEquals(1L,((Number)day.get("modelCalls")).longValue());
+        assertEquals(15L,((Number)day.get("knownTotalTokens")).longValue());
         code("observation_conflict",()->service.record(lease,"start",observation("call-1","tool",start,false)));
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM oa_run_step WHERE export_state='pending'",Integer.class));
     }

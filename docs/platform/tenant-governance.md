@@ -1,5 +1,7 @@
 # 租户管理与审计
 
+2026-11-06 后续增加每日任务用量读取和页面展示，见[计量语义及验证](daily-task-tokens.md)。配额 API 增加 `dailyTaskTokens`；`tokenBudgetEnforced` 仍为 false，未将事后用量汇总等同于自动限额。
+
 调用路径：工作台租户管理 → 已验证 JWT 的治理 API → `TenantGovernanceService` → MySQL。没有修改模型服务、旧 Hub 共享认证或工作流执行器。复用 Spring 事务和 JdbcTemplate，无新增依赖。
 
 ## 管理操作

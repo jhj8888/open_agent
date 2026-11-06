@@ -1,0 +1,53 @@
+{
+  "checked_at": "2026-11-06T04:54:04.327723+00:00",
+  "read_only": true,
+  "public_https": true,
+  "database_leaf_rows_match": true,
+  "cross_tenant_denied": true,
+  "task_count_unchanged": true,
+  "token_budget_enforced": false,
+  "tenants": [
+    {
+      "tenant": "space-1",
+      "date": "2026-11-06",
+      "as_of": "2026-11-06T04:54:03.161436602Z",
+      "modelCalls": 0,
+      "unknownModelCalls": 0,
+      "unsettledModelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "knownTotalTokens": 0,
+      "cacheReadTokens": null,
+      "uncachedInputTokens": null,
+      "unknownCacheModelCalls": 0
+    },
+    {
+      "tenant": "space-3",
+      "date": "2026-11-06",
+      "as_of": "2026-11-06T04:54:03.386555947Z",
+      "modelCalls": 0,
+      "unknownModelCalls": 0,
+      "unsettledModelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "knownTotalTokens": 0,
+      "cacheReadTokens": null,
+      "uncachedInputTokens": null,
+      "unknownCacheModelCalls": 0
+    },
+    {
+      "tenant": "space-4",
+      "date": "2026-11-06",
+      "as_of": "2026-11-06T04:54:03.622034711Z",
+      "modelCalls": 23,
+      "unknownModelCalls": 0,
+      "unsettledModelCalls": 0,
+      "inputTokens": 75615,
+      "outputTokens": 1487,
+      "knownTotalTokens": 77102,
+      "cacheReadTokens": 66560,
+      "uncachedInputTokens": 9055,
+      "unknownCacheModelCalls": 0
+    }
+  ]
+}
