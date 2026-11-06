@@ -1,0 +1,45 @@
+{
+  "scope": "Management form synchronous validation recovery",
+  "deployment": {
+    "owner": "open_agent.console.demo.v1",
+    "archive_sha256": "12d3fb49a99fba0bdb8afe9e5fe1288c727e19883749f1498670f6ec0f9ba818",
+    "files": {
+      "assets/index-B8zKP4PY.css": "e6a171b5bc6d5387b708d7b18e58a67653307c0cf8a20c8d96e99a70ab60269d",
+      "assets/index-DbvumGzH.js": "781a481f641b411332acc8a25b9a4ac2b7aea78b5852f974c240d9f73ef8e569",
+      "index.html": "2d3025a224307abc5d56f8f7cb0a0a095cfb5125d9d67d05f5481ef78bffb113"
+    },
+    "previous": "cf92f0b7831b545df13fa81188f553940441c220fabe4949ded2b95121bb1f85",
+    "published_unix": 1793924668,
+    "url": "https://120.26.81.83/open-agent/",
+    "browser_verified": false
+  },
+  "public_verification": {
+    "checked_at": "2026-11-06T08:24:41.515537+08:00",
+    "origin": "https://120.26.81.83",
+    "console_archive_sha256": "12d3fb49a99fba0bdb8afe9e5fe1288c727e19883749f1498670f6ec0f9ba818",
+    "asset_digests_verified": 3,
+    "trusted_tls": true,
+    "certificate_sha256": "3a9b526dd35464a9738891ab9ca5d3cae8a9a06564853f6157f910ffb523b521",
+    "certificate_expires": "Nov 11 09:09:46 2026 GMT",
+    "issuer": "https://120.26.81.83/identity",
+    "pkce_s256": true,
+    "unauthenticated_rejected": true,
+    "forged_headers_rejected": true,
+    "internal_route_denied": true,
+    "authenticated_public_api": true,
+    "list_detail_usage_matches": 21,
+    "static_csp": true,
+    "profile_verified_subject_only": true,
+    "profile_idempotent": true,
+    "profile_does_not_change_tenants": true,
+    "browser_verification": "separate manual browser evidence required"
+  },
+  "typescript_and_vite": "passed",
+  "openspec_strict": {
+    "failed": 0,
+    "passed": 11
+  },
+  "browser_interactions_verified": false,
+  "browser_limitation": "Native window observation failed because the window was minimized",
+  "no_model_tasks_replayed": true
+}

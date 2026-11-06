@@ -1,5 +1,9 @@
 # 真实工作台
 
+2026-11-06 管理表单修复：统一 `EditForm` 将本地同步校验与异步 API 失败放入同一错误处理路径，失败后保留表单并恢复按钮；使用同步提交锁阻止同一请求完成前重复发起。调用路径为管理弹窗 → `EditForm` → 本地校验 → `ApiScope` → 既有租户接口；不修改共享后端或权限语义。修复覆盖使用该组件的 Agent、Skill、模型、成员、配额及发布表单。此前 Skill ZIP 校验或模型选择检查直接抛错会跳过 Promise 错误处理，导致按钮停留在提交中。
+
+工作台 TypeScript/Vite 构建和 11 项 OpenSpec 严格校验通过；静态包 `12d3fb49a99fba0bdb8afe9e5fe1288c727e19883749f1498670f6ec0f9ba818` 已发布，3 个公网资源摘要及 21 项列表/详情用量一致性通过。浏览器工具读取最小化窗口失败，因此本轮未声称浏览器交互验收通过。证据见 [表单修复部署核验](form-recovery-verification-20261106.json)。实现参考 [React effect 生命周期](https://react.dev/reference/react/useEffect)；当前会话未提供 Context7，使用官方文档核对。
+
 2026-11-05 展示入口：<https://120.26.81.83/open-agent/>。原 `/open-agent-preview/` 保留为明确标记的静态预览。绿色/白色设计保持一致，真实工作台不使用模拟数据。
 
 当前「Agent 执行过程」已支持增量输入、模型实际 think、工具参数/结果及输出正文。「逐步观测 Skill 演示」任务 `e6eaaf2e` 的 58 步、6 次模型、4 次工具和 2 个文件可查看。API SHA256 `842599b4451bf7b4a31babaf76ddea7a3513811f4cb0a4d1b871de066e2a1abf`，worker `8c64a5475a783efd607f40d86f62e9f30967609309603497f561bd8358fbb7a0`，静态包 `d3c8ea561daf3dd96fd29657193dc37a5bf0a2c7680c42fefb557ffd918913ad`。独立 MLflow 后端及持久导出、停服补发与网络隔离已验收；见 [当前观测边界和证据](agent-execution-observations.md)。下文旧摘要为对应增量的历史记录。

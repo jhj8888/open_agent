@@ -47,35 +47,39 @@ export function EditForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  const submitting = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
       alive.current = false;
-    },
-    []
-  );
+    };
+  }, []);
   return (
     <Modal title={title} wide={wide} onClose={close}>
       <form
         onSubmit={event => {
           event.preventDefault();
-          if (busy) return;
+          if (submitting.current) return;
           const data = new FormData(event.currentTarget);
+          submitting.current = true;
           setBusy(true);
           setError('');
-          void action(data)
-            .then(() => {
+          void (async () => {
+            try {
+              // Local validation may throw before returning an API promise.
+              await action(data);
               if (alive.current) {
                 saved();
                 close();
               }
-            })
-            .catch(failure => {
+            } catch (failure) {
               if (alive.current && !aborted(failure))
                 setError(errorMessage(failure));
-            })
-            .finally(() => {
+            } finally {
+              submitting.current = false;
               if (alive.current) setBusy(false);
-            });
+            }
+          })();
         }}
       >
         <div className="form-body">
